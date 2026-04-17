@@ -43,7 +43,7 @@ const AdminRating = () => {
     const fetchAnalytics = async () => {
       try {
         const token = JSON.parse(localStorage.getItem('admin')).token;
-        const res = await axios.get('http://localhost:5000/api/results', {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/results`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         

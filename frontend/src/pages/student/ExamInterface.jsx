@@ -39,7 +39,7 @@ const ExamInterface = () => {
   useEffect(() => {
     const fetchExam = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/exams');
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
         if (res.data.length > 0) {
           setExam(res.data[0]);
         } else {
@@ -114,7 +114,7 @@ const ExamInterface = () => {
       };
 
       try {
-        await axios.post('http://localhost:5000/api/submit', resultData);
+        await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/submit`, resultData);
         resetExam();
         navigate('/result', { state: { result: resultData } });
       } catch (err) {

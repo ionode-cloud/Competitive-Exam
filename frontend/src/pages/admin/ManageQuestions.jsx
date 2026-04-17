@@ -18,7 +18,7 @@ const ManageQuestions = () => {
 
   const fetchQuestions = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/questions', {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, {
         headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem('admin')).token}` }
       });
       setQuestions(res.data);
@@ -36,7 +36,7 @@ const ManageQuestions = () => {
   const handleAddQuestion = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/questions', newQuestion, {
+      await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, newQuestion, {
         headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem('admin')).token}` }
       });
       setShowModal(false);

@@ -20,7 +20,7 @@ const CreateExam = () => {
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/questions', {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, {
           headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem('admin')).token}` }
         });
         setQuestions(res.data);
@@ -74,7 +74,7 @@ const CreateExam = () => {
 
       // 1. Create dynamic questions concurrently
       const questionPromises = validNewQuestions.map(q => 
-        axios.post('http://localhost:5000/api/questions', q, {
+        axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, q, {
           headers: { Authorization: `Bearer ${adminToken}` }
         })
       );
@@ -89,7 +89,7 @@ const CreateExam = () => {
         questions: [...selectedQuestions, ...dynamicQuestionIds]
       };
       
-      await axios.post('http://localhost:5000/api/exams', payload, {
+      await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`, payload, {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
       

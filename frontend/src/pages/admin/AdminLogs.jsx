@@ -17,7 +17,7 @@ const AdminLogs = () => {
   const fetchAdmins = async () => {
     try {
       const token = admin?.token || localStorage.getItem('admin') ? JSON.parse(localStorage.getItem('admin')).token : '';
-      const res = await axios.get('http://localhost:5000/api/admins', {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admins`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAdmins(res.data);
@@ -32,7 +32,7 @@ const AdminLogs = () => {
     e.preventDefault();
     try {
       const token = admin?.token || localStorage.getItem('admin') ? JSON.parse(localStorage.getItem('admin')).token : '';
-      await axios.post('http://localhost:5000/api/admins', newAdmin, {
+      await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admins`, newAdmin, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNewAdmin({ email: '', password: '' });

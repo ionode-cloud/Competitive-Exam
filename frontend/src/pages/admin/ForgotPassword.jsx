@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Mail, Lock, KeyRound, ArrowLeft, CheckCircle, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
-const API = 'http://localhost:5000/api';
+const API = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;
 
 // ── Step indicators ──────────────────────────────────────────────────────────
 const StepBadge = ({ step, label, active, done }) => (

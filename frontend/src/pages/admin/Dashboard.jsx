@@ -22,10 +22,10 @@ const Dashboard = () => {
         const config = { headers: { Authorization: `Bearer ${token}` } };
         
         const [exams, questions, students, results] = await Promise.all([
-          axios.get('http://localhost:5000/api/exams', config),
-          axios.get('http://localhost:5000/api/questions', config),
-          axios.get('http://localhost:5000/api/students', config),
-          axios.get('http://localhost:5000/api/results', config)
+          axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`, config),
+          axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, config),
+          axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/students`, config),
+          axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/results`, config)
         ]);
         
         setStats({
