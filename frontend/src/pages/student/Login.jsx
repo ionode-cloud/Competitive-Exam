@@ -1,13 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Hash, Briefcase, Layers } from 'lucide-react';
 
 const StudentLogin = () => {
-  const [details, setDetails] = useState({ name: '', rollNumber: '', branch: '', section: '' });
+  const [details, setDetails] = useState({ name: '', rollNumber: '', subject: '', section: '' });
+  const [exams, setExams] = useState([]);
   const { studentLogin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchExams = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
+        setExams(res.data.filter(e => e.isActive !== false));
+      } catch (err) {
+        console.error('Failed to fetch exams', err);
+      }
+    };
+    fetchExams();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,8 +35,6 @@ const StudentLogin = () => {
       setLoading(false);
     }
   };
-
-  const branches = ['Computer Science', 'Information Technology', 'Electronics', 'Mechanical', 'Civil'];
   const sections = ['A', 'B', 'C', 'D'];
 
   return (
@@ -60,15 +72,15 @@ const StudentLogin = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="input-group">
-              <label><Briefcase size={14} style={{ marginRight: 6 }} /> Branch</label>
+              <label><Briefcase size={14} style={{ marginRight: 6 }} /> Subject</label>
               <select 
                 className="input-field" 
                 required
-                value={details.branch}
-                onChange={(e) => setDetails({ ...details, branch: e.target.value })}
+                value={details.subject}
+                onChange={(e) => setDetails({ ...details, subject: e.target.value })}
               >
-                <option value="">Select Branch</option>
-                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                <option value="">Select Subject (Exam)</option>
+                {exams.map(exam => <option key={exam._id} value={exam._id}>{exam.title}</option>)}
               </select>
             </div>
             <div className="input-group">

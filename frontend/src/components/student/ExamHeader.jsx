@@ -24,7 +24,7 @@ const ExamHeader = ({ title, timeLeft, onShowInstructions }) => {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <div style={{ fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>
-          <span style={{ color: '#ff4d4f' }}>Adda</span>247
+          <span style={{ color: '#ff4d4f' }}>Compietative </span> Exam Portal
         </div>
         <div style={{ width: '1px', height: '24px', background: 'var(--border-light)' }}></div>
         <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>{title}</h2>

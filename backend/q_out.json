@@ -1,0 +1,72 @@
+[
+  {
+    "_id": "69e337dd68697234c03d2967",
+    "text": "Choose the word similar in meaning to “Abundant” .",
+    "options": [
+      "Empty",
+      "Rare",
+      "Plenty",
+      "Scarce"
+    ],
+    "correctOption": 2,
+    "section": "English",
+    "marks": 1,
+    "__v": 0
+  },
+  {
+    "_id": "69e337dd68697234c03d2966",
+    "text": "A shopkeeper buys an item for ₹500 and sells it for ₹600. Find the profit percentage.",
+    "options": [
+      "20%",
+      "35%",
+      "30%",
+      "25%"
+    ],
+    "correctOption": 0,
+    "section": "Quant",
+    "marks": 1,
+    "__v": 0
+  },
+  {
+    "_id": "69e337dd68697234c03d2965",
+    "text": "If CAT = DBU, then DOG = ?",
+    "options": [
+      "EPH",
+      "EOG",
+      "DPH",
+      "FQI"
+    ],
+    "correctOption": 0,
+    "section": "Reasoning",
+    "marks": 5,
+    "__v": 0
+  },
+  {
+    "_id": "69e337dd68697234c03d2964",
+    "text": "She ______ to the bank before it closed.",
+    "options": [
+      "go",
+      "goes",
+      "going",
+      "went"
+    ],
+    "correctOption": 3,
+    "section": "English",
+    "marks": 1,
+    "__v": 0
+  },
+  {
+    "_id": "69e337dd68697234c03d2963",
+    "text": "Choose the correct meaning of “Hit the nail on the head”",
+    "options": [
+      "To miss the target",
+      "To hit someone",
+      "To work hard",
+      "To do something exactly right"
+    ],
+    "correctOption": 3,
+    "section": "English",
+    "marks": 1,
+    "__v": 0
+  }
+]

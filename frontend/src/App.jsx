@@ -7,6 +7,7 @@ import ResultPage from './pages/student/ResultPage';
 import AdminLogin from './pages/admin/Login';
 import AdminDashboard from './pages/admin/Dashboard';
 import CreateExam from './pages/admin/CreateExam';
+import ManageExams from './pages/admin/ManageExams';
 import ManageQuestions from './pages/admin/ManageQuestions';
 import StudentsView from './pages/admin/Students';
 import ResultsView from './pages/admin/Results';
@@ -33,6 +34,7 @@ function App() {
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
         <Route path="/admin/dashboard" element={admin ? <AdminDashboard /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/create-exam" element={admin ? <CreateExam /> : <Navigate to="/admin/login" />} />
+        <Route path="/admin/manage-exams" element={admin ? <ManageExams /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/manage-questions" element={admin ? <ManageQuestions /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/students" element={admin ? <StudentsView /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/results" element={admin ? <ResultsView /> : <Navigate to="/admin/login" />} />

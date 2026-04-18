@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, BookOpen, Users, BarChart3, LogOut, Shield, Star, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FilePlus, BookOpen, Users, BarChart3, LogOut, Shield, Star, Menu, X, ListTodo } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './AdminLayout.css';
 
@@ -26,6 +26,7 @@ const AdminLayout = ({ children }) => {
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: <FilePlus size={20} />, label: 'Create Exam', path: '/admin/create-exam' },
+    { icon: <ListTodo size={20} />, label: 'Manage Exams', path: '/admin/manage-exams' },
     { icon: <BookOpen size={20} />, label: 'Manage Questions', path: '/admin/manage-questions' },
     { icon: <Users size={20} />, label: 'Students', path: '/admin/students' },
     { icon: <BarChart3 size={20} />, label: 'Results', path: '/admin/results' },

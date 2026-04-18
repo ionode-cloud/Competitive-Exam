@@ -30,7 +30,7 @@ const AdminSchema = new mongoose.Schema({
 const StudentSchema = new mongoose.Schema({
   name: String,
   rollNumber: { type: String, required: true, unique: true },
-  branch: String,
+  subject: String,
   section: String
 });
 
@@ -39,14 +39,16 @@ const QuestionSchema = new mongoose.Schema({
   options: [String],
   correctOption: Number, // 0, 1, 2, 3
   section: { type: String, enum: ['English', 'Reasoning', 'Quant'] },
-  marks: { type: Number, default: 1 }
+  marks: { type: Number, default: 1 },
+  exam: { type: mongoose.Schema.Types.ObjectId, ref: 'Exam' }
 });
 
 const ExamSchema = new mongoose.Schema({
   title: String,
   duration: Number, // in minutes
   sections: [String],
-  questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }]
+  questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
+  isActive: { type: Boolean, default: true }
 });
 
 const ResultSchema = new mongoose.Schema({
@@ -217,10 +219,15 @@ app.post('/api/admin/login', async (req, res) => {
 
 // Student Login
 app.post('/api/student/login', async (req, res) => {
-  const { name, rollNumber, branch, section } = req.body;
+  const { name, rollNumber, subject, section } = req.body;
   let student = await Student.findOne({ rollNumber });
   if (!student) {
-    student = new Student({ name, rollNumber, branch, section });
+    student = new Student({ name, rollNumber, subject, section });
+    await student.save();
+  } else {
+    // Update subject or section for subsequent logins
+    student.subject = subject;
+    if(section) student.section = section;
     await student.save();
   }
   res.json(student);
@@ -238,27 +245,58 @@ app.get('/api/students', authMiddleware, async (req, res) => {
 
 // Manage Questions
 app.get('/api/questions', authMiddleware, async (req, res) => {
-  const questions = await Question.find();
+  const questions = await Question.find().populate('exam', 'title');
   res.json(questions);
 });
 
 app.post('/api/questions', authMiddleware, async (req, res) => {
-  const question = new Question(req.body);
+  const { examId, ...questionData } = req.body;
+  // If examId is provided, save it as a reference on the question
+  if (examId) questionData.exam = examId;
+  const question = new Question(questionData);
   await question.save();
+  
+  if (examId) {
+    await Exam.findByIdAndUpdate(examId, { $push: { questions: question._id } });
+  }
+  
   res.status(201).json(question);
 });
 
 // Manage Exams
 app.post('/api/exams', authMiddleware, async (req, res) => {
-  const exam = new Exam(req.body);
+  const { title, duration, sections, questions } = req.body;
+  const exam = new Exam({ title, duration, sections, questions });
   await exam.save();
   res.status(201).json(exam);
+});
+
+app.put('/api/exams/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    const exam = await Exam.findByIdAndUpdate(req.params.id, { isActive }, { new: true });
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    res.json(exam);
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating exam status' });
+  }
+});
+
+app.delete('/api/exams/:id', authMiddleware, async (req, res) => {
+  try {
+    const exam = await Exam.findByIdAndDelete(req.params.id);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    res.json({ message: 'Exam deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting exam' });
+  }
 });
 
 app.get('/api/exams', async (req, res) => {
   const exams = await Exam.find().populate('questions');
   res.json(exams);
 });
+
 
 // Student Submit Test
 app.post('/api/submit', async (req, res) => {

@@ -40,10 +40,11 @@ const ExamInterface = () => {
     const fetchExam = async () => {
       try {
         const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
-        if (res.data.length > 0) {
-          setExam(res.data[0]);
+        const currentExam = res.data.find(e => e._id === student?.subject);
+        if (currentExam) {
+          setExam(currentExam);
         } else {
-          setExam(mockExam);
+          setExam(null); // Force error/loading state rather than wrong exam
         }
       } catch (err) {
         console.error('Failed to fetch exam, using mock data');
@@ -55,7 +56,35 @@ const ExamInterface = () => {
     fetchExam();
   }, [setExam]);
 
-  if (loading || !exam) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Exam...</div>;
+  if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Exam...</div>;
+  if (!exam) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        <h2>Exam Not Found</h2>
+        <p>Your session seems to be corrupted or out-of-date.</p>
+        <button 
+          className="btn btn-primary" 
+          style={{ padding: '12px 24px', fontSize: '1.1rem' }}
+          onClick={() => {
+            localStorage.removeItem('student');
+            window.location.href = '/login';
+          }}
+        >
+          Click Here to Reset Session & Log In Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!exam.questions || exam.questions.length === 0) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        <h2>Exam is Empty</h2>
+        <p>No questions have been assigned to this exam yet.</p>
+        <button className="btn btn-primary" onClick={() => navigate('/login')}>Back to Login</button>
+      </div>
+    );
+  }
 
   const currentQuestion = exam.questions[currentQuestionIndex];
 
@@ -140,6 +169,12 @@ const ExamInterface = () => {
             {exam.sections.map(sec => (
               <button 
                 key={sec}
+                onClick={() => {
+                  const sectionIndex = exam.questions.findIndex(q => q.section === sec);
+                  if (sectionIndex !== -1) {
+                    setCurrentQuestionIndex(sectionIndex);
+                  }
+                }}
                 style={{ 
                   padding: '8px 16px', 
                   border: 'none', 

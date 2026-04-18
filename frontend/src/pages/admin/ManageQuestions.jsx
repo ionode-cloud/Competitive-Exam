@@ -13,17 +13,22 @@ const ManageQuestions = () => {
     options: ['', '', '', ''],
     correctOption: 0,
     section: 'English',
-    marks: 1
+    marks: 1,
+    examId: ''
   });
+  const [exams, setExams] = useState([]);
 
   const fetchQuestions = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, {
+      const questionsRes = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/questions`, {
         headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem('admin')).token}` }
       });
-      setQuestions(res.data);
+      setQuestions(questionsRes.data);
+      
+      const examsRes = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
+      setExams(examsRes.data);
     } catch (err) {
-      console.error('Failed to fetch questions');
+      console.error('Failed to fetch data');
     } finally {
       setLoading(false);
     }
@@ -40,7 +45,7 @@ const ManageQuestions = () => {
         headers: { Authorization: `Bearer ${JSON.parse(localStorage.getItem('admin')).token}` }
       });
       setShowModal(false);
-      setNewQuestion({ text: '', options: ['', '', '', ''], correctOption: 0, section: 'English', marks: 1 });
+      setNewQuestion({ text: '', options: ['', '', '', ''], correctOption: 0, section: 'English', marks: 1, examId: '' });
       fetchQuestions();
     } catch (err) {
       alert('Failed to add question');
@@ -84,6 +89,7 @@ const ManageQuestions = () => {
           <thead style={{ background: '#f8fafc', borderBottom: '1px solid var(--border-light)' }}>
             <tr style={{ textAlign: 'left' }}>
               <th style={{ padding: '16px', fontSize: '0.875rem' }}>Question Text</th>
+              <th style={{ padding: '16px', fontSize: '0.875rem' }}>Subject (Exam)</th>
               <th style={{ padding: '16px', fontSize: '0.875rem' }}>Section</th>
               <th style={{ padding: '16px', fontSize: '0.875rem' }}>Marks</th>
               <th style={{ padding: '16px', fontSize: '0.875rem' }}>Actions</th>
@@ -98,6 +104,11 @@ const ManageQuestions = () => {
               <tr key={q._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                 <td style={{ padding: '16px', maxWidth: '500px' }}>
                   <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.text}</div>
+                </td>
+                <td style={{ padding: '16px' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--primary)' }}>
+                    {q.exam ? q.exam.title : 'Unassigned'}
+                  </span>
                 </td>
                 <td style={{ padding: '16px' }}>
                   <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, background: q.section === 'English' ? '#eef2ff' : q.section === 'Reasoning' ? '#f5f3ff' : '#f0fdf4', color: q.section === 'English' ? '#4338ca' : q.section === 'Reasoning' ? '#6d28d9' : '#15803d' }}>
@@ -134,7 +145,14 @@ const ManageQuestions = () => {
                 ></textarea>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginTop: '16px' }}>
+                <div className="input-group">
+                  <label>Assign to Subject (Exam)</label>
+                  <select className="input-field" value={newQuestion.examId} onChange={(e) => setNewQuestion({ ...newQuestion, examId: e.target.value })}>
+                    <option value="">-- None (Bank Only) --</option>
+                    {exams.map(ex => <option key={ex._id} value={ex._id}>{ex.title}</option>)}
+                  </select>
+                </div>
                 <div className="input-group">
                   <label>Section</label>
                   <select className="input-field" value={newQuestion.section} onChange={(e) => setNewQuestion({ ...newQuestion, section: e.target.value })}>
