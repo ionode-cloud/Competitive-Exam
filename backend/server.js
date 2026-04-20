@@ -30,21 +30,23 @@ const AdminSchema = new mongoose.Schema({
 const StudentSchema = new mongoose.Schema({
   name: String,
   rollNumber: { type: String, required: true, unique: true },
-  subject: String,
-  section: String
+  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Exam' }
 });
 
 const QuestionSchema = new mongoose.Schema({
   text: String,
   options: [String],
   correctOption: Number, // 0, 1, 2, 3
-  section: { type: String, enum: ['English', 'Reasoning', 'Quant'] },
+  section: String,
   marks: { type: Number, default: 1 },
   exam: { type: mongoose.Schema.Types.ObjectId, ref: 'Exam' }
 });
 
 const ExamSchema = new mongoose.Schema({
-  title: String,
+  subjectName: String,
+  topicName: String,
+  negativeMarking: { type: Number, default: 0 },
+  totalMarks: { type: Number, default: 0 },
   duration: Number, // in minutes
   sections: [String],
   questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
@@ -219,15 +221,14 @@ app.post('/api/admin/login', async (req, res) => {
 
 // Student Login
 app.post('/api/student/login', async (req, res) => {
-  const { name, rollNumber, subject, section } = req.body;
+  const { name, rollNumber, subject } = req.body;
   let student = await Student.findOne({ rollNumber });
   if (!student) {
-    student = new Student({ name, rollNumber, subject, section });
+    student = new Student({ name, rollNumber, subject });
     await student.save();
   } else {
-    // Update subject or section for subsequent logins
+    // Update subject for subsequent logins
     student.subject = subject;
-    if(section) student.section = section;
     await student.save();
   }
   res.json(student);
@@ -236,16 +237,38 @@ app.post('/api/student/login', async (req, res) => {
 // Get All Students (Admin View)
 app.get('/api/students', authMiddleware, async (req, res) => {
   try {
-    const students = await Student.find();
+    const students = await Student.find().populate('subject');
     res.json(students);
   } catch(err) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Manage Questions
+// Delete Student
+app.delete('/api/students/:id', authMiddleware, async (req, res) => {
+  try {
+    await Student.findByIdAndDelete(req.params.id);
+    // Also delete their results
+    await Result.deleteMany({ student: req.params.id });
+    res.json({ message: 'Student deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete student' });
+  }
+});
+
+// Delete All Students
+app.delete('/api/students/bulk/all', authMiddleware, async (req, res) => {
+  try {
+    await Student.deleteMany({});
+    // Also delete all results associated with students
+    await Result.deleteMany({});
+    res.json({ message: 'All student records cleared successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to clear student registry' });
+  }
+});
 app.get('/api/questions', authMiddleware, async (req, res) => {
-  const questions = await Question.find().populate('exam', 'title');
+  const questions = await Question.find().populate('exam', 'topicName subjectName');
   res.json(questions);
 });
 
@@ -263,12 +286,73 @@ app.post('/api/questions', authMiddleware, async (req, res) => {
   res.status(201).json(question);
 });
 
-// Manage Exams
+// Update Question
+app.put('/api/questions/:id', authMiddleware, async (req, res) => {
+  try {
+    const { examId, ...updateData } = req.body;
+    if (examId) updateData.exam = examId;
+    const question = await Question.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    res.json(question);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update question' });
+  }
+});
+
+// Delete Question
+app.delete('/api/questions/:id', authMiddleware, async (req, res) => {
+  try {
+    const question = await Question.findByIdAndDelete(req.params.id);
+    if (question && question.exam) {
+      await Exam.findByIdAndUpdate(question.exam, { $pull: { questions: question._id } });
+    }
+    res.json({ message: 'Question deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete question' });
+  }
+});
+
+// Delete all questions in a Topic
+app.delete('/api/questions/bulk/topic', authMiddleware, async (req, res) => {
+  try {
+    const { topicName } = req.query;
+    if (topicName === 'General Question Bank') {
+      await Question.deleteMany({ exam: null });
+    } else {
+      const exams = await Exam.find({ topicName });
+      const examIds = exams.map(e => e._id);
+      await Question.deleteMany({ exam: { $in: examIds } });
+      // Remove these questions from exams as well (though questions are deleted, cleaner to empty the arrays)
+      await Exam.updateMany({ topicName }, { $set: { questions: [] } });
+    }
+    res.json({ message: 'Topic questions deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete topic questions' });
+  }
+});
+
+// Manage Exams (Bulk Create)
 app.post('/api/exams', authMiddleware, async (req, res) => {
-  const { title, duration, sections, questions } = req.body;
-  const exam = new Exam({ title, duration, sections, questions });
-  await exam.save();
-  res.status(201).json(exam);
+  try {
+    const { subjectName, topicName, negativeMarking, totalMarks, duration, questions: questionDatas } = req.body;
+    
+    // Automatically derive sections from questions
+    const sections = [...new Set(questionDatas.map(q => q.section).filter(Boolean))];
+
+    const exam = new Exam({ subjectName, topicName, negativeMarking, totalMarks, duration, sections });
+    await exam.save();
+
+    if (questionDatas && questionDatas.length > 0) {
+      const questionsWithExamId = questionDatas.map(q => ({ ...q, exam: exam._id, marks: q.marks || 1 }));
+      const savedQuestions = await Question.insertMany(questionsWithExamId);
+      exam.questions = savedQuestions.map(q => q._id);
+      await exam.save();
+    }
+    
+    res.status(201).json(exam);
+  } catch (err) {
+    console.error('Exam bulk create error:', err);
+    res.status(500).json({ message: 'Failed to create exam and questions' });
+  }
 });
 
 app.put('/api/exams/:id/status', authMiddleware, async (req, res) => {
@@ -327,7 +411,7 @@ app.get('/api/results', authMiddleware, async (req, res) => {
   try {
     const results = await Result.find()
       .populate('student', 'name rollNumber')
-      .populate('exam', 'title questions')
+      .populate('exam', 'subjectName topicName totalMarks questions')
       .sort({ submittedAt: -1 });
     res.json(results);
   } catch(err) {
@@ -339,6 +423,16 @@ app.get('/api/results', authMiddleware, async (req, res) => {
 app.get('/api/results/:studentId', async (req, res) => {
   const results = await Result.find({ student: req.params.studentId }).populate('exam');
   res.json(results);
+});
+
+// Delete All Results
+app.delete('/api/results/all', authMiddleware, async (req, res) => {
+  try {
+    await Result.deleteMany({});
+    res.json({ message: 'All results cleared successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to clear results' });
+  }
 });
 
 // Manage Admins

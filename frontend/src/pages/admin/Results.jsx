@@ -1,53 +1,81 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Award, TrendingUp, AlertCircle, Filter } from 'lucide-react';
+import { Award, TrendingUp, AlertCircle, Filter, Trash2 } from 'lucide-react';
 
 const ResultsView = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterExam, setFilterExam] = useState('All');
 
+  const fetchResults = async () => {
+    try {
+      setLoading(true);
+      const token = JSON.parse(localStorage.getItem('admin')).token;
+      const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/results`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setResults(res.data);
+    } catch (err) {
+      console.error('Failed to fetch results', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        const token = JSON.parse(localStorage.getItem('admin')).token;
-        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/results`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setResults(res.data);
-      } catch (err) {
-        console.error('Failed to fetch results', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchResults();
   }, []);
 
-  const uniqueExams = ['All', ...new Set(results.map(r => r.exam?.title).filter(Boolean))];
+  const handleClearHistory = async () => {
+    if (!window.confirm('WARNING: This will permanently delete ALL exam results from the database. This action cannot be undone. Are you absolutely sure?')) return;
+    if (!window.confirm('Please confirm once more: Delete entire history?')) return;
+
+    try {
+      const token = JSON.parse(localStorage.getItem('admin')).token;
+      await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/results/all`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setResults([]);
+      alert('All results have been cleared.');
+    } catch (err) {
+      alert('Failed to clear history');
+    }
+  };
+
+  const uniqueExams = ['All', ...new Set(results.map(r => r.exam ? `${r.exam.topicName} - ${r.exam.subjectName}` : null).filter(Boolean))];
 
   const filteredResults = useMemo(() => {
-    return results.filter(r => filterExam === 'All' || r.exam?.title === filterExam);
+    return results.filter(r => {
+      const examName = r.exam ? `${r.exam.topicName} - ${r.exam.subjectName}` : 'Deleted Exam';
+      return filterExam === 'All' || examName === filterExam;
+    });
   }, [results, filterExam]);
 
   const metrics = useMemo(() => {
-    if (filteredResults.length === 0) return { average: 0, passRate: 0, alertCount: 0 };
+    // Filter out results where the exam was deleted to avoid division by 1 fallback
+    const validResults = filteredResults.filter(r => r.exam);
+    if (validResults.length === 0) return { average: 0, passRate: 0, alertCount: 0 };
+    
     let totalPercentage = 0;
     let passedCount = 0;
     let alertCount = 0;
     
-    filteredResults.forEach(r => {
-      const max = r.exam?.questions?.length || 1; 
-      const percentage = (r.score / max) * 100;
+    validResults.forEach(r => {
+      // Use totalMarks, fallback to questions length, absolute fallback to 1 ONLY if both are missing
+      const max = r.exam.totalMarks || r.exam.questions?.length || 1; 
+      // CAP PERCENTAGE AT 100% to ensure Average Score is realistic
+      const rawPercentage = (r.score / max) * 100;
+      const percentage = Math.min(rawPercentage, 100);
+      
       totalPercentage += percentage;
       if (percentage >= 50) passedCount++;
       else alertCount++;
     });
     
     return {
-      average: (totalPercentage / filteredResults.length).toFixed(1),
-      passRate: ((passedCount / filteredResults.length) * 100).toFixed(0),
+      average: (totalPercentage / validResults.length).toFixed(1),
+      passRate: ((passedCount / validResults.length) * 100).toFixed(0),
       alertCount
     };
   }, [filteredResults]);
@@ -60,19 +88,33 @@ const ResultsView = () => {
           <p style={{ color: 'var(--text-muted)' }}>Monitor student performance and live test analytics.</p>
         </div>
         
-        {!loading && results.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border-light)' }}>
-            <Filter size={18} color="var(--primary)" />
-            <span style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Filter Exam:</span>
-            <select 
-              value={filterExam} 
-              onChange={e => setFilterExam(e.target.value)}
-              style={{ border: 'none', outline: 'none', background: 'transparent', fontWeight: 'bold', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem' }}
+        {!loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button 
+              onClick={handleClearHistory}
+              className="btn btn-outline" 
+              style={{ color: '#ef4444', borderColor: '#fee2e2', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px' }}
+              title="Delete Entire History"
             >
-              {uniqueExams.map(ex => (
-                <option key={ex} value={ex}>{ex}</option>
-              ))}
-            </select>
+              <Trash2 size={18} />
+              Clear All Records
+            </button>
+
+            {results.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border-light)' }}>
+                <Filter size={18} color="var(--primary)" />
+                <span style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Filter Exam:</span>
+                <select 
+                  value={filterExam} 
+                  onChange={e => setFilterExam(e.target.value)}
+                  style={{ border: 'none', outline: 'none', background: 'transparent', fontWeight: 'bold', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem' }}
+                >
+                  {uniqueExams.map(ex => (
+                    <option key={ex} value={ex}>{ex}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -101,15 +143,21 @@ const ResultsView = () => {
               <tr><td colSpan="5" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>No exam attempts recorded yet.</td></tr>
             ) : (
               filteredResults.map(res => {
-                const maxMarks = res.exam?.questions?.length || 1;
-                const percentage = (res.score / maxMarks) * 100;
-                const isPassing = percentage >= 50;
+                const examAvailable = !!res.exam;
+                const maxMarks = examAvailable ? (res.exam.totalMarks || res.exam.questions?.length || 1) : 1;
+                const rawPercentage = examAvailable ? ((res.score / maxMarks) * 100) : 0;
+                const percentage = Math.min(rawPercentage, 100);
+                const isPassing = examAvailable && percentage >= 50;
 
                 return (
-                  <tr key={res._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                  <tr key={res._id} style={{ borderBottom: '1px solid var(--border-light)', opacity: examAvailable ? 1 : 0.6 }}>
                     <td style={{ padding: '16px', fontWeight: 500 }}>{res.student?.name || 'Unknown'}</td>
-                    <td style={{ padding: '16px' }}>{res.exam?.title || 'Unknown Exam'}</td>
-                    <td style={{ padding: '16px', fontWeight: 700 }}>{res.score} / {maxMarks}</td>
+                    <td style={{ padding: '16px' }}>
+                      {examAvailable ? `${res.exam.topicName} - ${res.exam.subjectName}` : <span style={{ color: '#ef4444' }}>Exam Deleted</span>}
+                    </td>
+                    <td style={{ padding: '16px', fontWeight: 700 }}>
+                      {examAvailable ? `${res.score} / ${maxMarks}` : `${res.score} (Limit Unknown)`}
+                    </td>
                     <td style={{ padding: '16px' }}>
                       <span style={{ 
                         padding: '4px 12px', 

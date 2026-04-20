@@ -5,8 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Hash, Briefcase, Layers } from 'lucide-react';
 
 const StudentLogin = () => {
-  const [details, setDetails] = useState({ name: '', rollNumber: '', subject: '', section: '' });
+  const [details, setDetails] = useState({ name: '', rollNumber: '', subject: '' });
   const [exams, setExams] = useState([]);
+  const [selectedSubject, setSelectedSubject] = useState('');
   const { studentLogin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,9 @@ const StudentLogin = () => {
       setLoading(false);
     }
   };
-  const sections = ['A', 'B', 'C', 'D'];
+  
+  const uniqueSubjects = [...new Set(exams.map(e => e.subjectName))];
+  const filteredTopics = exams.filter(e => e.subjectName === selectedSubject);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)' }}>
@@ -70,31 +73,34 @@ const StudentLogin = () => {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="input-group">
-              <label><Briefcase size={14} style={{ marginRight: 6 }} /> Subject</label>
-              <select 
-                className="input-field" 
-                required
-                value={details.subject}
-                onChange={(e) => setDetails({ ...details, subject: e.target.value })}
-              >
-                <option value="">Select Subject (Exam)</option>
-                {exams.map(exam => <option key={exam._id} value={exam._id}>{exam.title}</option>)}
-              </select>
-            </div>
-            <div className="input-group">
-              <label><Layers size={14} style={{ marginRight: 6 }} /> Section</label>
-              <select 
-                className="input-field" 
-                required
-                value={details.section}
-                onChange={(e) => setDetails({ ...details, section: e.target.value })}
-              >
-                <option value="">Select Section</option>
-                {sections.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+          <div className="input-group">
+            <label><Briefcase size={14} style={{ marginRight: 6 }} /> Subject Name</label>
+            <select 
+              className="input-field" 
+              required
+              value={selectedSubject}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value);
+                setDetails({ ...details, subject: '' });
+              }}
+            >
+              <option value="">Select Subject</option>
+              {uniqueSubjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+            </select>
+          </div>
+
+          <div className="input-group">
+            <label><Layers size={14} style={{ marginRight: 6 }} /> Topic Name</label>
+            <select 
+              className="input-field" 
+              required
+              value={details.subject}
+              onChange={(e) => setDetails({ ...details, subject: e.target.value })}
+              disabled={!selectedSubject}
+            >
+              <option value="">Select Topic</option>
+              {filteredTopics.map(exam => <option key={exam._id} value={exam._id}>{exam.topicName}</option>)}
+            </select>
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} disabled={loading}>

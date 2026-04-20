@@ -24,7 +24,8 @@ const ExamInterface = () => {
   // Mock Data for Initial Test if DB is empty
   const mockExam = {
     _id: 'mock123',
-    title: 'RBI Assistant Pre 2026 Advance Level Mock Test - 01',
+    topicName: 'RBI Assistant Pre 2026 Advance Level Mock Test - 01',
+    subjectName: 'Banking',
     duration: 60,
     sections: ['English', 'Reasoning', 'Quant'],
     questions: [
@@ -118,7 +119,7 @@ const ExamInterface = () => {
             correct++;
             scoreBySection[q.section] += q.marks;
           } else {
-            totalScore -= 0.25; // Negative marking
+            totalScore -= (exam.negativeMarking || 0); // Dynamic Negative marking
             wrong++;
           }
         }
@@ -157,9 +158,9 @@ const ExamInterface = () => {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
       <ExamHeader 
-        title={exam.title} 
+        title={`${exam.topicName} - ${exam.subjectName}`} 
         timeLeft={timeLeft} 
-        onShowInstructions={() => alert('Instructions: Answer all questions. Each correct answer carries 1 mark. There is no negative marking.')} 
+        onShowInstructions={() => alert(`Instructions: Answer all questions. Each correct answer carries 1 mark. Negative marking: ${exam.negativeMarking || 0} per wrong answer.`)} 
       />
       
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 320px', overflow: 'hidden' }}>

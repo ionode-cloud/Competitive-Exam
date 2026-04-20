@@ -63,9 +63,11 @@ const ManageExams = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: '#f8fafc', borderBottom: '1px solid var(--border-light)' }}>
             <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Exam Title</th>
+              <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Topic</th>
+              <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Subject</th>
               <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Duration</th>
               <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Questions</th>
+              <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Total Marks</th>
               <th style={{ padding: '20px 16px', fontSize: '0.875rem' }}>Status</th>
               <th style={{ padding: '20px 16px', fontSize: '0.875rem', textAlign: 'right' }}>Actions</th>
             </tr>
@@ -75,7 +77,8 @@ const ManageExams = () => {
               <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No exams found.</td></tr>
             ) : exams.map(e => (
               <tr key={e._id} style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.2s' }} className="table-row-hover">
-                <td style={{ padding: '16px', fontWeight: 600, fontSize: '1rem' }}>{e.title}</td>
+                <td style={{ padding: '16px', fontWeight: 600, fontSize: '1rem' }}>{e.topicName}</td>
+                <td style={{ padding: '16px', color: 'var(--text-muted)' }}>{e.subjectName}</td>
                 <td style={{ padding: '16px', color: 'var(--text-muted)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Clock size={16} /> {e.duration} mins
@@ -85,6 +88,9 @@ const ManageExams = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <BookOpen size={16} /> {e.questions?.length || 0} Questions
                   </div>
+                </td>
+                <td style={{ padding: '16px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {e.totalMarks || '-'}
                 </td>
                 <td style={{ padding: '16px' }}>
                   <span style={{ 

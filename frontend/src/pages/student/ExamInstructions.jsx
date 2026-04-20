@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './ExamInstructions.css';
@@ -21,6 +22,8 @@ const TEXT_SIZES = ['Small', 'Medium', 'Large'];
 const ExamInstructions = () => {
   const navigate = useNavigate();
   const { student } = useAuth();
+  const [exam, setExam] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [language, setLanguage] = useState('');
   const [viewIn, setViewIn] = useState('ENGLISH');
@@ -28,6 +31,21 @@ const ExamInstructions = () => {
   const [accepted, setAccepted] = useState(false);
   const [langError, setLangError] = useState(false);
   const [acceptError, setAcceptError] = useState(false);
+
+  useEffect(() => {
+    const fetchExam = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
+        const currentExam = res.data.find(e => e._id === student?.subject);
+        setExam(currentExam);
+      } catch (err) {
+        console.error('Failed to fetch exam for instructions');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (student?.subject) fetchExam();
+  }, [student]);
 
   const handleBegin = () => {
     let valid = true;
@@ -53,14 +71,14 @@ const ExamInstructions = () => {
             <div className="ei-info-group">
               <span className="ei-info-label">Total Questions</span>
               <span className="ei-info-sep">|</span>
-              <strong className="ei-info-val">{examData.totalQuestions}</strong>
+              <strong className="ei-info-val">{exam?.questions?.length || 0}</strong>
               <span className="ei-info-sep">|</span>
               <span className="ei-info-label">Maximum Marks</span>
               <span className="ei-info-sep">|</span>
-              <strong className="ei-info-val">{examData.maxMarks}</strong>
+              <strong className="ei-info-val">{exam?.questions?.length || 0}</strong>
               <span className="ei-info-sep">|</span>
               <span className="ei-info-label ei-duration-icon">⏱ Duration</span>
-              <strong className="ei-info-val">{examData.duration} mins</strong>
+              <strong className="ei-info-val">{exam?.duration || 60} mins</strong>
             </div>
             <div className="ei-view-controls">
               <label className="ei-ctrl-label">Text Size:</label>
@@ -123,11 +141,11 @@ const ExamInstructions = () => {
 
           {/* ── Rules List ── */}
           <ol className="ei-rules">
-            <li>You have <strong>{examData.duration} minutes</strong> to complete the test.</li>
-            <li>The test contains a total of <strong>{examData.totalQuestions} questions</strong> for <strong>{examData.maxMarks} marks</strong>.</li>
+            <li>You have <strong>{exam?.duration || 60} minutes</strong> to complete the test.</li>
+            <li>The test contains a total of <strong>{exam?.questions?.length || 0} questions</strong>.</li>
             <li>There is only one correct answer to each question. Click on the most appropriate option to mark it as your answer.</li>
             <li>You will be awarded <strong>1 mark</strong> for each correct answer.</li>
-            <li>There is <strong>1/4 penalty</strong> for each wrong answer.</li>
+            <li>There is <strong>{exam?.negativeMarking || 0} penalty</strong> for each wrong answer.</li>
             <li>You can change your answer by clicking on some other option.</li>
             <li>You can unmark your answer by clicking on the &quot;Clear Response&quot; button.</li>
             <li>A Number list of all questions appears at the right hand side of the screen. You can access the questions in any order within a section or across sections by clicking on the question number given on the number list.</li>

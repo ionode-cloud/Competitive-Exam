@@ -1,12 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Star, Filter } from 'lucide-react';
+import { Star, Filter, Download as DownloadIcon, Trash2 } from 'lucide-react';
 
 const StudentsView = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterBranch, setFilterBranch] = useState('All');
+
+  const downloadExcel = () => {
+    // Construct CSV Data
+    const headers = ['Student Name', 'Roll Number', 'Assigned Exam', 'Avg. Score (%)', 'Status', 'Rating'];
+    const rows = filteredStudents.map(s => [
+      s.name,
+      s.rollNumber,
+      s.subject ? `${s.subject.topicName} - ${s.subject.subjectName}` : 'N/A',
+      s.avgPercentage !== null ? s.avgPercentage.toFixed(1) : '0',
+      s.status,
+      s.rating
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create Download Link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Student_Report_${new Date().toLocaleDateString()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,6 +90,36 @@ const StudentsView = () => {
     fetchData();
   }, []);
 
+  const handleDeleteStudent = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this student and all their exam results?')) return;
+    try {
+      const token = JSON.parse(localStorage.getItem('admin')).token;
+      await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/students/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStudents(prev => prev.filter(s => s._id !== id));
+      alert('Student deleted successfully');
+    } catch (err) {
+      alert('Failed to delete student');
+    }
+  };
+
+  const handleClearRegistry = async () => {
+    if (!window.confirm('CRITICAL WARNING: This will permanently delete ALL registered students and ALL of their exam results. This action is irreversible. Proceed?')) return;
+    if (!window.confirm('Final confirmation: Clear entire student registry?')) return;
+
+    try {
+      const token = JSON.parse(localStorage.getItem('admin')).token;
+      await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/students/bulk/all`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStudents([]);
+      alert('Student registry cleared successfully.');
+    } catch (err) {
+      alert('Failed to clear registry');
+    }
+  };
+
   const renderStars = (rating) => {
     if (rating === 0) return <span style={{ color: 'var(--text-muted)' }}>No exams</span>;
     return (
@@ -77,8 +136,8 @@ const StudentsView = () => {
     );
   };
 
-  const branches = ['All', ...new Set(students.map(s => s.branch).filter(Boolean))];
-  const filteredStudents = students.filter(s => filterBranch === 'All' || s.branch === filterBranch);
+  const branches = ['All', ...new Set(students.map(s => s.subject?.subjectName).filter(Boolean))];
+  const filteredStudents = students.filter(s => filterBranch === 'All' || s.subject?.subjectName === filterBranch);
 
   return (
     <AdminLayout>
@@ -89,18 +148,41 @@ const StudentsView = () => {
         </div>
         
         {!loading && students.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border-light)' }}>
-            <Filter size={18} color="var(--primary)" />
-            <span style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Branch:</span>
-            <select 
-              value={filterBranch} 
-              onChange={e => setFilterBranch(e.target.value)}
-              style={{ border: 'none', outline: 'none', background: 'transparent', fontWeight: 'bold', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem' }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Download Button */}
+            <button 
+              onClick={downloadExcel}
+              className="btn btn-outline" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', borderStyle: 'solid', borderColor: 'var(--primary)', color: 'var(--primary)', padding: '10px 20px' }}
             >
-              {branches.map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
+              <DownloadIcon size={18} />
+              Download Excel
+            </button>
+
+            <button 
+              onClick={handleClearRegistry}
+              className="btn btn-outline" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', borderColor: '#fee2e2', padding: '10px 16px' }}
+              title="Delete All Students"
+            >
+              <Trash2 size={18} />
+              Clear Registry
+            </button>
+
+            {/* Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border-light)' }}>
+              <Filter size={18} color="var(--primary)" />
+              <span style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Branch:</span>
+              <select 
+                value={filterBranch} 
+                onChange={e => setFilterBranch(e.target.value)}
+                style={{ border: 'none', outline: 'none', background: 'transparent', fontWeight: 'bold', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem' }}
+              >
+                {branches.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -112,10 +194,11 @@ const StudentsView = () => {
               <tr style={{ textAlign: 'left' }}>
                 <th style={{ padding: '16px', fontSize: '0.875rem' }}>Student Name</th>
                 <th style={{ padding: '16px', fontSize: '0.875rem' }}>Roll No.</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Branch (Sec)</th>
+                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Assigned Exam</th>
                 <th style={{ padding: '16px', fontSize: '0.875rem' }}>Avg. Score</th>
                 <th style={{ padding: '16px', fontSize: '0.875rem' }}>Status</th>
                 <th style={{ padding: '16px', fontSize: '0.875rem' }}>Rating</th>
+                <th style={{ padding: '16px', fontSize: '0.875rem', textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +211,9 @@ const StudentsView = () => {
                     {student.name}
                   </td>
                   <td style={{ padding: '16px' }}>{student.rollNumber}</td>
-                  <td style={{ padding: '16px' }}>{student.branch} ({student.section})</td>
+                  <td style={{ padding: '16px' }}>
+                    {student.subject ? `${student.subject.topicName} - ${student.subject.subjectName}` : 'N/A'}
+                  </td>
                   <td style={{ padding: '16px', fontWeight: 600 }}>
                     {student.avgPercentage !== null ? `${student.avgPercentage.toFixed(1)}%` : '-'}
                   </td>
@@ -146,6 +231,15 @@ const StudentsView = () => {
                   </td>
                   <td style={{ padding: '16px' }}>
                     {renderStars(student.rating)}
+                  </td>
+                  <td style={{ padding: '16px', textAlign: 'right' }}>
+                    <button 
+                      onClick={() => handleDeleteStudent(student._id)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}
+                      title="Delete Student"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}
