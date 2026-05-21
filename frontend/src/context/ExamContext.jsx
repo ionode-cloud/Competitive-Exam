@@ -20,7 +20,11 @@ export const ExamProvider = ({ children }) => {
 
   useEffect(() => {
     if (exam && timeLeft === null) {
-      setTimeLeft(exam.duration * 60);
+      const hasCustom = exam.customSections && exam.customSections.length > 0;
+      const actualDuration = hasCustom
+        ? exam.customSections.reduce((sum, s) => sum + (Number(s.duration) || 0), 0)
+        : (exam.duration || 0);
+      setTimeLeft(actualDuration * 60);
     }
   }, [exam]);
 

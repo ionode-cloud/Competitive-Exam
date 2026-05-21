@@ -14,6 +14,7 @@ import ResultsView from './pages/admin/Results';
 import AdminRating from './pages/admin/AdminRating';
 import AdminLogs from './pages/admin/AdminLogs';
 import ForgotPassword from './pages/admin/ForgotPassword';
+import Instructions from './pages/admin/Instructions';
 import AdminLayout from './layouts/AdminLayout';
 import { useAuth } from './context/AuthContext';
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/admin/results" element={admin ? <ResultsView /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/ratings" element={admin ? <AdminRating /> : <Navigate to="/admin/login" />} />
         <Route path="/admin/logs" element={admin ? <AdminLogs /> : <Navigate to="/admin/login" />} />
+        <Route path="/admin/instructions" element={admin ? <Instructions /> : <Navigate to="/admin/login" />} />
 
         {/* Default Redirect */}
         <Route path="/" element={<Navigate to="/login" />} />

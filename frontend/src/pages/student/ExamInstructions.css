@@ -2,6 +2,8 @@
    ExamInstructions.css  — Adda247-style exam instruction screen
    ================================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Oriya:wght@400;600;700&display=swap');
+
 /* ── Layout Wrapper ── */
 .ei-wrapper {
   min-height: 100vh;
@@ -284,18 +286,53 @@
    RULES LIST
    ================================================================ */
 .ei-rules {
-  padding: 4px 18px 14px 36px;
+  padding: 8px 18px 14px 38px;
   line-height: 1.9;
   color: #333333;
   font-size: 0.875rem;
 }
 
 .ei-rules li {
-  margin-bottom: 2px;
+  margin-bottom: 5px;
+  padding-left: 4px;
 }
 
 .ei-rules li strong {
   color: #1a1a1a;
+}
+
+/* For custom text displayed as a div list */
+.ei-rules-custom {
+  padding: 8px 18px 14px 18px;
+  line-height: 1.85;
+  color: #333333;
+  font-size: 0.875rem;
+  list-style: none;
+  counter-reset: inst-counter;
+}
+
+.ei-rules-custom li {
+  counter-increment: inst-counter;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.ei-rules-custom li:hover {
+  background: #f0f7ff;
+}
+
+.ei-rules-custom li::before {
+  content: counter(inst-counter) ".";
+  color: #2980b9;
+  font-weight: 700;
+  min-width: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 /* ================================================================

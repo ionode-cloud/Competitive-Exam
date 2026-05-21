@@ -139,8 +139,14 @@ const ExamInterface = () => {
         correct,
         wrong,
         scoreBySection,
-        timeTaken: (exam.duration * 60) - timeLeft,
-        totalMarks: exam.questions.length * 1 // Assuming 1 mark per question
+        timeTaken: (() => {
+          const hasCustom = exam.customSections && exam.customSections.length > 0;
+          const actualDuration = hasCustom
+            ? exam.customSections.reduce((sum, s) => sum + (Number(s.duration) || 0), 0)
+            : (exam.duration || 0);
+          return (actualDuration * 60) - timeLeft;
+        })(),
+        totalMarks: exam.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
       };
 
       try {

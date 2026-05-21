@@ -50,7 +50,15 @@ const ExamSchema = new mongoose.Schema({
   duration: Number, // in minutes
   sections: [String],
   questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  languages: { type: [String], default: ['English', 'Hindi', 'Odia'] },
+  instructions: { type: mongoose.Schema.Types.Mixed, default: { English: '', Hindi: '', Odia: '' } },
+  customSections: [{
+    name: String,
+    questions: Number,
+    marks: Number,
+    duration: Number
+  }]
 });
 
 const ResultSchema = new mongoose.Schema({
@@ -379,6 +387,46 @@ app.delete('/api/exams/:id', authMiddleware, async (req, res) => {
 app.get('/api/exams', async (req, res) => {
   const exams = await Exam.find().populate('questions');
   res.json(exams);
+});
+
+// Get exam instructions
+app.get('/api/exams/:id/instructions', async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.id).populate('questions');
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    res.json(exam);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch instructions' });
+  }
+});
+
+// Update exam instructions and languages
+app.put('/api/exams/:id/instructions', authMiddleware, async (req, res) => {
+  try {
+    const { instructions, languages, customSections } = req.body;
+
+    // Use $set with dot-notation so Mongoose Mixed type fields are saved reliably
+    const updatePayload = { $set: { languages } };
+    if (instructions) {
+      if (instructions.English !== undefined) updatePayload.$set['instructions.English'] = instructions.English;
+      if (instructions.Hindi   !== undefined) updatePayload.$set['instructions.Hindi']   = instructions.Hindi;
+      if (instructions.Odia    !== undefined) updatePayload.$set['instructions.Odia']    = instructions.Odia;
+    }
+    if (customSections !== undefined) {
+      updatePayload.$set.customSections = customSections;
+    }
+
+    const exam = await Exam.findByIdAndUpdate(
+      req.params.id,
+      updatePayload,
+      { new: true, strict: false }
+    );
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    res.json(exam);
+  } catch (err) {
+    console.error('Update instructions error:', err);
+    res.status(500).json({ message: 'Failed to update instructions' });
+  }
 });
 
 
