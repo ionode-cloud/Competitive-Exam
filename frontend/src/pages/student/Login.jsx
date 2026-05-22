@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Hash, Briefcase, Layers } from 'lucide-react';
+import { alertError } from '../../utils/alert';
 
 const StudentLogin = () => {
   const [details, setDetails] = useState({ name: '', rollNumber: '', subject: '' });
@@ -31,7 +32,7 @@ const StudentLogin = () => {
       await studentLogin(details);
       navigate('/instructions');
     } catch (err) {
-      alert('Login failed. Please try again.');
+      alertError('Login Failed', 'Please try again.');
     } finally {
       setLoading(false);
     }

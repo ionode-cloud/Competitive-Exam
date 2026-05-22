@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Trash2, AlertCircle, CheckCircle, Clock, BookOpen } from 'lucide-react';
+import { Skeleton } from '../../components/Skeleton';
+import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 
 const ManageExams = () => {
   const [exams, setExams] = useState([]);
@@ -31,12 +33,16 @@ const ManageExams = () => {
       );
       setExams(prev => prev.map(e => e._id === examId ? { ...e, isActive: !currentStatus } : e));
     } catch (err) {
-      alert('Failed to update status');
+      alertError('Failed to update status');
     }
   };
 
   const deleteExam = async (examId) => {
-    if (!window.confirm('Are you sure you want to delete this exam PERMANENTLY? This cannot be undone.')) return;
+    const confirmed = await confirmAction(
+      'Are you sure?',
+      'Are you sure you want to delete this exam PERMANENTLY? This cannot be undone.'
+    );
+    if (!confirmed) return;
     
     try {
       const adminToken = JSON.parse(localStorage.getItem('admin')).token;
@@ -44,13 +50,11 @@ const ManageExams = () => {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
       setExams(prev => prev.filter(e => e._id !== examId));
-      alert('Exam deleted successfully');
+      alertSuccess('Deleted!', 'Exam deleted successfully');
     } catch (err) {
-      alert('Failed to delete exam');
+      alertError('Failed to delete exam');
     }
   };
-
-  if (loading) return <AdminLayout><div style={{ padding: '40px', textAlign: 'center' }}>Loading exams...</div></AdminLayout>;
 
   return (
     <AdminLayout>
@@ -73,8 +77,10 @@ const ManageExams = () => {
             </tr>
           </thead>
           <tbody>
-            {exams.length === 0 ? (
-              <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No exams found.</td></tr>
+            {loading ? (
+              <Skeleton type="table-row" count={5} cols={7} />
+            ) : exams.length === 0 ? (
+              <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No exams found.</td></tr>
             ) : exams.map(e => (
               <tr key={e._id} style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.2s' }} className="table-row-hover">
                 <td style={{ padding: '16px', fontWeight: 600, fontSize: '1rem' }}>{e.topicName}</td>

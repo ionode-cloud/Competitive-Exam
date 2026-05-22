@@ -27,7 +27,7 @@ const AdminLayout = ({ children }) => {
     { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: <FilePlus size={20} />, label: 'Create Exam', path: '/admin/create-exam' },
     { icon: <ListTodo size={20} />, label: 'Manage Exams', path: '/admin/manage-exams' },
-    { icon: <BookOpen size={20} />, label: 'Manage Questions', path: '/admin/manage-questions' },
+    { icon: <BookOpen size={20} />, label: 'Questions Bank', path: '/admin/manage-questions' },
     { icon: <Users size={20} />, label: 'Students', path: '/admin/students' },
     { icon: <BarChart3 size={20} />, label: 'Results', path: '/admin/results' },
     { icon: <Star size={20} />, label: 'Ratings', path: '/admin/ratings' },

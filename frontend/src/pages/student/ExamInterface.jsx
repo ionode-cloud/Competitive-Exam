@@ -7,6 +7,8 @@ import ExamHeader from '../../components/student/ExamHeader';
 import QuestionPalette from '../../components/student/QuestionPalette';
 import QuestionDisplay from '../../components/student/QuestionDisplay';
 import ExamFooter from '../../components/student/ExamFooter';
+import Skeleton from '../../components/Skeleton';
+import { alertSuccess, alertError, alertWarning, confirmAction } from '../../utils/alert';
 
 const ExamInterface = () => {
   const { 
@@ -57,7 +59,55 @@ const ExamInterface = () => {
     fetchExam();
   }, [setExam]);
 
-  if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Exam...</div>;
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', overflow: 'hidden' }}>
+        {/* Header Skeleton */}
+        <div className="glass" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
+          <Skeleton type="text" width="200px" height="24px" style={{ marginBottom: 0 }} />
+          <Skeleton type="text" width="100px" height="32px" style={{ marginBottom: 0 }} />
+        </div>
+        
+        {/* Body Skeleton */}
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 320px', overflow: 'hidden' }}>
+          {/* Main Area */}
+          <div style={{ display: 'flex', flexDirection: 'column', background: 'white', padding: '32px', borderRight: '1px solid var(--border-light)', gap: '24px' }}>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <Skeleton type="text" width="80px" height="32px" />
+              <Skeleton type="text" width="80px" height="32px" />
+              <Skeleton type="text" width="80px" height="32px" />
+            </div>
+            <Skeleton type="title" width="80%" />
+            <Skeleton type="text" count={3} />
+            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <Skeleton type="text" width="50%" height="40px" style={{ borderRadius: '8px' }} />
+              <Skeleton type="text" width="50%" height="40px" style={{ borderRadius: '8px' }} />
+              <Skeleton type="text" width="50%" height="40px" style={{ borderRadius: '8px' }} />
+              <Skeleton type="text" width="50%" height="40px" style={{ borderRadius: '8px' }} />
+            </div>
+          </div>
+          
+          {/* Sidebar Area */}
+          <div style={{ background: '#f8fafc', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <Skeleton type="circle" />
+              <div style={{ flex: 1 }}>
+                <Skeleton type="text" width="100px" />
+                <Skeleton type="text" width="60px" style={{ marginBottom: 0 }} />
+              </div>
+            </div>
+            <hr style={{ border: 0, borderTop: '1px solid var(--border-light)' }} />
+            <Skeleton type="title" width="60%" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+              {Array.from({ length: 25 }).map((_, i) => (
+                <Skeleton key={i} type="text" height="36px" style={{ margin: 0, borderRadius: '4px' }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!exam) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
@@ -102,7 +152,8 @@ const ExamInterface = () => {
   };
 
   const handleSubmit = async () => {
-    if (window.confirm('Do you really want to submit the test?')) {
+    const confirmed = await confirmAction('Submit Test', 'Do you really want to submit the test?', 'Yes, submit', 'No, keep writing');
+    if (confirmed) {
       const processedAnswers = [];
       let totalScore = 0;
       let correct = 0;
@@ -155,7 +206,7 @@ const ExamInterface = () => {
         navigate('/result', { state: { result: resultData } });
       } catch (err) {
         console.error('Submission failed:', err);
-        alert('Submission failed. Navigating to results locally.');
+        alertError('Submission Failed', 'Failed to submit test on server. Navigating to results locally.');
         navigate('/result', { state: { result: resultData } });
       }
     }
@@ -166,7 +217,7 @@ const ExamInterface = () => {
       <ExamHeader 
         title={`${exam.topicName} - ${exam.subjectName}`} 
         timeLeft={timeLeft} 
-        onShowInstructions={() => alert(`Instructions: Answer all questions. Each correct answer carries 1 mark. Negative marking: ${exam.negativeMarking || 0} per wrong answer.`)} 
+        onShowInstructions={() => alertWarning('Exam Instructions', `Answer all questions. Each correct answer carries 1 mark. Negative marking: ${exam.negativeMarking || 0} per wrong answer.`)} 
       />
       
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 320px', overflow: 'hidden' }}>

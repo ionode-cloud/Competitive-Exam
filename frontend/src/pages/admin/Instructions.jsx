@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { FileText, Globe, Save, ChevronDown, CheckCircle, AlertCircle, BookOpen, Eye, ListPlus, Trash2 } from 'lucide-react';
+import { Skeleton } from '../../components/Skeleton';
+import { confirmAction } from '../../utils/alert';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5117';
 
@@ -156,6 +158,7 @@ const Instructions = () => {
   const [toast, setToast]               = useState(null);
 
   const [languages, setLanguages]       = useState(['English', 'Hindi', 'Odia']);
+  const [negativeMarking, setNegativeMarking] = useState(0);
   const [instructions, setInstructions] = useState({
     English: DEFAULT_INSTRUCTIONS.English,
     Hindi:   DEFAULT_INSTRUCTIONS.Hindi,
@@ -198,6 +201,7 @@ const Instructions = () => {
         const langs = res.data.languages?.length ? res.data.languages : ['English', 'Hindi', 'Odia'];
         setLanguages(langs);
         setActiveTab(langs[0]);
+        setNegativeMarking(res.data.negativeMarking || 0);
         // Load saved custom text, fall back to defaults only if empty
         setInstructions({
           English: res.data.instructions?.English || '',
@@ -242,14 +246,16 @@ const Instructions = () => {
       const payload = {
         instructions,
         languages,
-        customSections: hasManualTable ? editableSections.map(({ id, ...rest }) => rest) : []
+        customSections: hasManualTable ? editableSections.map(({ id, ...rest }) => rest) : [],
+        negativeMarking: Number(negativeMarking)
       };
 
-      await axios.put(
+      const res = await axios.put(
         `${API}/api/exams/${selectedExamId}/instructions`,
         payload,
         { headers: { Authorization: `Bearer ${adminToken}` } }
       );
+      setSelectedExam(res.data);
       showToast('success', '✅ Instructions saved! Students will see your custom text.');
     } catch (err) {
       console.error(err);
@@ -293,8 +299,12 @@ const Instructions = () => {
     ]);
   };
 
-  const handleResetToCalculated = () => {
-    if (window.confirm('Are you sure you want to discard manual customization and reset to question-based auto-calculated table?')) {
+  const handleResetToCalculated = async () => {
+    const confirmed = await confirmAction(
+      'Discard custom sections?',
+      'Are you sure you want to discard manual customization and reset to question-based auto-calculated table?'
+    );
+    if (confirmed) {
       const calc = buildSections(selectedExam?.questions || [], selectedExam?.duration || 0);
       setEditableSections(calc);
       setHasManualTable(false);
@@ -331,16 +341,7 @@ const Instructions = () => {
     : parseLines(DEFAULT_INSTRUCTIONS[activeTab]);
   const isCustom = !!(previewText?.trim());
 
-  if (loading) {
-    return (
-      <AdminLayout>
-        <div style={{ padding: '80px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📋</div>
-          Loading exams…
-        </div>
-      </AdminLayout>
-    );
-  }
+
 
   return (
     <AdminLayout>
@@ -520,422 +521,238 @@ const Instructions = () => {
       </div>
 
       {/* ── Exam Selector ── */}
-      <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <BookOpen size={20} color="var(--primary, #2563eb)" />
-          <label style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>Select Exam:</label>
-          <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
-            <select
-              value={selectedExamId}
-              onChange={e => setSelectedExamId(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 40px 10px 16px',
-                borderRadius: '10px', border: '1.5px solid var(--border-light, #e2e8f0)',
-                fontSize: '0.95rem', fontWeight: 500, background: 'white',
-                appearance: 'none', cursor: 'pointer', color: 'var(--text-main, #1e293b)'
-              }}
-            >
-              <option value="">-- Select an exam --</option>
-              {exams.map(ex => (
-                <option key={ex._id} value={ex._id}>{ex.subjectName} – {ex.topicName}</option>
-              ))}
-            </select>
-            <ChevronDown size={16} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }} />
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+          <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)' }}>
+            <Skeleton type="text" height="40px" width="50%" />
           </div>
-          {selectedExam && (
-            <span style={{ padding: '5px 14px', borderRadius: '20px', background: '#eff6ff', color: '#2563eb', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
-              {selectedExam.topicName}
-            </span>
-          )}
+          <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)' }}>
+            <Skeleton type="text" height="60px" width="100%" />
+          </div>
+          <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+            <Skeleton type="text" height="24px" width="30%" style={{ marginBottom: '20px' }} />
+            <table className="ei-table">
+              <thead>
+                <tr>
+                  <th><Skeleton type="text" height="15px" width="30px" /></th>
+                  <th><Skeleton type="text" height="15px" width="100px" /></th>
+                  <th><Skeleton type="text" height="15px" width="80px" /></th>
+                  <th><Skeleton type="text" height="15px" width="80px" /></th>
+                  <th><Skeleton type="text" height="15px" width="80px" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                <Skeleton type="table-row" count={4} cols={5} />
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-
-      {selectedExamId && (
+      ) : (
         <>
-          {/* ── Language Toggle ── */}
           <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-              <Globe size={18} color="var(--primary, #2563eb)" />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Available Languages for Students</h3>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {ALL_LANGUAGES.map(lang => {
-                const isEnabled = languages.includes(lang);
-                return (
-                  <button
-                    key={lang}
-                    className="lang-toggle-btn"
-                    onClick={() => toggleLanguage(lang)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '10px 22px', borderRadius: '10px',
-                      border: `2px solid ${isEnabled ? '#2563eb' : '#e2e8f0'}`,
-                      background: isEnabled ? '#2563eb' : 'white',
-                      color: isEnabled ? 'white' : '#64748b',
-                      fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.1rem' }}>{LANG_FLAGS[lang]}</span>
-                    {lang}
-                    {isEnabled && <CheckCircle size={15} />}
-                  </button>
-                );
-              })}
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
-                Students will choose from: <strong>{languages.join(', ')}</strong>
-              </span>
-            </div>
-          </div>
-
-          {/* ── Exam Structure & Section Details (Mark Table & Duration) ── */}
-          {selectedExam && sections.length > 0 && (
-            <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <ListPlus size={18} color="var(--primary, #2563eb)" />
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Exam Structure & Section Details (Marks Table & Durations)</h3>
-                </div>
-                {/* Stats */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
-                    Total Questions: <strong>{displayedTotalQuestions}</strong>
-                  </span>
-                  <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
-                    Maximum Marks: <strong>{displayedTotalMarks}</strong>
-                  </span>
-                  <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
-                    Exam Duration: <strong>{displayedDuration} mins</strong>
-                  </span>
-                  {selectedExam.negativeMarking > 0 && (
-                    <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#fee2e2', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600 }}>
-                      Negative Marking: <strong>−{selectedExam.negativeMarking}</strong>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Sections Table */}
-              <div className="ei-table-wrap" style={{ paddingBottom: 0 }}>
-                <table className="ei-table" style={{ marginBottom: 0 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '80px' }}>{dict.sno}</th>
-                      <th>{dict.sections}</th>
-                      <th style={{ width: '180px' }}>{dict.noOfQuestions}</th>
-                      <th style={{ width: '180px' }}>{dict.maxMarks}</th>
-                      <th style={{ width: '180px' }}>{dict.duration}</th>
-                      {isEditingTable && <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sections.map((sec, idx) => {
-                      if (isEditingTable) {
-                        return (
-                          <tr key={sec.id} className={idx % 2 === 0 ? 'ei-row-even' : 'ei-row-odd'}>
-                            <td>{sec.id}</td>
-                            <td>
-                              <input
-                                type="text"
-                                value={sec.name}
-                                onChange={e => handleUpdateSectionRow(sec.id, 'name', e.target.value)}
-                                style={{
-                                  width: '100%', padding: '6px 10px',
-                                  borderRadius: '6px', border: '1px solid #cbd5e1',
-                                  fontSize: '0.82rem', boxSizing: 'border-box'
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={sec.questions}
-                                onChange={e => handleUpdateSectionRow(sec.id, 'questions', parseInt(e.target.value) || 0)}
-                                style={{
-                                  width: '100%', padding: '6px 10px',
-                                  borderRadius: '6px', border: '1px solid #cbd5e1',
-                                  fontSize: '0.82rem', boxSizing: 'border-box'
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={sec.marks}
-                                onChange={e => handleUpdateSectionRow(sec.id, 'marks', parseFloat(e.target.value) || 0)}
-                                style={{
-                                  width: '100%', padding: '6px 10px',
-                                  borderRadius: '6px', border: '1px solid #cbd5e1',
-                                  fontSize: '0.82rem', boxSizing: 'border-box'
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <input
-                                  type="number"
-                                  value={sec.duration}
-                                  onChange={e => handleUpdateSectionRow(sec.id, 'duration', parseInt(e.target.value) || 0)}
-                                  style={{
-                                    width: '80px', padding: '6px 10px',
-                                    borderRadius: '6px', border: '1px solid #cbd5e1',
-                                    fontSize: '0.82rem', boxSizing: 'border-box'
-                                  }}
-                                />
-                                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{dict.minutes}</span>
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                onClick={() => handleDeleteSectionRow(sec.id)}
-                                style={{
-                                  border: 'none', background: 'transparent',
-                                  color: '#ef4444', cursor: 'pointer',
-                                  padding: '4px', display: 'inline-flex',
-                                  alignItems: 'center', justifyContent: 'center'
-                                }}
-                                title="Delete Section"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      const translatedSecName = SECTION_TRANSLATIONS[activeTab]?.[sec.name] || sec.name;
-                      return (
-                        <tr key={sec.id} className={idx % 2 === 0 ? 'ei-row-even' : 'ei-row-odd'}>
-                          <td>{sec.id}</td>
-                          <td style={{ fontWeight: 500 }}>{translatedSecName}</td>
-                          <td>{sec.questions}</td>
-                          <td>{sec.marks}</td>
-                          <td>{sec.duration} {dict.minutes}</td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="ei-row-total">
-                      <td></td>
-                      <td><strong>{dict.total}</strong></td>
-                      <td><strong>{displayedTotalQuestions}</strong></td>
-                      <td><strong>{displayedTotalMarks}</strong></td>
-                      <td><strong>{displayedDuration} {dict.minutes}</strong></td>
-                      {isEditingTable && <td></td>}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Table Customization Controls */}
-              <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {!hasManualTable ? (
-                    <button
-                      onClick={() => {
-                        setHasManualTable(true);
-                        setIsEditingTable(true);
-                      }}
-                      style={{
-                        padding: '8px 16px', borderRadius: '8px',
-                        border: '1.5px solid var(--primary, #2563eb)',
-                        background: 'white', color: 'var(--primary, #2563eb)',
-                        fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
-                      }}
-                    >
-                      ✏️ Customize Table
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => setIsEditingTable(p => !p)}
-                        style={{
-                          padding: '8px 16px', borderRadius: '8px',
-                          border: '1.5px solid #cbd5e1',
-                          background: isEditingTable ? '#eff6ff' : 'white',
-                          color: isEditingTable ? '#2563eb' : '#334155',
-                          fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
-                        }}
-                      >
-                        {isEditingTable ? 'Done Editing' : '✏️ Edit Table'}
-                      </button>
-                      {isEditingTable && (
-                        <button
-                          onClick={handleAddSectionRow}
-                          style={{
-                            padding: '8px 16px', borderRadius: '8px',
-                            border: '1.5px solid #10b981',
-                            background: 'white', color: '#10b981',
-                            fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
-                          }}
-                        >
-                          ➕ Add Section
-                        </button>
-                      )}
-                      <button
-                        onClick={handleResetToCalculated}
-                        style={{
-                          padding: '8px 16px', borderRadius: '8px',
-                          border: '1.5px solid #ef4444',
-                          background: 'white', color: '#ef4444',
-                          fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
-                        }}
-                      >
-                        🔄 Reset to Auto-Calculated
-                      </button>
-                    </>
-                  )}
-                </div>
-                {hasManualTable && (
-                  <span style={{
-                    fontSize: '0.78rem', color: '#166534',
-                    background: '#dcfce7', padding: '6px 12px',
-                    borderRadius: '12px', fontWeight: 600,
-                    display: 'inline-flex', alignItems: 'center', gap: '4px'
-                  }}>
-                    ⚙️ Custom Table Mode Active (Click "Save Instructions" to persist)
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── Editor + Optional Preview (side by side when preview on) ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', gap: '20px' }}>
-
-            {/* Editor Panel */}
-            <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <FileText size={18} color="var(--primary, #2563eb)" />
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Instruction Text Editor</h3>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={resetToDefault} style={{ padding: '6px 14px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-                    ↩ Load Default
-                  </button>
-                  <button onClick={clearText} style={{ padding: '6px 14px', borderRadius: '7px', border: '1.5px solid #fecaca', background: '#fef2f2', color: '#ef4444', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-                    🗑 Clear
-                  </button>
-                </div>
-              </div>
-
-              {/* Language Tabs */}
-              <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0' }}>
-                {ALL_LANGUAGES.map(lang => {
-                  const isActive  = activeTab === lang;
-                  const isEnabled = languages.includes(lang);
-                  const hasText   = !!(instructions[lang]?.trim());
-                  return (
-                    <button
-                      key={lang}
-                      className="lang-tab"
-                      onClick={() => setActiveTab(lang)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                        padding: '9px 18px', borderRadius: '8px 8px 0 0',
-                        borderBottom: isActive ? '2px solid #2563eb' : '2px solid transparent',
-                        background: isActive ? 'rgba(37,99,235,0.07)' : 'transparent',
-                        color: isActive ? '#2563eb' : isEnabled ? '#1e293b' : '#94a3b8',
-                        fontWeight: isActive ? 700 : 600, fontSize: '0.88rem',
-                        opacity: isEnabled ? 1 : 0.45, marginBottom: '-2px'
-                      }}
-                    >
-                      {LANG_FLAGS[lang]} {lang}
-                      {hasText && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} title="Has custom text" />}
-                      {!isEnabled && <span style={{ fontSize: '0.62rem', background: '#f1f5f9', color: '#94a3b8', padding: '1px 5px', borderRadius: '8px' }}>off</span>}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Hint */}
-              <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: '#64748b' }}>
-                💡 Write each instruction on a new line. You can start lines with numbers (1. 2. 3.) or just write plain text — both work.
-              </p>
-
-              {/* Textarea */}
-              <div style={{ position: 'relative' }}>
-                <textarea
-                  className="inst-textarea"
-                  value={instructions[activeTab] || ''}
-                  onChange={e => setInstructions(prev => ({ ...prev, [activeTab]: e.target.value }))}
-                  rows={20}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <BookOpen size={20} color="var(--primary, #2563eb)" />
+              <label style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>Select Exam:</label>
+              <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
+                <select
+                  value={selectedExamId}
+                  onChange={e => setSelectedExamId(e.target.value)}
                   style={{
-                    width: '100%', padding: '16px', borderRadius: '10px',
-                    border: '1.5px solid #e2e8f0', fontSize: '0.9rem', lineHeight: '1.8',
-                    fontFamily: activeTab === 'English'
-                      ? "'Inter','Segoe UI',Arial,sans-serif"
-                      : "'Noto Sans Devanagari','Noto Sans Oriya','Noto Sans',Arial,sans-serif",
-                    resize: 'vertical', background: '#fafbfc',
-                    boxSizing: 'border-box', color: '#1e293b'
+                    width: '100%', padding: '10px 40px 10px 16px',
+                    borderRadius: '10px', border: '1.5px solid var(--border-light, #e2e8f0)',
+                    fontSize: '0.95rem', fontWeight: 500, background: 'white',
+                    appearance: 'none', cursor: 'pointer', color: 'var(--text-main, #1e293b)'
                   }}
-                  placeholder={`Type ${activeTab} instructions here…\n\nExample:\n1. You have 60 minutes to complete this exam.\n2. Each question carries 1 mark.\n3. No negative marking.`}
-                />
-                <div style={{ position: 'absolute', bottom: '10px', right: '12px', fontSize: '0.72rem', color: '#94a3b8', pointerEvents: 'none' }}>
-                  {(instructions[activeTab] || '').length} chars • {(instructions[activeTab] || '').split('\n').filter(l => l.trim()).length} lines
-                </div>
+                >
+                  <option value="">-- Select an exam --</option>
+                  {exams.map(ex => (
+                    <option key={ex._id} value={ex._id}>{ex.subjectName} – {ex.topicName}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }} />
               </div>
-
-              {!languages.includes(activeTab) && (
-                <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', background: '#fef9c3', border: '1px solid #fde047', color: '#854d0e', fontSize: '0.83rem', fontWeight: 600 }}>
-                  ⚠️ This language is <strong>disabled</strong>. Enable it above so students can see these instructions.
-                </div>
+              {selectedExam && (
+                <span style={{ padding: '5px 14px', borderRadius: '20px', background: '#eff6ff', color: '#2563eb', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {selectedExam.topicName}
+                </span>
               )}
             </div>
+          </div>
 
-            {/* ── Live Preview Panel ── */}
-            {showPreview && (
-              <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <Eye size={18} color="var(--primary, #2563eb)" />
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Student Preview — {LANG_FLAGS[activeTab]} {activeTab}</h3>
-                  <span style={{
-                    padding: '2px 10px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 700,
-                    background: isCustom ? '#dcfce7' : '#fef9c3',
-                    color: isCustom ? '#166534' : '#854d0e',
-                    border: `1px solid ${isCustom ? '#bbf7d0' : '#fde047'}`
-                  }}>
-                    {isCustom ? '✅ Custom' : '⚠️ Default (not saved)'}
+          {selectedExamId && (
+            <>
+              {/* ── Language Toggle ── */}
+              <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                  <Globe size={18} color="var(--primary, #2563eb)" />
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Available Languages for Students</h3>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {ALL_LANGUAGES.map(lang => {
+                    const isEnabled = languages.includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        className="lang-toggle-btn"
+                        onClick={() => toggleLanguage(lang)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          padding: '10px 22px', borderRadius: '10px',
+                          border: `2px solid ${isEnabled ? '#2563eb' : '#e2e8f0'}`,
+                          background: isEnabled ? '#2563eb' : 'white',
+                          color: isEnabled ? 'white' : '#64748b',
+                          fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ fontSize: '1.1rem' }}>{LANG_FLAGS[lang]}</span>
+                        {lang}
+                        {isEnabled && <CheckCircle size={15} />}
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                    Students will choose from: <strong>{languages.join(', ')}</strong>
                   </span>
                 </div>
+              </div>
 
-                {/* Mini exam info bar */}
-                {selectedExam && (
-                  <div style={{ background: '#2980b9', borderRadius: '6px 6px 0 0', padding: '8px 14px', marginBottom: 0 }}>
-                    <span style={{ color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>
-                      {selectedExam.topicName || 'Exam Instructions'}
-                    </span>
+              {/* ── Exam Structure & Section Details (Mark Table & Duration) ── */}
+              {selectedExam && sections.length > 0 && (
+                <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <ListPlus size={18} color="var(--primary, #2563eb)" />
+                      <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Exam Structure & Section Details (Marks Table & Durations)</h3>
+                    </div>
+                    {/* Stats */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Total Questions: <strong>{displayedTotalQuestions}</strong>
+                      </span>
+                      <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Maximum Marks: <strong>{displayedTotalMarks}</strong>
+                      </span>
+                      <span style={{ padding: '5px 12px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600 }}>
+                        Exam Duration: <strong>{displayedDuration} mins</strong>
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: '6px', background: '#fee2e2', color: '#ef4444', fontSize: '0.8rem', fontWeight: 600 }}>
+                        <span>Negative Marking:</span>
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          value={negativeMarking}
+                          onChange={e => setNegativeMarking(e.target.value)}
+                          style={{
+                            width: '60px',
+                            padding: '2px 4px',
+                            borderRadius: '4px',
+                            border: '1px solid #fca5a5',
+                            background: 'white',
+                            color: '#ef4444',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            textAlign: 'center',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                )}
-                <div style={{
-                  border: '1px solid #cfd7e0', borderTop: 'none',
-                  borderRadius: '0 0 6px 6px', background: '#fff',
-                  padding: '12px 14px', marginBottom: '16px',
-                  fontSize: '0.82rem', color: '#374151'
-                }}>
-                  <strong>Please read the following instructions very carefully:</strong>
-                </div>
 
-                {/* ── Sections Table (from real exam data) ── */}
-                {sections.length > 0 && (
-                  <div className="ei-table-wrap">
-                    <table className="ei-table">
+                  {/* Sections Table */}
+                  <div className="ei-table-wrap" style={{ paddingBottom: 0 }}>
+                    <table className="ei-table" style={{ marginBottom: 0 }}>
                       <thead>
                         <tr>
-                          <th>{dict.sno}</th>
+                          <th style={{ width: '80px' }}>{dict.sno}</th>
                           <th>{dict.sections}</th>
-                          <th>{dict.noOfQuestions}</th>
-                          <th>{dict.maxMarks}</th>
-                          <th>{dict.duration}</th>
+                          <th style={{ width: '180px' }}>{dict.noOfQuestions}</th>
+                          <th style={{ width: '180px' }}>{dict.maxMarks}</th>
+                          <th style={{ width: '180px' }}>{dict.duration}</th>
+                          {isEditingTable && <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {sections.map((sec, idx) => {
+                          if (isEditingTable) {
+                            return (
+                              <tr key={sec.id} className={idx % 2 === 0 ? 'ei-row-even' : 'ei-row-odd'}>
+                                <td>{sec.id}</td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    value={sec.name}
+                                    onChange={e => handleUpdateSectionRow(sec.id, 'name', e.target.value)}
+                                    style={{
+                                      width: '100%', padding: '6px 10px',
+                                      borderRadius: '6px', border: '1px solid #cbd5e1',
+                                      fontSize: '0.82rem', boxSizing: 'border-box'
+                                    }}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    value={sec.questions}
+                                    onChange={e => handleUpdateSectionRow(sec.id, 'questions', parseInt(e.target.value) || 0)}
+                                    style={{
+                                      width: '100%', padding: '6px 10px',
+                                      borderRadius: '6px', border: '1px solid #cbd5e1',
+                                      fontSize: '0.82rem', boxSizing: 'border-box'
+                                    }}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    value={sec.marks}
+                                    onChange={e => handleUpdateSectionRow(sec.id, 'marks', parseFloat(e.target.value) || 0)}
+                                    style={{
+                                      width: '100%', padding: '6px 10px',
+                                      borderRadius: '6px', border: '1px solid #cbd5e1',
+                                      fontSize: '0.82rem', boxSizing: 'border-box'
+                                    }}
+                                  />
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <input
+                                      type="number"
+                                      value={sec.duration}
+                                      onChange={e => handleUpdateSectionRow(sec.id, 'duration', parseInt(e.target.value) || 0)}
+                                      style={{
+                                        width: '80px', padding: '6px 10px',
+                                        borderRadius: '6px', border: '1px solid #cbd5e1',
+                                        fontSize: '0.82rem', boxSizing: 'border-box'
+                                      }}
+                                    />
+                                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{dict.minutes}</span>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    onClick={() => handleDeleteSectionRow(sec.id)}
+                                    style={{
+                                      border: 'none', background: 'transparent',
+                                      color: '#ef4444', cursor: 'pointer',
+                                      padding: '4px', display: 'inline-flex',
+                                      alignItems: 'center', justifyContent: 'center'
+                                    }}
+                                    title="Delete Section"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           const translatedSecName = SECTION_TRANSLATIONS[activeTab]?.[sec.name] || sec.name;
                           return (
                             <tr key={sec.id} className={idx % 2 === 0 ? 'ei-row-even' : 'ei-row-odd'}>
                               <td>{sec.id}</td>
-                              <td>{translatedSecName}</td>
+                              <td style={{ fontWeight: 500 }}>{translatedSecName}</td>
                               <td>{sec.questions}</td>
                               <td>{sec.marks}</td>
                               <td>{sec.duration} {dict.minutes}</td>
@@ -948,83 +765,314 @@ const Instructions = () => {
                           <td><strong>{displayedTotalQuestions}</strong></td>
                           <td><strong>{displayedTotalMarks}</strong></td>
                           <td><strong>{displayedDuration} {dict.minutes}</strong></td>
+                          {isEditingTable && <td></td>}
                         </tr>
                       </tbody>
                     </table>
                   </div>
-                )}
 
-                {/* Instruction lines */}
-                <ol style={{
-                  listStyle: 'none', padding: '0 0 0 4px', margin: 0,
-                  counterReset: 'preview-counter',
-                  fontFamily: activeTab === 'English'
-                    ? "'Inter','Segoe UI',Arial,sans-serif"
-                    : "'Noto Sans Devanagari','Noto Sans Oriya','Noto Sans',Arial,sans-serif",
-                  fontSize: '0.875rem',
-                }}>
-                  {previewLines.length > 0 ? previewLines.map((line, i) => (
-                    <li key={i} className="preview-li" style={{
-                      counterIncrement: 'preview-counter',
-                      display: 'flex', alignItems: 'flex-start', gap: '10px',
-                      padding: '6px 8px', borderRadius: '5px', marginBottom: '3px',
-                      lineHeight: '1.65', color: '#333',
-                    }}>
-                      <span style={{ color: '#2980b9', fontWeight: 700, minWidth: '22px', flexShrink: 0 }}>{i + 1}.</span>
-                      <span>{line}</span>
-                    </li>
-                  )) : (
-                    <li style={{ color: '#94a3b8', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
-                      No instructions yet. Start typing in the editor.
-                    </li>
+                  {/* Table Customization Controls */}
+                  <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {!hasManualTable ? (
+                        <button
+                          onClick={() => {
+                            setHasManualTable(true);
+                            setIsEditingTable(true);
+                          }}
+                          style={{
+                            padding: '8px 16px', borderRadius: '8px',
+                            border: '1.5px solid var(--primary, #2563eb)',
+                            background: 'white', color: 'var(--primary, #2563eb)',
+                            fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
+                          }}
+                        >
+                          ✏️ Customize Table
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setIsEditingTable(p => !p)}
+                            style={{
+                              padding: '8px 16px', borderRadius: '8px',
+                              border: '1.5px solid #cbd5e1',
+                              background: isEditingTable ? '#eff6ff' : 'white',
+                              color: isEditingTable ? '#2563eb' : '#334155',
+                              fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
+                            }}
+                          >
+                            {isEditingTable ? 'Done Editing' : '✏️ Edit Table'}
+                          </button>
+                          {isEditingTable && (
+                            <button
+                              onClick={handleAddSectionRow}
+                              style={{
+                                padding: '8px 16px', borderRadius: '8px',
+                                border: '1.5px solid #10b981',
+                                background: 'white', color: '#10b981',
+                                fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
+                              }}
+                            >
+                              ➕ Add Section
+                            </button>
+                          )}
+                          <button
+                            onClick={handleResetToCalculated}
+                            style={{
+                              padding: '8px 16px', borderRadius: '8px',
+                              border: '1.5px solid #ef4444',
+                              background: 'white', color: '#ef4444',
+                              fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer'
+                            }}
+                          >
+                            🔄 Reset to Auto-Calculated
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {hasManualTable && (
+                      <span style={{
+                        fontSize: '0.78rem', color: '#166534',
+                        background: '#dcfce7', padding: '6px 12px',
+                        borderRadius: '12px', fontWeight: 600,
+                        display: 'inline-flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        ⚙️ Custom Table Mode Active (Click "Save Instructions" to persist)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Editor + Optional Preview (side by side when preview on) ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', gap: '20px' }}>
+
+                {/* Editor Panel */}
+                <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={18} color="var(--primary, #2563eb)" />
+                      <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Instruction Text Editor</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={resetToDefault} style={{ padding: '6px 14px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                        ↩ Load Default
+                      </button>
+                      <button onClick={clearText} style={{ padding: '6px 14px', borderRadius: '7px', border: '1.5px solid #fecaca', background: '#fef2f2', color: '#ef4444', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                        🗑 Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Language Tabs */}
+                  <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '2px solid #e2e8f0' }}>
+                    {ALL_LANGUAGES.map(lang => {
+                      const isActive  = activeTab === lang;
+                      const isEnabled = languages.includes(lang);
+                      const hasText   = !!(instructions[lang]?.trim());
+                      return (
+                        <button
+                          key={lang}
+                          className="lang-tab"
+                          onClick={() => setActiveTab(lang)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '9px 18px', borderRadius: '8px 8px 0 0',
+                            borderBottom: isActive ? '2px solid #2563eb' : '2px solid transparent',
+                            background: isActive ? 'rgba(37,99,235,0.07)' : 'transparent',
+                            color: isActive ? '#2563eb' : isEnabled ? '#1e293b' : '#94a3b8',
+                            fontWeight: isActive ? 700 : 600, fontSize: '0.88rem',
+                            opacity: isEnabled ? 1 : 0.45, marginBottom: '-2px'
+                          }}
+                        >
+                          {LANG_FLAGS[lang]} {lang}
+                          {hasText && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} title="Has custom text" />}
+                          {!isEnabled && <span style={{ fontSize: '0.62rem', background: '#f1f5f9', color: '#94a3b8', padding: '1px 5px', borderRadius: '8px' }}>off</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Hint */}
+                  <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: '#64748b' }}>
+                    💡 Write each instruction on a new line. You can start lines with numbers (1. 2. 3.) or just write plain text — both work.
+                  </p>
+
+                  {/* Textarea */}
+                  <div style={{ position: 'relative' }}>
+                    <textarea
+                      className="inst-textarea"
+                      value={instructions[activeTab] || ''}
+                      onChange={e => setInstructions(prev => ({ ...prev, [activeTab]: e.target.value }))}
+                      rows={20}
+                      style={{
+                        width: '100%', padding: '16px', borderRadius: '10px',
+                        border: '1.5px solid #e2e8f0', fontSize: '0.9rem', lineHeight: '1.8',
+                        fontFamily: activeTab === 'English'
+                          ? "'Inter','Segoe UI',Arial,sans-serif"
+                          : "'Noto Sans Devanagari','Noto Sans Oriya','Noto Sans',Arial,sans-serif",
+                        resize: 'vertical', background: '#fafbfc',
+                        boxSizing: 'border-box', color: '#1e293b'
+                      }}
+                      placeholder={`Type ${activeTab} instructions here…\n\nExample:\n1. You have 60 minutes to complete this exam.\n2. Each question carries 1 mark.\n3. No negative marking.`}
+                    />
+                    <div style={{ position: 'absolute', bottom: '10px', right: '12px', fontSize: '0.72rem', color: '#94a3b8', pointerEvents: 'none' }}>
+                      {(instructions[activeTab] || '').length} chars • {(instructions[activeTab] || '').split('\n').filter(l => l.trim()).length} lines
+                    </div>
+                  </div>
+
+                  {!languages.includes(activeTab) && (
+                    <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', background: '#fef9c3', border: '1px solid #fde047', color: '#854d0e', fontSize: '0.83rem', fontWeight: 600 }}>
+                      ⚠️ This language is <strong>disabled</strong>. Enable it above so students can see these instructions.
+                    </div>
                   )}
-                </ol>
-
-                {/* Choose Your default Language: */}
-                <div className="ei-lang-row" style={{ marginTop: '16px', borderTop: '1.5px solid #e2e8f0', paddingTop: '16px' }}>
-                  <label className="ei-lang-label" htmlFor="preview-default-lang">
-                    Choose Your default Language:
-                  </label>
-                  <select
-                    id="preview-default-lang"
-                    className="ei-lang-select"
-                    value={activeTab}
-                    onChange={e => setActiveTab(e.target.value)}
-                  >
-                    {languages.map(l => (
-                      <option key={l} value={l}>{l}</option>
-                    ))}
-                  </select>
                 </div>
 
-                <p className="ei-lang-note">
-                  Please note all questions will appear in your default language. This language can be changed for a particular question later on.
-                </p>
+                {/* ── Live Preview Panel ── */}
+                {showPreview && (
+                  <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                      <Eye size={18} color="var(--primary, #2563eb)" />
+                      <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Student Preview — {LANG_FLAGS[activeTab]} {activeTab}</h3>
+                      <span style={{
+                        padding: '2px 10px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 700,
+                        background: isCustom ? '#dcfce7' : '#fef9c3',
+                        color: isCustom ? '#166534' : '#854d0e',
+                        border: `1px solid ${isCustom ? '#bbf7d0' : '#fde047'}`
+                      }}>
+                        {isCustom ? '✅ Custom' : '⚠️ Default (not saved)'}
+                      </span>
+                    </div>
 
-                {/* Declaration */}
-                <div className="ei-declaration">
-                  <input
-                    type="checkbox"
-                    id="preview-declaration-cb"
-                    checked={previewAccepted}
-                    onChange={e => setPreviewAccepted(e.target.checked)}
-                  />
-                  <label htmlFor="preview-declaration-cb">
-                    I have read and understood the instructions. All computer hardware allotted to me are in proper working condition. I declare that I am not in position of / not wearing any / not carrying any prohibited gadget like mobile phone, bluetooth devices, etc/any prohibited material with me into the examination hall, I agree that in case of not adhering to the instructions, I shall be liable to be barred from this test and/or to disciplinary action, which may include banned from the future tests / examinations.
-                  </label>
-                </div>
+                    {/* Mini exam info bar */}
+                    {selectedExam && (
+                      <div style={{ background: '#2980b9', borderRadius: '6px 6px 0 0', padding: '8px 14px', marginBottom: 0 }}>
+                        <span style={{ color: 'white', fontWeight: 700, fontSize: '0.85rem' }}>
+                          {selectedExam.topicName || 'Exam Instructions'}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{
+                      border: '1px solid #cfd7e0', borderTop: 'none',
+                      borderRadius: '0 0 6px 6px', background: '#fff',
+                      padding: '12px 14px', marginBottom: '16px',
+                      fontSize: '0.82rem', color: '#374151'
+                    }}>
+                      <strong>Please read the following instructions very carefully:</strong>
+                    </div>
+
+                    {/* ── Sections Table (from real exam data) ── */}
+                    {sections.length > 0 && (
+                      <div className="ei-table-wrap">
+                        <table className="ei-table">
+                          <thead>
+                            <tr>
+                              <th>{dict.sno}</th>
+                              <th>{dict.sections}</th>
+                              <th>{dict.noOfQuestions}</th>
+                              <th>{dict.maxMarks}</th>
+                              <th>{dict.duration}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sections.map((sec, idx) => {
+                              const translatedSecName = SECTION_TRANSLATIONS[activeTab]?.[sec.name] || sec.name;
+                              return (
+                                <tr key={sec.id} className={idx % 2 === 0 ? 'ei-row-even' : 'ei-row-odd'}>
+                                  <td>{sec.id}</td>
+                                  <td>{translatedSecName}</td>
+                                  <td>{sec.questions}</td>
+                                  <td>{sec.marks}</td>
+                                  <td>{sec.duration} {dict.minutes}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr className="ei-row-total">
+                              <td></td>
+                              <td><strong>{dict.total}</strong></td>
+                              <td><strong>{displayedTotalQuestions}</strong></td>
+                              <td><strong>{displayedTotalMarks}</strong></td>
+                              <td><strong>{displayedDuration} {dict.minutes}</strong></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Instruction lines */}
+                    <ol style={{
+                      listStyle: 'none', padding: '0 0 0 4px', margin: 0,
+                      counterReset: 'preview-counter',
+                      fontFamily: activeTab === 'English'
+                        ? "'Inter','Segoe UI',Arial,sans-serif"
+                        : "'Noto Sans Devanagari','Noto Sans Oriya','Noto Sans',Arial,sans-serif",
+                      fontSize: '0.875rem',
+                    }}>
+                      {previewLines.length > 0 ? previewLines.map((line, i) => (
+                        <li key={i} className="preview-li" style={{
+                          counterIncrement: 'preview-counter',
+                          display: 'flex', alignItems: 'flex-start', gap: '10px',
+                          padding: '6px 8px', borderRadius: '5px', marginBottom: '3px',
+                          lineHeight: '1.65', color: '#333',
+                        }}>
+                          <span style={{ color: '#2980b9', fontWeight: 700, minWidth: '22px', flexShrink: 0 }}>{i + 1}.</span>
+                          <span>{line}</span>
+                        </li>
+                      )) : (
+                        <li style={{ color: '#94a3b8', fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>
+                          No instructions yet. Start typing in the editor.
+                        </li>
+                      )}
+                    </ol>
+
+                    {/* Choose Your default Language: */}
+                    <div className="ei-lang-row" style={{ marginTop: '16px', borderTop: '1.5px solid #e2e8f0', paddingTop: '16px' }}>
+                      <label className="ei-lang-label" htmlFor="preview-default-lang">
+                        Choose Your default Language:
+                      </label>
+                      <select
+                        id="preview-default-lang"
+                        className="ei-lang-select"
+                        value={activeTab}
+                        onChange={e => setActiveTab(e.target.value)}
+                      >
+                        {languages.map(l => (
+                          <option key={l} value={l}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <p className="ei-lang-note">
+                      Please note all questions will appear in your default language. This language can be changed for a particular question later on.
+                    </p>
+
+                    {/* Declaration */}
+                    <div className="ei-declaration">
+                      <input
+                        type="checkbox"
+                        id="preview-declaration-cb"
+                        checked={previewAccepted}
+                        onChange={e => setPreviewAccepted(e.target.checked)}
+                      />
+                      <label htmlFor="preview-declaration-cb">
+                        I have read and understood the instructions. All computer hardware allotted to me are in proper working condition. I declare that I am not in position of / not wearing any / not carrying any prohibited gadget like mobile phone, bluetooth devices, etc/any prohibited material with me into the examination hall, I agree that in case of not adhering to the instructions, I shall be liable to be barred from this test and/or to disciplinary action, which may include banned from the future tests / examinations.
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </>
-      )}
+            </>
+          )}
 
-      {!selectedExamId && !loading && (
-        <div className="glass" style={{ padding: '60px', borderRadius: 'var(--radius-lg)', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📋</div>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Select an exam above to manage its instructions.</p>
-          {exams.length === 0 && <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>No exams found. Create an exam first.</p>}
-        </div>
+          {!selectedExamId && (
+            <div className="glass" style={{ padding: '60px', borderRadius: 'var(--radius-lg)', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📋</div>
+              <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Select an exam above to manage its instructions.</p>
+              {exams.length === 0 && <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>No exams found. Create an exam first.</p>}
+            </div>
+          )}
+        </>
       )}
     </AdminLayout>
   );

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { BookOpen, Users, FileText, CheckCircle } from 'lucide-react';
+import Skeleton from '../../components/Skeleton';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -55,7 +56,7 @@ const Dashboard = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
         {loading ? (
-           <p style={{ color: 'var(--text-muted)', gridColumn: 'span 4' }}>Loading live telemetry...</p>
+          <Skeleton type="card" count={4} style={{ minHeight: '112px' }} />
         ) : (
           <>
             <DashboardCard icon={<FileText color="white" />} label="Total Exams" value={stats.exams} color="#1976d2" />
@@ -80,20 +81,23 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {recentAttempts.length === 0 && !loading && (
-                   <tr><td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>No exams actively attempted yet.</td></tr>
+                {loading ? (
+                  <Skeleton type="table-row" count={5} cols={4} />
+                ) : recentAttempts.length === 0 ? (
+                  <tr><td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>No exams actively attempted yet.</td></tr>
+                ) : (
+                  recentAttempts.map((attempt) => {
+                    const maxMarks = attempt.exam?.questions?.length || 0; 
+                    return (
+                      <tr key={attempt._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '16px 12px', fontWeight: 500 }}>{attempt.student?.name || 'Unknown'}</td>
+                        <td style={{ padding: '16px 12px' }}>{attempt.exam?.title || 'Unknown Exam'}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--success)', fontWeight: 600 }}>{attempt.score} / {maxMarks}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{new Date(attempt.submittedAt).toLocaleDateString()}</td>
+                      </tr>
+                    )
+                  })
                 )}
-                {recentAttempts.map((attempt) => {
-                  const maxMarks = attempt.exam?.questions?.length || 0; 
-                  return (
-                    <tr key={attempt._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td style={{ padding: '16px 12px', fontWeight: 500 }}>{attempt.student?.name || 'Unknown'}</td>
-                      <td style={{ padding: '16px 12px' }}>{attempt.exam?.title || 'Unknown Exam'}</td>
-                      <td style={{ padding: '16px 12px', color: 'var(--success)', fontWeight: 600 }}>{attempt.score} / {maxMarks}</td>
-                      <td style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{new Date(attempt.submittedAt).toLocaleDateString()}</td>
-                    </tr>
-                  )
-                })}
               </tbody>
             </table>
           </div>

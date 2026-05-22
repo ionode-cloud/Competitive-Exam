@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Star, TrendingUp, BarChart2, Award } from 'lucide-react';
+import Skeleton from '../../components/Skeleton';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -153,8 +154,14 @@ const AdminRating = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-muted)' }}>
             <Star color="#fbbf24" fill="#fbbf24" /> <span style={{ fontWeight: 600 }}>Global Avg Rating</span>
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>
-            {loading ? '-' : stats.avgRating} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ 5.0</span>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            {loading ? (
+              <Skeleton type="text" width="80px" height="38px" style={{ marginBottom: 0 }} />
+            ) : (
+              <>
+                {stats.avgRating} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ 5.0</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -162,8 +169,14 @@ const AdminRating = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-muted)' }}>
             <Award color="#9c27b0" /> <span style={{ fontWeight: 600 }}>5-Star Honors</span>
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>
-             {loading ? '-' : stats.totalFiveStars} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>students</span>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            {loading ? (
+              <Skeleton type="text" width="120px" height="38px" style={{ marginBottom: 0 }} />
+            ) : (
+              <>
+                {stats.totalFiveStars} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>students</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -172,7 +185,11 @@ const AdminRating = () => {
             <TrendingUp color="#2e7d32" /> <span style={{ fontWeight: 600 }}>Global Pass Rate</span>
           </div>
           <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>
-            {loading ? '-' : stats.passingPercentage}%
+            {loading ? (
+              <Skeleton type="text" width="80px" height="38px" style={{ marginBottom: 0 }} />
+            ) : (
+              `${stats.passingPercentage}%`
+            )}
           </div>
         </div>
       </div>
@@ -185,9 +202,7 @@ const AdminRating = () => {
         
         <div style={{ height: '300px', width: '100%' }}>
           {loading ? (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-              Calculating historical trends...
-            </div>
+            <Skeleton type="text" height="100%" width="100%" style={{ borderRadius: '8px' }} />
           ) : chartData.labels.length > 0 ? (
             <Bar options={chartOptions} data={chartData} />
           ) : (

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './ExamInstructions.css';
+import Skeleton from '../../components/Skeleton';
 
 const TEXT_SIZES = ['Small', 'Medium', 'Large'];
 const TEXT_SIZE_MAP = { Small: '0.8rem', Medium: '0.875rem', Large: '1rem' };
@@ -259,8 +260,60 @@ const ExamInstructions = () => {
 
   if (loading) {
     return (
-      <div className="ei-wrapper" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <p style={{ color: '#555', fontSize: '1rem', padding: '60px' }}>Loading exam instructions…</p>
+      <div className="ei-wrapper">
+        <main className="ei-main">
+          <div className="ei-card" style={{ paddingBottom: '32px' }}>
+            {/* Title Bar Skeleton */}
+            <div className="ei-section-title-bar" style={{ background: '#cbd5e1', height: '40px', opacity: 0.15 }}>
+              {/* Pulsing placeholder */}
+            </div>
+
+            {/* Info Row Skeleton */}
+            <div className="ei-info-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '20px 24px' }}>
+              <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
+                <Skeleton type="text" width="120px" height="20px" style={{ marginBottom: 0 }} />
+                <Skeleton type="text" width="120px" height="20px" style={{ marginBottom: 0 }} />
+                <Skeleton type="text" width="120px" height="20px" style={{ marginBottom: 0 }} />
+              </div>
+              <Skeleton type="text" width="150px" height="28px" style={{ marginBottom: 0 }} />
+            </div>
+
+            <hr className="ei-divider" />
+
+            <div style={{ padding: '0 24px 24px 24px' }}>
+              {/* Note placeholder */}
+              <Skeleton type="text" width="300px" height="20px" style={{ marginBottom: '24px' }} />
+
+              {/* Table Wrapper Skeleton */}
+              <div className="ei-table-wrap" style={{ marginBottom: '32px' }}>
+                <table className="ei-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '10%' }}><Skeleton type="text" width="40px" height="18px" style={{ margin: 'auto' }} /></th>
+                      <th style={{ width: '40%' }}><Skeleton type="text" width="100px" height="18px" /></th>
+                      <th style={{ width: '15%' }}><Skeleton type="text" width="80px" height="18px" style={{ margin: 'auto' }} /></th>
+                      <th style={{ width: '15%' }}><Skeleton type="text" width="80px" height="18px" style={{ margin: 'auto' }} /></th>
+                      <th style={{ width: '20%' }}><Skeleton type="text" width="80px" height="18px" style={{ margin: 'auto' }} /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <Skeleton type="table-row" count={4} cols={5} />
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Instructions list placeholder */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
+                <Skeleton type="text" width="95%" />
+                <Skeleton type="text" width="90%" />
+                <Skeleton type="text" width="92%" />
+                <Skeleton type="text" width="88%" />
+                <Skeleton type="text" width="94%" />
+                <Skeleton type="text" width="85%" />
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }

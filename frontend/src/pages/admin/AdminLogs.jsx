@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { useAuth } from '../../context/AuthContext';
+import { Edit2, Trash2, Check, X } from 'lucide-react';
+import { Skeleton } from '../../components/Skeleton';
+import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 
 const AdminLogs = () => {
   const [admins, setAdmins] = useState([]);
@@ -9,6 +12,8 @@ const AdminLogs = () => {
   const { admin } = useAuth();
   
   const [newAdmin, setNewAdmin] = useState({ email: '', password: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ email: '', password: '' });
 
   useEffect(() => {
     fetchAdmins();
@@ -37,9 +42,51 @@ const AdminLogs = () => {
       });
       setNewAdmin({ email: '', password: '' });
       fetchAdmins();
-      alert('Admin created successfully');
+      alertSuccess('Created!', 'Admin created successfully');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create admin');
+      alertError(err.response?.data?.message || 'Failed to create admin');
+    }
+  };
+
+  const handleEditClick = (a) => {
+    setEditingId(a._id);
+    setEditForm({ email: a.email, password: a.plainPassword || '' });
+  };
+
+  const handleCancelClick = () => {
+    setEditingId(null);
+    setEditForm({ email: '', password: '' });
+  };
+
+  const handleUpdate = async (id) => {
+    try {
+      const token = admin?.token || localStorage.getItem('admin') ? JSON.parse(localStorage.getItem('admin')).token : '';
+      await axios.put(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admins/${id}`, editForm, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEditingId(null);
+      fetchAdmins();
+      alertSuccess('Updated!', 'Admin updated successfully');
+    } catch (err) {
+      alertError(err.response?.data?.message || 'Failed to update admin');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const confirmed = await confirmAction(
+      'Delete Admin Account?',
+      'Are you sure you want to delete this admin account? This action cannot be undone.'
+    );
+    if (!confirmed) return;
+    try {
+      const token = admin?.token || localStorage.getItem('admin') ? JSON.parse(localStorage.getItem('admin')).token : '';
+      await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admins/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAdmins();
+      alertSuccess('Deleted!', 'Admin deleted successfully');
+    } catch (err) {
+      alertError(err.response?.data?.message || 'Failed to delete admin');
     }
   };
 
@@ -47,10 +94,10 @@ const AdminLogs = () => {
     <AdminLayout>
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Admin Logs</h2>
-        <p style={{ color: 'var(--text-muted)' }}>View and create administrator accounts instantly</p>
+        <p style={{ color: 'var(--text-muted)' }}>View, edit, and delete administrator accounts instantly</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2.5fr', gap: '2rem' }}>
         {/* Create Admin Form */}
         <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)', alignSelf: 'start' }}>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Create Admin</h3>
@@ -87,39 +134,103 @@ const AdminLogs = () => {
         {/* Admin List */}
         <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Existing Admins</h3>
-          {loading ? (
-            <p>Loading records...</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
-                    <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>ID</th>
-                    <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Email (ID)</th>
-                    <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Password</th>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
+                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>ID</th>
+                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Email (ID)</th>
+                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Password</th>
+                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <Skeleton type="table-row" count={3} cols={4} />
+                ) : admins.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No admins found
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {admins.map((a, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a._id}</td>
-                      <td style={{ padding: '12px 16px', fontWeight: '600' }}>{a.email}</td>
-                      <td style={{ padding: '12px 16px', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        {a.plainPassword || '****** (Legacy)'}
-                      </td>
-                    </tr>
-                  ))}
-                  {admins.length === 0 && (
-                    <tr>
-                      <td colSpan="3" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        No admins found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ) : (
+                  admins.map((a, i) => {
+                    const isEditing = editingId === a._id;
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a._id}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: '600' }}>
+                          {isEditing ? (
+                            <input 
+                              type="email" 
+                              className="input-field" 
+                              style={{ padding: '6px 10px', fontSize: '0.875rem', margin: 0, width: '100%' }}
+                              value={editForm.email}
+                              onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                              required
+                            />
+                          ) : (
+                            a.email
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                          {isEditing ? (
+                            <input 
+                              type="text" 
+                              className="input-field" 
+                              style={{ padding: '6px 10px', fontSize: '0.875rem', margin: 0, width: '100%', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold' }}
+                              value={editForm.password}
+                              onChange={e => setEditForm({ ...editForm, password: e.target.value })}
+                              required
+                            />
+                          ) : (
+                            a.plainPassword || '****** (Legacy)'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <button 
+                                onClick={() => handleUpdate(a._id)}
+                                style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}
+                                title="Save"
+                              >
+                                <Check size={18} />
+                              </button>
+                              <button 
+                                onClick={handleCancelClick}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                title="Cancel"
+                              >
+                                <X size={18} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <button 
+                                onClick={() => handleEditClick(a)}
+                                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}
+                                title="Edit"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(a._id)}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                title="Delete"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </AdminLayout>
@@ -127,3 +238,4 @@ const AdminLogs = () => {
 };
 
 export default AdminLogs;
+

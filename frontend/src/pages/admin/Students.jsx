@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Star, Filter, Download as DownloadIcon, Trash2 } from 'lucide-react';
+import { Skeleton } from '../../components/Skeleton';
+import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 
 const StudentsView = () => {
   const [students, setStudents] = useState([]);
@@ -91,22 +93,34 @@ const StudentsView = () => {
   }, []);
 
   const handleDeleteStudent = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this student and all their exam results?')) return;
+    const confirmed = await confirmAction(
+      'Delete Student?',
+      'Are you sure you want to delete this student and all their exam results? This action cannot be undone.'
+    );
+    if (!confirmed) return;
     try {
       const token = JSON.parse(localStorage.getItem('admin')).token;
       await axios.delete(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/students/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStudents(prev => prev.filter(s => s._id !== id));
-      alert('Student deleted successfully');
+      alertSuccess('Deleted!', 'Student deleted successfully');
     } catch (err) {
-      alert('Failed to delete student');
+      alertError('Failed to delete student');
     }
   };
 
   const handleClearRegistry = async () => {
-    if (!window.confirm('CRITICAL WARNING: This will permanently delete ALL registered students and ALL of their exam results. This action is irreversible. Proceed?')) return;
-    if (!window.confirm('Final confirmation: Clear entire student registry?')) return;
+    const confirm1 = await confirmAction(
+      'CRITICAL WARNING',
+      'This will permanently delete ALL registered students and ALL of their exam results. This action is irreversible. Proceed?'
+    );
+    if (!confirm1) return;
+    const confirm2 = await confirmAction(
+      'Final Confirmation',
+      'Are you absolutely sure you want to clear the entire student registry?'
+    );
+    if (!confirm2) return;
 
     try {
       const token = JSON.parse(localStorage.getItem('admin')).token;
@@ -114,9 +128,9 @@ const StudentsView = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStudents([]);
-      alert('Student registry cleared successfully.');
+      alertSuccess('Cleared!', 'Student registry cleared successfully.');
     } catch (err) {
-      alert('Failed to clear registry');
+      alertError('Failed to clear registry');
     }
   };
 
@@ -202,60 +216,56 @@ const StudentsView = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.map(student => (
-                <tr key={student._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                      {student.name.charAt(0).toUpperCase()}
-                    </div>
-                    {student.name}
-                  </td>
-                  <td style={{ padding: '16px' }}>{student.rollNumber}</td>
-                  <td style={{ padding: '16px' }}>
-                    {student.subject ? `${student.subject.topicName} - ${student.subject.subjectName}` : 'N/A'}
-                  </td>
-                  <td style={{ padding: '16px', fontWeight: 600 }}>
-                    {student.avgPercentage !== null ? `${student.avgPercentage.toFixed(1)}%` : '-'}
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{ 
-                      padding: '4px 12px', 
-                      borderRadius: '20px', 
-                      fontSize: '0.75rem', 
-                      fontWeight: 600, 
-                      background: student.status === 'Passed' ? '#f0fdf4' : student.status === 'Failed' ? '#fef2f2' : '#f1f5f9', 
-                      color: student.status === 'Passed' ? '#15803d' : student.status === 'Failed' ? '#ef4444' : '#64748b' 
-                    }}>
-                      {student.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    {renderStars(student.rating)}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'right' }}>
-                    <button 
-                      onClick={() => handleDeleteStudent(student._id)}
-                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}
-                      title="Delete Student"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredStudents.length === 0 && !loading && (
+              {loading ? (
+                <Skeleton type="table-row" count={5} cols={7} />
+              ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No students have registered yet.
                   </td>
                 </tr>
-              )}
-              {loading && (
-                <tr>
-                  <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Loading global registry metrics...
-                  </td>
-                </tr>
+              ) : (
+                filteredStudents.map(student => (
+                  <tr key={student._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                    <td style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                        {student.name.charAt(0).toUpperCase()}
+                      </div>
+                      {student.name}
+                    </td>
+                    <td style={{ padding: '16px' }}>{student.rollNumber}</td>
+                    <td style={{ padding: '16px' }}>
+                      {student.subject ? `${student.subject.topicName} - ${student.subject.subjectName}` : 'N/A'}
+                    </td>
+                    <td style={{ padding: '16px', fontWeight: 600 }}>
+                      {student.avgPercentage !== null ? `${student.avgPercentage.toFixed(1)}%` : '-'}
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <span style={{ 
+                        padding: '4px 12px', 
+                        borderRadius: '20px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 600, 
+                        background: student.status === 'Passed' ? '#f0fdf4' : student.status === 'Failed' ? '#fef2f2' : '#f1f5f9', 
+                        color: student.status === 'Passed' ? '#15803d' : student.status === 'Failed' ? '#ef4444' : '#64748b' 
+                      }}>
+                        {student.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      {renderStars(student.rating)}
+                    </td>
+                    <td style={{ padding: '16px', textAlign: 'right' }}>
+                      <button 
+                        onClick={() => handleDeleteStudent(student._id)}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}
+                        title="Delete Student"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

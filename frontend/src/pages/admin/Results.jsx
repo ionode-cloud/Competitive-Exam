@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Award, TrendingUp, AlertCircle, Filter, Trash2 } from 'lucide-react';
+import { Skeleton } from '../../components/Skeleton';
+import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 
 const ResultsView = () => {
   const [results, setResults] = useState([]);
@@ -28,8 +30,16 @@ const ResultsView = () => {
   }, []);
 
   const handleClearHistory = async () => {
-    if (!window.confirm('WARNING: This will permanently delete ALL exam results from the database. This action cannot be undone. Are you absolutely sure?')) return;
-    if (!window.confirm('Please confirm once more: Delete entire history?')) return;
+    const confirm1 = await confirmAction(
+      'WARNING',
+      'This will permanently delete ALL exam results from the database. This action cannot be undone. Are you absolutely sure?'
+    );
+    if (!confirm1) return;
+    const confirm2 = await confirmAction(
+      'Final Confirmation',
+      'Please confirm once more: Delete entire history?'
+    );
+    if (!confirm2) return;
 
     try {
       const token = JSON.parse(localStorage.getItem('admin')).token;
@@ -37,9 +47,9 @@ const ResultsView = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setResults([]);
-      alert('All results have been cleared.');
+      alertSuccess('Cleared!', 'All results have been cleared.');
     } catch (err) {
-      alert('Failed to clear history');
+      alertError('Failed to clear history');
     }
   };
 
@@ -138,7 +148,7 @@ const ResultsView = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="5" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</td></tr>
+              <Skeleton type="table-row" count={5} cols={5} />
             ) : filteredResults.length === 0 ? (
               <tr><td colSpan="5" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>No exam attempts recorded yet.</td></tr>
             ) : (

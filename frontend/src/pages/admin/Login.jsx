@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Shield, Mail, Lock } from 'lucide-react';
+import { alertError } from '../../utils/alert';
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');
@@ -12,12 +13,12 @@ const AdminLogin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(false);
+    setLoading(true);
     try {
       await adminLogin(email, password);
       navigate('/admin/dashboard');
     } catch (err) {
-      alert('Invalid admin credentials');
+      alertError('Login Failed', 'Invalid admin credentials');
     } finally {
       setLoading(false);
     }
