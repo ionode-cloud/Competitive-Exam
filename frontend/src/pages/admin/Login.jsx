@@ -25,38 +25,36 @@ const AdminLogin = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
-      <div className="glass animate-fade-in" style={{ padding: '2.5rem', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: '400px', background: 'rgba(30, 41, 59, 0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)' }}>
+      <div className="glass animate-fade-in" style={{ padding: '2.5rem', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: '400px', border: '1px solid var(--border)' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+          <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', boxShadow: 'var(--shadow-orange)' }}>
             <Shield color="white" size={30} />
           </div>
-          <h1 style={{ fontSize: '1.75rem', color: 'white', marginBottom: '0.5rem' }}>Admin Portal</h1>
-          <p style={{ color: '#94a3b8' }}>Secure access for exam management</p>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'white', marginBottom: '0.5rem' }}>Admin Portal</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem' }}>Secure access for exam management</p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label style={{ color: '#cbd5e1' }}><Mail size={14} style={{ marginRight: 6 }} /> Email Address</label>
+            <label style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 555 }}><Mail size={14} /> Email Address</label>
             <input 
               type="email" 
               className="input-field" 
               placeholder="admin@example.com" 
               required 
-              style={{ background: '#1e293b', border: '1px solid #334155', color: 'white' }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div className="input-group">
-            <label style={{ color: '#cbd5e1' }}><Lock size={14} style={{ marginRight: 6 }} /> Password</label>
+            <label style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 555 }}><Lock size={14} /> Password</label>
             <input 
               type="password" 
               className="input-field" 
               placeholder="••••••••" 
               required 
-              style={{ background: '#1e293b', border: '1px solid #334155', color: 'white' }}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -66,10 +64,10 @@ const AdminLogin = () => {
             {loading ? 'Authenticating...' : 'Login as Administrator'}
           </button>
 
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '1.25rem' }}>
             <Link
               to="/admin/forgot-password"
-              style={{ color: '#6366f1', fontSize: '13px', textDecoration: 'none', opacity: 0.85 }}
+              style={{ color: 'var(--primary)', fontSize: '13px', textDecoration: 'none', fontWeight: 600, opacity: 0.85, transition: 'var(--transition-fast)' }}
               onMouseOver={e => e.target.style.opacity = 1}
               onMouseOut={e => e.target.style.opacity = 0.85}
             >

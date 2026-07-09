@@ -297,10 +297,10 @@ const ManageQuestions = () => {
     <AdminLayout>
 
       {/* ── Page Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Question Bank</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Manage and organize all your exam questions here.</p>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Question Bank</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Manage and organize all your exam questions here.</p>
         </div>
         <button
           id="add-question-bank-btn"
@@ -313,7 +313,7 @@ const ManageQuestions = () => {
       </div>
 
       {/* ── Search ── */}
-      <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '32px' }}>
+      <div className="glass" style={{ padding: '20px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '32px', border: '1px solid var(--border)' }}>
         <div style={{ position: 'relative' }}>
           <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
@@ -334,9 +334,9 @@ const ManageQuestions = () => {
         </div>
 
       ) : Object.keys(groupedQuestions).length === 0 && !activeTopic ? (
-        <div className="glass" style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
+        <div className="glass" style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
           <BookOpen size={48} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
-          <h3 style={{ marginBottom: '8px', color: 'var(--text-muted)' }}>No questions found</h3>
+          <h3 style={{ marginBottom: '8px', color: 'var(--text-secondary)' }}>No questions found</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Start by adding your first set of questions.</p>
           <button onClick={openAddModal} className="btn btn-primary"><Plus size={18} /> Add Question Bank</button>
         </div>
@@ -351,36 +351,46 @@ const ManageQuestions = () => {
               onClick={() => { setActiveTopic(topic); setShowInlineAdd(false); }}
               style={{
                 padding: '28px', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
-                transition: 'all 0.3s ease', border: '1px solid var(--border-light)',
+                transition: 'all 0.3s ease', border: '1px solid var(--border)',
                 display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                minHeight: '200px', background: 'white', position: 'relative',
+                minHeight: '200px', background: 'var(--bg-card)', position: 'relative',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-orange)';
+                e.currentTarget.style.boxShadow = 'var(--shadow-orange)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               <button
                 onClick={e => handleDeleteTopic(topic, e)}
                 style={{
                   position: 'absolute', top: '16px', right: '16px',
-                  color: '#ef4444', background: '#fef2f2', border: '1px solid #fee2e2',
-                  padding: '6px', borderRadius: '6px', cursor: 'pointer', zIndex: 2, display: 'flex'
+                  color: '#ef4444', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                  padding: '6px', borderRadius: '6px', cursor: 'pointer', zIndex: 2, display: 'flex', transition: 'var(--transition-fast)'
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
                 title="Delete Whole Topic"
               >
                 <Trash2 size={16} />
               </button>
               <div>
-                <div style={{ padding: '10px', background: 'var(--primary-light)', borderRadius: '12px', display: 'inline-flex', marginBottom: '20px' }}>
+                <div style={{ padding: '10px', background: 'var(--primary-ultra)', border: '1px solid var(--border-orange)', borderRadius: '12px', display: 'inline-flex', marginBottom: '20px' }}>
                   <Briefcase size={22} color="var(--primary)" />
                 </div>
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '8px', fontWeight: 700 }}>{topic}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '8px', fontWeight: 700, color: 'var(--text-primary)' }}>{topic}</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                   {qs[0]?.exam?.subjectName || qs[0]?.subjectName || 'General Question Bank'}
                 </p>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '6px 14px', borderRadius: '25px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-ultra)', border: '1px solid var(--border-orange)', padding: '6px 14px', borderRadius: '25px' }}>
                   {qs.length} {qs.length === 1 ? 'Question' : 'Questions'}
                 </span>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ChevronRight size={20} color="var(--primary)" />
                 </div>
               </div>
@@ -395,7 +405,7 @@ const ManageQuestions = () => {
         <div className="animate-fade-in">
 
           {/* Detail Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
             <button
               onClick={() => { setActiveTopic(null); setShowInlineAdd(false); setInlineQs([newBlankQ()]); }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}
@@ -413,7 +423,7 @@ const ManageQuestions = () => {
               <button
                 onClick={e => handleDeleteTopic(activeTopic, e)}
                 className="btn btn-outline"
-                style={{ color: '#ef4444', borderColor: '#fecaca', background: '#fef2f2' }}
+                style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.08)' }}
               >
                 <Trash2 size={18} /> Delete This Topic
               </button>
@@ -421,21 +431,21 @@ const ManageQuestions = () => {
           </div>
 
           {/* Topic Title */}
-          <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ padding: '8px', background: 'var(--primary-light)', borderRadius: '10px', display: 'flex' }}>
+          <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ padding: '8px', background: 'var(--primary-ultra)', border: '1px solid var(--border-orange)', borderRadius: '10px', display: 'flex' }}>
               <Filter size={18} color="var(--primary)" />
             </div>
             <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{activeTopic}</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)', background: '#f1f5f9', padding: '4px 12px', borderRadius: '15px', marginLeft: '8px' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', padding: '4px 12px', borderRadius: '15px', marginLeft: '8px' }}>
               {groupedQuestions[activeTopic]?.length || 0} Questions
             </span>
           </h3>
 
           {/* Existing Questions Table */}
           {groupedQuestions[activeTopic]?.length > 0 && (
-            <div className="glass" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', marginBottom: '24px' }}>
+            <div className="glass" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '24px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ background: '#f8fafc', borderBottom: '1px solid var(--border-light)' }}>
+                <thead style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <tr style={{ textAlign: 'left' }}>
                     <th style={{ padding: '18px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', width: '52px' }}>#</th>
                     <th style={{ padding: '18px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Question Text</th>
@@ -446,20 +456,20 @@ const ManageQuestions = () => {
                 </thead>
                 <tbody>
                   {groupedQuestions[activeTopic]?.map((q, idx) => (
-                    <tr key={q._id} style={{ borderBottom: '1px solid var(--border-light)' }} className="table-row-hover">
+                    <tr key={q._id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '16px', fontWeight: 800, color: 'var(--primary)', fontSize: '0.9rem' }}>
                         Q{idx + 1}
                       </td>
                       <td style={{ padding: '16px', maxWidth: '520px' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#334155', marginBottom: '6px' }}>{q.text}</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '6px' }}>{q.text}</div>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {q.options.map((opt, i) => (
                             <span key={i} style={{
                               fontSize: '0.72rem', padding: '2px 10px', borderRadius: '20px',
-                              background: q.correctOption === i ? '#d1fae5' : '#f1f5f9',
-                              color: q.correctOption === i ? '#065f46' : '#64748b',
+                              background: q.correctOption === i ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                              color: q.correctOption === i ? '#22c55e' : 'var(--text-secondary)',
                               fontWeight: q.correctOption === i ? 700 : 400,
-                              border: q.correctOption === i ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
+                              border: q.correctOption === i ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid var(--border)',
                             }}>
                               {String.fromCharCode(65 + i)}. {opt}
                             </span>
@@ -467,7 +477,7 @@ const ManageQuestions = () => {
                         </div>
                       </td>
                       <td style={{ padding: '16px' }}>
-                        <span style={{ padding: '5px 14px', borderRadius: '25px', fontSize: '0.75rem', fontWeight: 700, background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0' }}>
+                        <span style={{ padding: '5px 14px', borderRadius: '25px', fontSize: '0.75rem', fontWeight: 700, background: 'rgba(255, 255, 255, 0.02)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                           {q.section}
                         </span>
                       </td>
@@ -475,11 +485,17 @@ const ManageQuestions = () => {
                       <td style={{ padding: '16px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                           <button onClick={() => openEditModal(q)}
-                            style={{ border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex' }} title="Edit">
+                            style={{ border: '1px solid var(--border)', background: 'var(--bg-glass-light)', color: 'var(--text-primary)', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', transition: 'var(--transition-fast)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-glass-light)'}
+                            title="Edit">
                             <Edit size={18} />
                           </button>
                           <button onClick={() => handleDeleteQuestion(q._id)}
-                            style={{ border: '1px solid #fee2e2', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex' }} title="Delete">
+                            style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', transition: 'var(--transition-fast)' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)'; }}
+                            title="Delete">
                             <Trash2 size={18} />
                           </button>
                         </div>
@@ -499,7 +515,8 @@ const ManageQuestions = () => {
                 <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--primary) 0%, transparent 100%)' }} />
                 <span style={{
                   padding: '6px 18px', background: 'var(--primary)', color: 'white',
-                  borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap'
+                  borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap',
+                  boxShadow: 'var(--shadow-orange)'
                 }}>
                   + Adding {inlineQs.length} New Question{inlineQs.length > 1 ? 's' : ''} to "{activeTopic}"
                 </span>
@@ -514,29 +531,29 @@ const ManageQuestions = () => {
                       <div
                         key={qIdx}
                         style={{
-                          border: '2px solid var(--primary)',
+                          border: '1px solid var(--primary)',
                           borderRadius: '14px',
                           overflow: 'hidden',
-                          background: 'white',
-                          boxShadow: '0 4px 20px rgba(25,118,210,0.10)',
+                          background: 'var(--bg-card)',
+                          boxShadow: 'var(--shadow-orange)',
                         }}
                       >
                         {/* Card header */}
                         <div style={{
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                           padding: '12px 20px',
-                          background: 'linear-gradient(90deg, var(--primary-light) 0%, #e0f2fe 100%)',
-                          borderBottom: '1px solid #bfdbfe',
+                          background: 'var(--orange-gradient)',
+                          borderBottom: '1px solid var(--border)',
                         }}>
-                          <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                          <span style={{ fontWeight: 800, color: 'white', fontSize: '0.95rem' }}>
                             Q{baseCount + qIdx + 1}
-                            <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#64748b', marginLeft: '8px' }}>New</span>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255, 255, 255, 0.8)', marginLeft: '8px' }}>New</span>
                           </span>
                           <button
                             type="button"
                             onClick={() => removeInlineQ(qIdx)}
                             style={{
-                              background: '#fef2f2', border: '1px solid #fee2e2', color: '#ef4444',
+                              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: 'white',
                               padding: '4px 12px', borderRadius: '6px', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600
                             }}
@@ -548,7 +565,7 @@ const ManageQuestions = () => {
                         <div style={{ padding: '20px' }}>
                           {/* Question Text */}
                           <div className="input-group">
-                            <label style={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                            <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                               Question Text <span style={{ color: '#ef4444' }}>*</span>
                             </label>
                             <textarea
@@ -564,7 +581,7 @@ const ManageQuestions = () => {
                           {/* Section & Marks */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: '16px', marginBottom: '18px' }}>
                             <div className="input-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                              <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                 Section <span style={{ color: '#ef4444' }}>*</span>
                               </label>
                               <input
@@ -576,7 +593,7 @@ const ManageQuestions = () => {
                               />
                             </div>
                             <div className="input-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>Marks</label>
+                              <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Marks</label>
                               <input
                                 type="number" className="input-field" min="1"
                                 value={q.marks}
@@ -586,7 +603,7 @@ const ManageQuestions = () => {
                           </div>
 
                           {/* Options 2×2 grid */}
-                          <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                          <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                             Answer Options &nbsp;
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                               (click radio = correct answer)
@@ -600,8 +617,8 @@ const ManageQuestions = () => {
                                 style={{
                                   display: 'flex', alignItems: 'center', gap: '10px',
                                   padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
-                                  border: `2px solid ${q.correctOption === i ? '#6ee7b7' : '#e2e8f0'}`,
-                                  background: q.correctOption === i ? '#f0fdf4' : '#f8fafc',
+                                  border: `2px solid ${q.correctOption === i ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                                  background: q.correctOption === i ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
                                   transition: 'all 0.18s',
                                 }}
                               >
@@ -611,9 +628,9 @@ const ManageQuestions = () => {
                                   checked={q.correctOption === i}
                                   onChange={() => updateInlineQ(qIdx, 'correctOption', i)}
                                   onClick={e => e.stopPropagation()}
-                                  style={{ width: '17px', height: '17px', accentColor: '#10b981', flexShrink: 0 }}
+                                  style={{ width: '17px', height: '17px', accentColor: '#22c55e', flexShrink: 0 }}
                                 />
-                                <span style={{ fontWeight: 800, fontSize: '0.875rem', flexShrink: 0, color: q.correctOption === i ? '#059669' : '#94a3b8' }}>
+                                <span style={{ fontWeight: 800, fontSize: '0.875rem', flexShrink: 0, color: q.correctOption === i ? '#22c55e' : 'var(--text-muted)' }}>
                                   {String.fromCharCode(65 + i)}.
                                 </span>
                                 <input
@@ -642,7 +659,7 @@ const ManageQuestions = () => {
                     onClick={addMoreInlineQ}
                     style={{
                       flex: 1, padding: '14px', border: '2px dashed var(--primary)',
-                      borderRadius: '12px', background: 'var(--primary-light)', color: 'var(--primary)',
+                      borderRadius: '12px', background: 'var(--primary-ultra)', color: 'var(--primary)',
                       fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                     }}
@@ -680,9 +697,9 @@ const ManageQuestions = () => {
 
           {/* Empty topic state — show prompt to add */}
           {!groupedQuestions[activeTopic]?.length && !showInlineAdd && (
-            <div style={{ padding: '48px', textAlign: 'center', background: '#f8fafc', borderRadius: '14px', border: '2px dashed #e2e8f0' }}>
-              <BookOpen size={40} color="#94a3b8" style={{ marginBottom: '12px' }} />
-              <p style={{ color: '#64748b', fontWeight: 600, marginBottom: '16px' }}>No questions in this topic yet.</p>
+            <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-card)', borderRadius: '14px', border: '2px dashed var(--border)' }}>
+              <BookOpen size={40} color="var(--text-muted)" style={{ marginBottom: '12px' }} />
+              <p style={{ color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '16px' }}>No questions in this topic yet.</p>
               <button onClick={openInlineAdd} className="btn btn-primary"><Plus size={18} /> Add First Question</button>
             </div>
           )}
@@ -695,17 +712,18 @@ const ManageQuestions = () => {
       ══════════════════════════════════════════ */}
       {showAddModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)',
+          position: 'fixed', inset: 0, background: 'rgba(5, 11, 20, 0.85)',
+          backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
           zIndex: 1000, padding: '24px', overflowY: 'auto',
         }}>
           <div style={{
-            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '760px',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', overflow: 'hidden', marginBottom: '24px',
+            background: 'var(--bg-dark-2)', borderRadius: '16px', border: '1px solid var(--border)', width: '100%', maxWidth: '760px',
+            boxShadow: 'var(--shadow-lg)', overflow: 'hidden', marginBottom: '24px',
           }}>
             {/* Modal Header */}
             <div style={{
-              background: 'linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%)',
+              background: 'var(--orange-gradient)',
               padding: '24px 28px', color: 'white',
               display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
             }}>
@@ -723,15 +741,15 @@ const ManageQuestions = () => {
 
             <form onSubmit={handleSaveAll}>
               {/* Subject & Topic */}
-              <div style={{ padding: '24px 28px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontWeight: 600, color: '#374151' }}>Subject Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Subject Name <span style={{ color: '#ef4444' }}>*</span></label>
                     <input type="text" className="input-field" placeholder="e.g. Banking, Railway, SSC..."
                       required value={bankSubject} onChange={e => setBankSubject(e.target.value)} />
                   </div>
                   <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontWeight: 600, color: '#374151' }}>Topic Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Topic Name <span style={{ color: '#ef4444' }}>*</span></label>
                     <input type="text" className="input-field" placeholder="e.g. Reasoning, Quantitative..."
                       required value={bankTopic} onChange={e => setBankTopic(e.target.value)} />
                   </div>
@@ -741,12 +759,12 @@ const ManageQuestions = () => {
               {/* Questions */}
               <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {localQs.map((q, qIdx) => (
-                  <div key={qIdx} className="animate-fade-in" style={{ border: '1.5px solid var(--border-light)', borderRadius: '14px', overflow: 'hidden', background: '#fafafa' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: 'linear-gradient(90deg, var(--primary-light) 0%, #e0f2fe 100%)', borderBottom: '1px solid var(--border-light)' }}>
-                      <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem' }}>Q{qIdx + 1}</span>
+                  <div key={qIdx} className="animate-fade-in" style={{ border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', background: 'var(--bg-card)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: 'var(--orange-gradient)', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontWeight: 800, color: 'white', fontSize: '0.95rem' }}>Q{qIdx + 1}</span>
                       {localQs.length > 1 && (
                         <button type="button" onClick={() => removeQ(qIdx)}
-                          style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#ef4444', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
+                          style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
                           <Trash2 size={14} /> Remove
                         </button>
                       )}
@@ -754,7 +772,7 @@ const ManageQuestions = () => {
 
                     <div style={{ padding: '18px' }}>
                       <div className="input-group">
-                        <label style={{ fontWeight: 600, color: '#374151' }}>Question Text <span style={{ color: '#ef4444' }}>*</span></label>
+                        <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Question Text <span style={{ color: '#ef4444' }}>*</span></label>
                         <textarea className="input-field" style={{ minHeight: '88px', resize: 'vertical', lineHeight: '1.6' }}
                           placeholder="Type your question here..." required
                           value={q.text} onChange={e => updateQ(qIdx, 'text', e.target.value)} />
@@ -762,18 +780,18 @@ const ManageQuestions = () => {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '16px', marginBottom: '16px' }}>
                         <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label style={{ fontWeight: 600, color: '#374151' }}>Section <span style={{ color: '#ef4444' }}>*</span></label>
+                          <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Section <span style={{ color: '#ef4444' }}>*</span></label>
                           <input type="text" className="input-field" placeholder="e.g. Reasoning, Maths, English..."
                             required value={q.section} onChange={e => updateQ(qIdx, 'section', e.target.value)} />
                         </div>
                         <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label style={{ fontWeight: 600, color: '#374151' }}>Marks</label>
+                          <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Marks</label>
                           <input type="number" className="input-field" min="1"
                             value={q.marks} onChange={e => updateQ(qIdx, 'marks', parseInt(e.target.value) || 1)} />
                         </div>
                       </div>
 
-                      <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                      <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                         Answer Options &nbsp;<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(click radio = correct)</span>
                       </label>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -781,14 +799,14 @@ const ManageQuestions = () => {
                           <div key={i} onClick={() => updateQ(qIdx, 'correctOption', i)} style={{
                             display: 'flex', alignItems: 'center', gap: '10px',
                             padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
-                            border: `1.5px solid ${q.correctOption === i ? '#bbf7d0' : '#e2e8f0'}`,
-                            background: q.correctOption === i ? '#f0fdf4' : 'white', transition: 'all 0.18s'
+                            border: `1.5px solid ${q.correctOption === i ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
+                            background: q.correctOption === i ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)', transition: 'all 0.18s'
                           }}>
                             <input type="radio" name={`correct-${qIdx}`} checked={q.correctOption === i}
                               onChange={() => updateQ(qIdx, 'correctOption', i)}
                               onClick={e => e.stopPropagation()}
-                              style={{ width: '17px', height: '17px', accentColor: '#10b981', flexShrink: 0 }} />
-                            <span style={{ fontWeight: 700, color: q.correctOption === i ? '#059669' : '#94a3b8', flexShrink: 0 }}>
+                              style={{ width: '17px', height: '17px', accentColor: '#22c55e', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 700, color: q.correctOption === i ? '#22c55e' : 'var(--text-muted)', flexShrink: 0 }}>
                               {String.fromCharCode(65 + i)}.
                             </span>
                             <input type="text" className="input-field"
@@ -805,7 +823,7 @@ const ManageQuestions = () => {
 
                 <button type="button" onClick={addMoreQ} style={{
                   width: '100%', padding: '14px', border: '2px dashed var(--primary)',
-                  borderRadius: '12px', background: 'var(--primary-light)', color: 'var(--primary)',
+                  borderRadius: '12px', background: 'var(--primary-ultra)', color: 'var(--primary)',
                   fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 }}>
@@ -813,7 +831,7 @@ const ManageQuestions = () => {
                 </button>
               </div>
 
-              <div style={{ padding: '16px 28px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', background: '#f8fafc' }}>
+              <div style={{ padding: '16px 28px', borderTop: '1px solid var(--border)', display: 'flex', gap: '12px', background: 'rgba(0,0,0,0.1)' }}>
                 <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowAddModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
                   {saving ? 'Saving...' : `Save ${localQs.length} Question${localQs.length > 1 ? 's' : ''} to Bank`}
@@ -829,21 +847,22 @@ const ManageQuestions = () => {
       ══════════════════════════════════════════ */}
       {showEditModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)',
+          position: 'fixed', inset: 0, background: 'rgba(5, 11, 20, 0.85)',
+          backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px',
         }}>
           <div style={{
-            background: 'white', padding: '32px', borderRadius: '16px',
+            background: 'var(--bg-dark-2)', padding: '32px', borderRadius: '16px', border: '1px solid var(--border)',
             width: '100%', maxWidth: '620px', maxHeight: '92vh', overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            boxShadow: 'var(--shadow-lg)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '4px' }}>Edit Question</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Update question details below.</p>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '4px', color: 'white' }}>Edit Question</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Update question details below.</p>
               </div>
               <button onClick={() => setShowEditModal(false)}
-                style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#64748b' }}>
+                style={{ background: 'var(--bg-glass-light)', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: 'var(--text-secondary)' }}>
                 <X size={20} />
               </button>
             </div>
@@ -851,51 +870,51 @@ const ManageQuestions = () => {
             <form onSubmit={handleUpdateQ}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontWeight: 600, color: '#374151' }}>Subject Name</label>
+                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Subject Name</label>
                   <input type="text" className="input-field" value={editQ.subjectName}
                     onChange={e => setEditQ({ ...editQ, subjectName: e.target.value })} />
                 </div>
                 <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontWeight: 600, color: '#374151' }}>Topic Name</label>
+                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Topic Name</label>
                   <input type="text" className="input-field" value={editQ.topicName}
                     onChange={e => setEditQ({ ...editQ, topicName: e.target.value })} />
                 </div>
               </div>
 
               <div className="input-group">
-                <label style={{ fontWeight: 600, color: '#374151' }}>Question Text <span style={{ color: '#ef4444' }}>*</span></label>
+                <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Question Text <span style={{ color: '#ef4444' }}>*</span></label>
                 <textarea className="input-field" style={{ minHeight: '100px', resize: 'vertical' }}
                   required value={editQ.text} onChange={e => setEditQ({ ...editQ, text: e.target.value })} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '16px', marginBottom: '16px' }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontWeight: 600, color: '#374151' }}>Section <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Section <span style={{ color: '#ef4444' }}>*</span></label>
                   <input type="text" className="input-field" required value={editQ.section}
                     onChange={e => setEditQ({ ...editQ, section: e.target.value })} />
                 </div>
                 <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontWeight: 600, color: '#374151' }}>Marks</label>
+                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Marks</label>
                   <input type="number" className="input-field" min="1" value={editQ.marks}
                     onChange={e => setEditQ({ ...editQ, marks: parseInt(e.target.value) || 1 })} />
                 </div>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, color: '#374151', fontSize: '0.875rem' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                   Answer Options &nbsp;<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(select correct)</span>
                 </label>
                 {editQ.options.map((opt, i) => (
                   <div key={i} style={{
                     display: 'flex', gap: '12px', marginBottom: '10px', alignItems: 'center',
-                    background: editQ.correctOption === i ? '#f0fdf4' : '#f8fafc',
-                    border: `1.5px solid ${editQ.correctOption === i ? '#bbf7d0' : '#e2e8f0'}`,
+                    background: editQ.correctOption === i ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    border: `1.5px solid ${editQ.correctOption === i ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
                     padding: '10px 14px', borderRadius: '10px', transition: 'all 0.2s',
                   }}>
                     <input type="radio" name="edit-correct" checked={editQ.correctOption === i}
                       onChange={() => setEditQ({ ...editQ, correctOption: i })}
-                      style={{ width: '18px', height: '18px', accentColor: '#10b981' }} />
-                    <span style={{ fontWeight: 700, color: editQ.correctOption === i ? '#059669' : '#94a3b8', width: '22px', flexShrink: 0 }}>
+                      style={{ width: '18px', height: '18px', accentColor: '#22c55e' }} />
+                    <span style={{ fontWeight: 700, color: editQ.correctOption === i ? '#22c55e' : 'var(--text-muted)', width: '22px', flexShrink: 0 }}>
                       {String.fromCharCode(65 + i)}.
                     </span>
                     <input type="text" className="input-field"

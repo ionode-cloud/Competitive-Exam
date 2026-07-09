@@ -7,23 +7,23 @@ const API = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;
 
 // ── Step indicators ──────────────────────────────────────────────────────────
 const StepBadge = ({ step, label, active, done }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 }}>
     <div style={{
       width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: 14, fontWeight: 700, transition: 'all 0.4s',
-      background: done ? 'linear-gradient(135deg,#22c55e,#16a34a)' : active ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'rgba(255,255,255,0.07)',
-      border: done || active ? 'none' : '2px solid rgba(255,255,255,0.15)',
-      color: done || active ? '#fff' : '#64748b',
-      boxShadow: active ? '0 0 20px rgba(99,102,241,0.5)' : 'none',
+      background: done ? 'linear-gradient(135deg,#22c55e,#16a34a)' : active ? 'var(--orange-gradient)' : 'rgba(255,255,255,0.07)',
+      border: done || active ? 'none' : '2px solid var(--border)',
+      color: done || active ? '#fff' : 'var(--text-muted)',
+      boxShadow: active ? 'var(--shadow-orange)' : 'none',
     }}>
       {done ? '✓' : step}
     </div>
-    <span style={{ fontSize: 10, color: active ? '#a5b4fc' : done ? '#4ade80' : '#475569', textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
+    <span style={{ fontSize: 10, color: active ? 'var(--primary)' : done ? '#4ade80' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>{label}</span>
   </div>
 );
 
 const StepLine = ({ done }) => (
-  <div style={{ flex: 1, height: 2, borderRadius: 2, background: done ? 'linear-gradient(90deg,#22c55e,#4ade80)' : 'rgba(255,255,255,0.08)', marginBottom: 20, transition: 'background 0.4s' }} />
+  <div style={{ flex: 1, height: 2, borderRadius: 2, background: done ? 'linear-gradient(90deg,#22c55e,#4ade80)' : 'var(--border)', marginBottom: 20, transition: 'background 0.4s' }} />
 );
 
 // ── OTP Input boxes ──────────────────────────────────────────────────────────
@@ -71,10 +71,10 @@ const OtpInputs = ({ value, onChange }) => {
           onPaste={handlePaste}
           style={{
             width: 48, height: 56, borderRadius: 10, textAlign: 'center', fontSize: 22, fontWeight: 700,
-            background: arr[i] ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
-            border: arr[i] ? '2px solid #6366f1' : '2px solid rgba(255,255,255,0.1)',
-            color: '#e2e8f0', outline: 'none', caretColor: '#6366f1',
-            transition: 'all 0.2s', boxShadow: arr[i] ? '0 0 12px rgba(99,102,241,0.3)' : 'none',
+            background: arr[i] ? 'var(--primary-ultra)' : 'rgba(255,255,255,0.05)',
+            border: arr[i] ? '2px solid var(--primary)' : '2px solid var(--border)',
+            color: 'white', outline: 'none', caretColor: 'var(--primary)',
+            transition: 'all 0.2s', boxShadow: arr[i] ? 'var(--shadow-orange)' : 'none',
           }}
         />
       ))}
@@ -92,7 +92,7 @@ const Countdown = ({ seconds, onExpire }) => {
   }, [seconds]);
   const m = Math.floor(remaining / 60).toString().padStart(2, '0');
   const s = (remaining % 60).toString().padStart(2, '0');
-  return <span style={{ color: remaining < 30 ? '#f59e0b' : '#4ade80', fontWeight: 600 }}>{m}:{s}</span>;
+  return <span style={{ color: remaining < 30 ? '#f59e0b' : '#22c55e', fontWeight: 600 }}>{m}:{s}</span>;
 };
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -167,27 +167,21 @@ const ForgotPassword = () => {
 
   const containerStyle = {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: '#0f172a', padding: '2rem',
-    backgroundImage: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.15) 0%, transparent 70%)',
+    background: 'var(--bg-dark)', padding: '2rem',
+    backgroundImage: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255, 107, 0, 0.08) 0%, transparent 70%)',
   };
 
   const cardStyle = {
     width: '100%', maxWidth: 440, padding: '2.5rem', borderRadius: 20,
-    background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(99,102,241,0.2)',
-    backdropFilter: 'blur(20px)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-  };
-
-  const inputStyle = {
-    width: '100%', padding: '0.85rem 1rem', borderRadius: 10, outline: 'none',
-    background: 'rgba(30,41,59,0.8)', border: '1px solid rgba(255,255,255,0.1)',
-    color: '#e2e8f0', fontSize: 15, boxSizing: 'border-box', transition: 'border 0.2s',
+    background: 'var(--bg-glass)', border: '1px solid var(--border)',
+    backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-lg)',
   };
 
   const btnStyle = {
     width: '100%', padding: '0.9rem', borderRadius: 10, border: 'none', cursor: 'pointer',
     fontWeight: 700, fontSize: 15, transition: 'all 0.2s',
-    background: loading ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-    color: '#fff', boxShadow: loading ? 'none' : '0 4px 20px rgba(99,102,241,0.35)',
+    background: loading ? 'rgba(255, 107, 0, 0.5)' : 'var(--orange-gradient)',
+    color: '#fff', boxShadow: loading ? 'none' : 'var(--shadow-orange)',
   };
 
   return (
@@ -198,19 +192,19 @@ const ForgotPassword = () => {
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%', margin: '0 auto 1rem',
-            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+            background: 'var(--orange-gradient)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 30px rgba(99,102,241,0.4)',
+            boxShadow: 'var(--shadow-orange)',
           }}>
             {step === 4 ? <CheckCircle color="#fff" size={30} /> : <KeyRound color="#fff" size={28} />}
           </div>
-          <h1 style={{ fontSize: '1.6rem', color: '#fff', margin: '0 0 6px', fontWeight: 700 }}>
+          <h1 style={{ fontSize: '1.6rem', color: '#fff', margin: '0 0 6px', fontWeight: 800 }}>
             {step === 1 && 'Forgot Password'}
             {step === 2 && 'Verify OTP'}
             {step === 3 && 'New Password'}
             {step === 4 && 'Password Reset!'}
           </h1>
-          <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>
             {step === 1 && 'Enter your admin email to receive an OTP'}
             {step === 2 && `OTP sent to ${email}`}
             {step === 3 && 'Choose a strong new password'}
@@ -220,7 +214,7 @@ const ForgotPassword = () => {
 
         {/* Step Indicators (steps 1-3) */}
         {step <= 3 && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '2rem' }}>
             <StepBadge step={1} label="Email" active={step === 1} done={step > 1} />
             <StepLine done={step > 1} />
             <StepBadge step={2} label="OTP" active={step === 2} done={step > 2} />
@@ -244,11 +238,11 @@ const ForgotPassword = () => {
         {step === 1 && (
           <form onSubmit={handleSendOtp}>
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 13, marginBottom: 8, fontWeight: 500 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 13, marginBottom: 8, fontWeight: 555 }}>
                 <Mail size={14} /> Email Address
               </label>
               <input
-                type="email" required style={inputStyle}
+                type="email" className="input-field" required
                 placeholder="admin@example.com"
                 value={email}
                 onChange={e => { setEmail(e.target.value); clearError(); }}
@@ -259,7 +253,7 @@ const ForgotPassword = () => {
             </button>
             <button
               type="button" onClick={() => navigate('/admin/login')}
-              style={{ width: '100%', marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ width: '100%', marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
               <ArrowLeft size={14} /> Back to Login
             </button>
@@ -270,7 +264,7 @@ const ForgotPassword = () => {
         {step === 2 && (
           <form onSubmit={handleVerifyOtp}>
             <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              <p style={{ color: '#94a3b8', fontSize: 13, margin: '0 0 4px' }}>OTP expires in: <Countdown key={timerKey} seconds={300} onExpire={() => setOtpExpired(true)} /></p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 4px' }}>OTP expires in: <Countdown key={timerKey} seconds={300} onExpire={() => setOtpExpired(true)} /></p>
             </div>
 
             <OtpInputs value={otp} onChange={v => { setOtp(v); clearError(); }} />
@@ -279,24 +273,24 @@ const ForgotPassword = () => {
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>⏰ OTP has expired.</p>
                 <button type="button" onClick={handleResendOtp} disabled={loading}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', borderRadius: 8, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: 13 }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-ultra)', border: '1px solid var(--border-orange)', color: 'var(--primary)', borderRadius: 8, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: 13 }}>
                   <RefreshCw size={14} /> {loading ? 'Sending...' : 'Resend OTP'}
                 </button>
               </div>
             ) : (
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <button type="button" onClick={handleResendOtp} disabled={loading}
-                  style={{ background: 'transparent', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
                   <RefreshCw size={12} /> Resend OTP
                 </button>
               </div>
             )}
 
-            <button type="submit" style={{ ...btnStyle, background: otp.length < 6 ? 'rgba(99,102,241,0.3)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} disabled={loading || otp.length < 6}>
+            <button type="submit" style={{ ...btnStyle, background: otp.length < 6 ? 'rgba(255, 107, 0, 0.3)' : 'var(--orange-gradient)' }} disabled={loading || otp.length < 6}>
               {loading ? '⏳ Verifying...' : '✅ Verify OTP'}
             </button>
             <button type="button" onClick={() => { setStep(1); setOtp(''); clearError(); }}
-              style={{ width: '100%', marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              style={{ width: '100%', marginTop: 12, padding: '0.75rem', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <ArrowLeft size={14} /> Change Email
             </button>
           </form>
@@ -306,28 +300,28 @@ const ForgotPassword = () => {
         {step === 3 && (
           <form onSubmit={handleResetPassword}>
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 13, marginBottom: 8, fontWeight: 500 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 13, marginBottom: 8, fontWeight: 555 }}>
                 <Lock size={14} /> New Password
               </label>
               <div style={{ position: 'relative' }}>
                 <input
-                  type={showPass ? 'text' : 'password'} required minLength={6} style={{ ...inputStyle, paddingRight: 44 }}
+                  type={showPass ? 'text' : 'password'} required minLength={6} className="input-field" style={{ paddingRight: 44 }}
                   placeholder="Min. 6 characters"
                   value={newPassword}
                   onChange={e => { setNewPassword(e.target.value); clearError(); }}
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)}
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 16 }}>
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }}>
                   {showPass ? '🙈' : '👁️'}
                 </button>
               </div>
             </div>
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 13, marginBottom: 8, fontWeight: 500 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 13, marginBottom: 8, fontWeight: 555 }}>
                 <Lock size={14} /> Confirm Password
               </label>
               <input
-                type="password" required minLength={6} style={{ ...inputStyle, borderColor: confirmPassword && newPassword !== confirmPassword ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }}
+                type="password" required minLength={6} className="input-field" style={{ borderColor: confirmPassword && newPassword !== confirmPassword ? 'rgba(239,68,68,0.5)' : 'var(--border)' }}
                 placeholder="Repeat new password"
                 value={confirmPassword}
                 onChange={e => { setConfirmPassword(e.target.value); clearError(); }}
@@ -347,7 +341,7 @@ const ForgotPassword = () => {
                     background: newPassword.length >= 10 ? '#22c55e' : newPassword.length >= 8 ? '#f59e0b' : '#ef4444',
                   }} />
                 </div>
-                <p style={{ fontSize: 11, color: newPassword.length >= 10 ? '#4ade80' : newPassword.length >= 8 ? '#fbbf24' : '#f87171', marginTop: 4 }}>
+                <p style={{ fontSize: 11, color: newPassword.length >= 10 ? '#22c55e' : newPassword.length >= 8 ? '#fbbf24' : '#f87171', marginTop: 4, fontWeight: 600 }}>
                   {newPassword.length >= 10 ? '💪 Strong' : newPassword.length >= 8 ? '⚡ Medium' : '⚠️ Weak'}
                 </p>
               </div>
@@ -367,15 +361,15 @@ const ForgotPassword = () => {
               background: 'rgba(34,197,94,0.15)', border: '2px solid rgba(34,197,94,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36,
               animation: 'pulse 2s infinite',
-            }}>✅</div>
-            <p style={{ color: '#86efac', fontSize: 15, marginBottom: '1.5rem', lineHeight: 1.6 }}>
+            }}>✓</div>
+            <p style={{ color: '#86efac', fontSize: 15, marginBottom: '1.5rem', lineHeight: 1.6, fontWeight: 555 }}>
               Your password has been successfully reset.<br />You can now log in with your new credentials.
             </p>
             <button
               onClick={() => navigate('/admin/login')}
               style={{ ...btnStyle, background: 'linear-gradient(135deg,#22c55e,#16a34a)', boxShadow: '0 4px 20px rgba(34,197,94,0.35)' }}
             >
-              🚀 Go to Admin Login
+              Go to Admin Login
             </button>
           </div>
         )}

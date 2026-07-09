@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useExam } from '../../context/ExamContext';
 import { useAuth } from '../../context/AuthContext';
+import { useUser } from '../../context/UserContext';
 import ExamHeader from '../../components/student/ExamHeader';
 import QuestionPalette from '../../components/student/QuestionPalette';
 import QuestionDisplay from '../../components/student/QuestionDisplay';
@@ -20,7 +21,12 @@ const ExamInterface = () => {
     jumpToQuestion, resetExam 
   } = useExam();
   const { student } = useAuth();
+  const { user } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const urlExamId = queryParams.get('examId');
+  const urlMockTestId = queryParams.get('mockTestId');
   const [loading, setLoading] = useState(true);
 
   // Mock Data for Initial Test if DB is empty
@@ -40,10 +46,15 @@ const ExamInterface = () => {
   };
 
   useEffect(() => {
+    const subjectId = student?.subject || urlExamId;
+    if (!subjectId) {
+      setLoading(false);
+      return;
+    }
     const fetchExam = async () => {
       try {
         const res = await axios.get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/exams`);
-        const currentExam = res.data.find(e => e._id === student?.subject);
+        const currentExam = res.data.find(e => e._id === subjectId);
         if (currentExam) {
           setExam(currentExam);
         } else {
@@ -57,7 +68,30 @@ const ExamInterface = () => {
       }
     };
     fetchExam();
-  }, [setExam]);
+  }, [setExam, student, urlExamId]);
+
+  useEffect(() => {
+    // Prevent back navigation
+    const handlePopState = (e) => {
+      window.history.pushState(null, null, window.location.href);
+      alertWarning('Action Blocked', 'You cannot go back during the exam. Please submit the exam to exit.');
+    };
+
+    window.history.pushState(null, null, window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    // Prevent tab close or refresh
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -108,6 +142,7 @@ const ExamInterface = () => {
       </div>
     );
   }
+
   if (!exam) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
@@ -118,10 +153,10 @@ const ExamInterface = () => {
           style={{ padding: '12px 24px', fontSize: '1.1rem' }}
           onClick={() => {
             localStorage.removeItem('student');
-            window.location.href = '/login';
+            window.location.href = '/services';
           }}
         >
-          Click Here to Reset Session & Log In Again
+          Click Here to Reset Session & Go Back
         </button>
       </div>
     );
@@ -132,7 +167,7 @@ const ExamInterface = () => {
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
         <h2>Exam is Empty</h2>
         <p>No questions have been assigned to this exam yet.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/login')}>Back to Login</button>
+        <button className="btn btn-primary" onClick={() => navigate('/services')}>Back to Free Mock Tests</button>
       </div>
     );
   }
@@ -183,7 +218,9 @@ const ExamInterface = () => {
       });
 
       const resultData = {
-        studentId: student._id,
+        studentId: student?._id || user?._id,
+        userId: user?._id,
+        mockTestId: urlMockTestId,
         examId: exam._id,
         answers: processedAnswers,
         score: totalScore,
@@ -201,9 +238,9 @@ const ExamInterface = () => {
       };
 
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/submit`, resultData);
+        const res = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/submit`, resultData);
         resetExam();
-        navigate('/result', { state: { result: resultData } });
+        navigate('/result', { state: { result: { ...resultData, certificate: res.data?.certificate } } });
       } catch (err) {
         console.error('Submission failed:', err);
         alertError('Submission Failed', 'Failed to submit test on server. Navigating to results locally.');
@@ -269,10 +306,17 @@ const ExamInterface = () => {
         {/* Right Section - Sidebar */}
         <div style={{ background: '#f8fafc', overflowY: 'auto' }}>
           <div style={{ padding: '24px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img src="https://via.placeholder.com/60" alt="Student" style={{ borderRadius: '50%', border: '2px solid var(--primary)' }} />
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-ultra)', border: '2px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
             <div>
-              <div style={{ fontWeight: 'bold' }}>{student?.name || 'Student Name'}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Roll: {student?.rollNumber}</div>
+              <div style={{ fontWeight: 'bold' }}>{student?.name || user?.name || 'Student Name'}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {student ? `Roll: ${student.rollNumber}` : user ? `Email: ${user.email}` : 'Practice Mode'}
+              </div>
             </div>
           </div>
           

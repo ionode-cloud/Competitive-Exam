@@ -49,35 +49,40 @@ const Dashboard = () => {
 
   return (
     <AdminLayout>
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Dashboard Overview</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Welcome back, Administrator. Here's what's happening today.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Dashboard Overview</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.975rem' }}>Welcome back, Administrator. Here's what's happening today.</p>
+        </div>
+        <button onClick={() => window.location.href = '/home'} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Users size={18} /> View User Tab
+        </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '40px' }}>
         {loading ? (
           <Skeleton type="card" count={4} style={{ minHeight: '112px' }} />
         ) : (
           <>
-            <DashboardCard icon={<FileText color="white" />} label="Total Exams" value={stats.exams} color="#1976d2" />
-            <DashboardCard icon={<BookOpen color="white" />} label="Total Questions" value={stats.questions} color="#9c27b0" />
-            <DashboardCard icon={<Users color="white" />} label="Total Students" value={stats.students} color="#0288d1" />
-            <DashboardCard icon={<CheckCircle color="white" />} label="Test Attempts" value={stats.attempts} color="#2e7d32" />
+            <DashboardCard icon={<FileText color="white" size={24} />} label="Total Exams" value={stats.exams} color="var(--primary)" />
+            <DashboardCard icon={<BookOpen color="white" size={24} />} label="Total Questions" value={stats.questions} color="#a855f7" />
+            <DashboardCard icon={<Users color="white" size={24} />} label="Total Students" value={stats.students} color="#0ea5e9" />
+            <DashboardCard icon={<CheckCircle color="white" size={24} />} label="Test Attempts" value={stats.attempts} color="#22c55e" />
           </>
         )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
-        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ marginBottom: '20px' }}>Recent Exam Attempts</h3>
+        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginBottom: '20px', fontSize: '1.25rem', fontWeight: 700 }}>Recent Exam Attempts</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-light)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Student</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Exam</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Score</th>
-                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Date</th>
+                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>Student</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>Exam</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>Score</th>
+                  <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -89,10 +94,10 @@ const Dashboard = () => {
                   recentAttempts.map((attempt) => {
                     const maxMarks = attempt.exam?.questions?.length || 0; 
                     return (
-                      <tr key={attempt._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                        <td style={{ padding: '16px 12px', fontWeight: 500 }}>{attempt.student?.name || 'Unknown'}</td>
-                        <td style={{ padding: '16px 12px' }}>{attempt.exam?.title || 'Unknown Exam'}</td>
-                        <td style={{ padding: '16px 12px', color: 'var(--success)', fontWeight: 600 }}>{attempt.score} / {maxMarks}</td>
+                      <tr key={attempt._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '16px 12px', fontWeight: 500, color: 'var(--text-primary)' }}>{attempt.student?.name || 'Unknown'}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>{attempt.exam?.title || 'Unknown Exam'}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--success)', fontWeight: 700 }}>{attempt.score} / {maxMarks}</td>
                         <td style={{ padding: '16px 12px', color: 'var(--text-muted)' }}>{new Date(attempt.submittedAt).toLocaleDateString()}</td>
                       </tr>
                     )
@@ -103,12 +108,12 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ marginBottom: '20px' }}>Quick Actions</h3>
+        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', height: 'fit-content' }}>
+          <h3 style={{ marginBottom: '20px', fontSize: '1.25rem', fontWeight: 700 }}>Quick Actions</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button onClick={() => window.location.href = '/admin/create-exam'} className="btn btn-primary" style={{ justifyContent: 'flex-start' }}>Create New Exam</button>
-            <button onClick={() => window.location.href = '/admin/manage-questions'} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>Add Question to Bank</button>
-            <button onClick={() => window.location.href = '/admin/students'} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>View Student Profiles</button>
+            <button onClick={() => window.location.href = '/admin/create-exam'} className="btn btn-primary" style={{ justifyContent: 'flex-start', width: '100%' }}>Create New Exam</button>
+            <button onClick={() => window.location.href = '/admin/manage-questions'} className="btn btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }}>Add Question to Bank</button>
+            <button onClick={() => window.location.href = '/admin/students'} className="btn btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }}>View Student Profiles</button>
           </div>
         </div>
       </div>
@@ -117,13 +122,13 @@ const Dashboard = () => {
 };
 
 const DashboardCard = ({ icon, label, value, color }) => (
-  <div className="glass animate-fade-in" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', display: 'flex', gap: '20px', alignItems: 'center' }}>
-    <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 16px -4px ${color}44` }}>
+  <div className="glass animate-fade-in" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', display: 'flex', gap: '20px', alignItems: 'center', border: '1px solid var(--border)' }}>
+    <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px -4px ${color}55` }}>
       {icon}
     </div>
     <div>
-      <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 500 }}>{label}</div>
-      <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>{value}</div>
     </div>
   </div>
 );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Star, Filter, Download as DownloadIcon, Trash2 } from 'lucide-react';
+import { Star, Filter, Download as DownloadIcon, Trash2, Search } from 'lucide-react';
 import { Skeleton } from '../../components/Skeleton';
 import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 
@@ -79,7 +79,7 @@ const StudentsView = () => {
             else rating = 1;
           }
 
-          return { ...std, avgPercentage, status, rating };
+          return { ...std, avgPercentage, status, rating, hasAttempted: studentResults.length > 0 };
         });
 
         setStudents(mappedStudents);
@@ -143,26 +143,53 @@ const StudentsView = () => {
             key={star} 
             size={16} 
             fill={star <= rating ? '#fbbf24' : 'transparent'} 
-            color={star <= rating ? '#fbbf24' : '#cbd5e1'} 
+            color={star <= rating ? '#fbbf24' : 'rgba(255, 255, 255, 0.15)'} 
           />
         ))}
       </div>
     );
   };
 
-  const branches = ['All', ...new Set(students.map(s => s.subject?.subjectName).filter(Boolean))];
-  const filteredStudents = students.filter(s => filterBranch === 'All' || s.subject?.subjectName === filterBranch);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
+  const branches = ['All', ...new Set(students.filter(s => s.hasAttempted).map(s => s.subject?.subjectName).filter(Boolean))];
+
+  const filteredStudents = students.filter(s => {
+    const matchesBranch = filterBranch === 'All' || s.subject?.subjectName === filterBranch;
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (s.rollNumber && s.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesAttempted = s.hasAttempted; // Show students who have given exams (free or paid)
+    return matchesBranch && matchesSearch && matchesAttempted;
+  });
+
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <AdminLayout>
-      <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Registered Students</h1>
-          <p style={{ color: 'var(--text-muted)' }}>View student profiles integrated with live analytical scoring metrics.</p>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Registered Students</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>View student profiles integrated with live analytical scoring metrics.</p>
         </div>
         
-        {!loading && students.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {!loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* Search Tab */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-glass)', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', minWidth: '260px' }}>
+              <Search size={18} color="var(--text-muted)" />
+              <input 
+                type="text" 
+                placeholder="Search by name or roll number..." 
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                style={{ border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: '0.875rem', width: '100%' }}
+              />
+            </div>
+
             {/* Download Button */}
             <button 
               onClick={downloadExcel}
@@ -176,7 +203,7 @@ const StudentsView = () => {
             <button 
               onClick={handleClearRegistry}
               className="btn btn-outline" 
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', borderColor: '#fee2e2', padding: '10px 16px' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 16px' }}
               title="Delete All Students"
             >
               <Trash2 size={18} />
@@ -184,16 +211,16 @@ const StudentsView = () => {
             </button>
 
             {/* Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-glass)', padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <Filter size={18} color="var(--primary)" />
-              <span style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Branch:</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Branch:</span>
               <select 
                 value={filterBranch} 
                 onChange={e => setFilterBranch(e.target.value)}
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontWeight: 'bold', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem' }}
               >
                 {branches.map(b => (
-                  <option key={b} value={b}>{b}</option>
+                  <option key={b} value={b} style={{ background: 'var(--bg-card)', color: 'white' }}>{b}</option>
                 ))}
               </select>
             </div>
@@ -201,18 +228,18 @@ const StudentsView = () => {
         )}
       </div>
 
-      <div className="glass" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+      <div className="glass" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
-            <thead style={{ background: '#f8fafc', borderBottom: '1px solid var(--border-light)' }}>
+            <thead style={{ background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border)' }}>
               <tr style={{ textAlign: 'left' }}>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Student Name</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Roll No.</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Assigned Exam</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Avg. Score</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Status</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem' }}>Rating</th>
-                <th style={{ padding: '16px', fontSize: '0.875rem', textAlign: 'right' }}>Action</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Student Name</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Roll No.</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Assigned Exam</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Avg. Score</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Status</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Rating</th>
+                <th style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -225,19 +252,19 @@ const StudentsView = () => {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map(student => (
-                  <tr key={student._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                paginatedStudents.map(student => (
+                  <tr key={student._id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-ultra)', border: '1px solid var(--border-orange)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
                         {student.name.charAt(0).toUpperCase()}
                       </div>
                       {student.name}
                     </td>
-                    <td style={{ padding: '16px' }}>{student.rollNumber}</td>
-                    <td style={{ padding: '16px' }}>
+                    <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{student.rollNumber}</td>
+                    <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>
                       {student.subject ? `${student.subject.topicName} - ${student.subject.subjectName}` : 'N/A'}
                     </td>
-                    <td style={{ padding: '16px', fontWeight: 600 }}>
+                    <td style={{ padding: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {student.avgPercentage !== null ? `${student.avgPercentage.toFixed(1)}%` : '-'}
                     </td>
                     <td style={{ padding: '16px' }}>
@@ -246,8 +273,9 @@ const StudentsView = () => {
                         borderRadius: '20px', 
                         fontSize: '0.75rem', 
                         fontWeight: 600, 
-                        background: student.status === 'Passed' ? '#f0fdf4' : student.status === 'Failed' ? '#fef2f2' : '#f1f5f9', 
-                        color: student.status === 'Passed' ? '#15803d' : student.status === 'Failed' ? '#ef4444' : '#64748b' 
+                        background: student.status === 'Passed' ? 'rgba(34, 197, 94, 0.08)' : student.status === 'Failed' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.02)', 
+                        color: student.status === 'Passed' ? '#22c55e' : student.status === 'Failed' ? '#ef4444' : 'var(--text-secondary)',
+                        border: `1px solid ${student.status === 'Passed' ? 'rgba(34, 197, 94, 0.2)' : student.status === 'Failed' ? 'rgba(239, 68, 68, 0.2)' : 'var(--border)'}`
                       }}>
                         {student.status}
                       </span>
@@ -270,6 +298,38 @@ const StudentsView = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', padding: '20px 16px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <button 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              className="btn btn-outline"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`btn ${currentPage === page ? 'btn-primary' : 'btn-outline'}`}
+                style={{ padding: '6px 12px', fontSize: '0.8rem', minWidth: '32px' }}
+              >
+                {page}
+              </button>
+            ))}
+            <button 
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              className="btn btn-outline"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

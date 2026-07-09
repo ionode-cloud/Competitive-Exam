@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/auth');
 
 router.post('/submit', resultController.submitTest);
 router.get('/results', authMiddleware, resultController.getAllResults);
+router.get('/results/stats/summary', authMiddleware, resultController.getResultStats);
 router.get('/results/:studentId', resultController.getStudentResults);
 router.delete('/results/all', authMiddleware, resultController.deleteAllResults);
 

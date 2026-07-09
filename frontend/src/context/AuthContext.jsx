@@ -8,14 +8,14 @@ export const AuthProvider = ({ children }) => {
   const [student, setStudent] = useState(JSON.parse(localStorage.getItem('student')));
 
   const adminLogin = async (email, password) => {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/login`, { email, password });
+    const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5117'}/api/admin/login`, { email, password });
     localStorage.setItem('admin', JSON.stringify(res.data));
     setAdmin(res.data);
     return res.data;
   };
 
   const studentLogin = async (details) => {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/student/login`, details);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5117'}/api/student/login`, details);
     localStorage.setItem('student', JSON.stringify(res.data));
     setStudent(res.data);
     return res.data;

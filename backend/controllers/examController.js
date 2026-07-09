@@ -4,12 +4,16 @@ const Question = require('../models/Question');
 // Bulk Create Exam and Questions
 const createExam = async (req, res) => {
   try {
-    const { subjectName, topicName, negativeMarking, totalMarks, duration, questions: questionDatas } = req.body;
+    const { subjectName, topicName, negativeMarking, totalMarks, duration, isPaid, price, questions: questionDatas } = req.body;
     
     // Automatically derive sections from questions
     const sections = [...new Set(questionDatas.map(q => q.section).filter(Boolean))];
 
-    const exam = new Exam({ subjectName, topicName, negativeMarking, totalMarks, duration, sections });
+    const exam = new Exam({
+      subjectName, topicName, negativeMarking, totalMarks, duration, sections,
+      isPaid: isPaid || false,
+      price: isPaid ? (price || 0) : 0
+    });
     await exam.save();
 
     if (questionDatas && questionDatas.length > 0) {
@@ -49,12 +53,25 @@ const deleteExam = async (req, res) => {
   }
 };
 
+const mongoose = require('mongoose');
+
 // Get All Exams
 const getExams = async (req, res) => {
   try {
-    const exams = await Exam.find().populate('questions');
+    const { ids } = req.query;
+    let query = {};
+    if (ids) {
+      const validIds = ids.split(',').filter(id => mongoose.Types.ObjectId.isValid(id.trim()));
+      if (validIds.length > 0) {
+        query._id = { $in: validIds };
+      } else {
+        return res.json([]);
+      }
+    }
+    const exams = await Exam.find(query).populate('questions');
     res.json(exams);
   } catch (err) {
+    console.error('getExams error:', err);
     res.status(500).json({ message: 'Error fetching exams' });
   }
 };

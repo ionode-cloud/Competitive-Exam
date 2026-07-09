@@ -13,11 +13,16 @@
     "axios": "^1.15.0",
     "chart.js": "^4.5.1",
     "framer-motion": "^12.38.0",
+    "gsap": "^3.15.0",
     "lucide-react": "^1.8.0",
     "react": "^19.2.4",
     "react-chartjs-2": "^5.3.1",
+    "react-countup": "^6.5.3",
     "react-dom": "^19.2.4",
+    "react-helmet-async": "^3.0.0",
+    "react-intersection-observer": "^10.0.3",
     "react-router-dom": "^7.14.0",
+    "react-type-animation": "^3.2.0",
     "sweetalert2": "^11.26.24"
   },
   "devDependencies": {

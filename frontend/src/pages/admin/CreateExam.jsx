@@ -14,7 +14,9 @@ const CreateExam = () => {
     topicName: '',
     negativeMarking: 0,
     totalMarks: 100,
-    duration: 60
+    duration: 60,
+    isPaid: false,
+    price: 0
   });
 
   const [localQuestions, setLocalQuestions] = useState([
@@ -22,6 +24,22 @@ const CreateExam = () => {
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [subjectsList, setSubjectsList] = useState([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const res = await axios.get(`${API}/api/subjects`);
+        setSubjectsList(res.data);
+      } catch (err) {
+        console.error('Failed to fetch subjects in CreateExam:', err);
+      } finally {
+        setLoadingSubjects(false);
+      }
+    };
+    fetchSubjects();
+  }, []);
 
   // Question Bank Modal State
   const [showBankModal, setShowBankModal] = useState(false);
@@ -174,19 +192,19 @@ const CreateExam = () => {
       {/* Sticky Marks Tracker */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
+        background: 'var(--bg-glass)', backdropFilter: 'blur(12px)',
         padding: '16px 24px', borderRadius: 'var(--radius-lg)', marginBottom: '32px',
-        border: '1px solid var(--border-light)', display: 'flex',
+        border: '1px solid var(--border)', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center',
-        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+        boxShadow: 'var(--shadow-md)'
       }}>
         <div>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Used Marks</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Used Marks</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: isOverLimit ? '#ef4444' : isBalanced ? '#10b981' : '#f59e0b' }}>
-              {usedMarks} <span style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: 500 }}>/ {examInfo.totalMarks}</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: isOverLimit ? '#ef4444' : isBalanced ? '#22c55e' : '#f59e0b' }}>
+              {usedMarks} <span style={{ color: 'var(--text-secondary)', fontSize: '1rem', fontWeight: 500 }}>/ {examInfo.totalMarks}</span>
             </span>
-            {isBalanced && <CheckCircle size={20} color="#10b981" />}
+            {isBalanced && <CheckCircle size={20} color="#22c55e" />}
             {isOverLimit && <AlertTriangle size={20} color="#ef4444" />}
           </div>
         </div>
@@ -196,15 +214,15 @@ const CreateExam = () => {
               {isOverLimit ? 'Marks exceed total limit!' : `Need ${examInfo.totalMarks - usedMarks} more marks to publish`}
             </p>
           )}
-          {isBalanced && <p style={{ fontSize: '0.8125rem', color: '#10b981', fontWeight: 600, margin: 0 }}>✓ Ready to publish</p>}
+          {isBalanced && <p style={{ fontSize: '0.8125rem', color: '#22c55e', fontWeight: 600, margin: 0 }}>✓ Ready to publish</p>}
         </div>
       </div>
 
       {/* Page Header */}
-      <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Create New Exam</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Build your exam by adding questions manually or from the question bank.</p>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Create New Exam</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Build your exam by adding questions manually or from the question bank.</p>
         </div>
         <button
           onClick={handleSubmit}
@@ -218,15 +236,28 @@ const CreateExam = () => {
 
       <form onSubmit={handleSubmit}>
         {/* Basic Information */}
-        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', marginBottom: '32px' }}>
-          <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', marginBottom: '32px', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             <Type size={20} color="var(--primary)" /> Basic Information
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
             <div className="input-group">
               <label>Subject Name</label>
-              <input type="text" className="input-field" placeholder="e.g. Banking" required
-                value={examInfo.subjectName} onChange={e => setExamInfo({ ...examInfo, subjectName: e.target.value })} />
+              {loadingSubjects ? (
+                <select className="input-field" disabled><option>Loading subjects...</option></select>
+              ) : (
+                <select 
+                  className="input-field" 
+                  required
+                  value={examInfo.subjectName} 
+                  onChange={e => setExamInfo({ ...examInfo, subjectName: e.target.value })}
+                >
+                  <option value="">Select a Subject</option>
+                  {subjectsList.filter(s => s.isActive !== false).map(sub => (
+                    <option key={sub._id} value={sub.name}>{sub.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="input-group">
               <label>Topic Name</label>
@@ -236,24 +267,67 @@ const CreateExam = () => {
             <div className="input-group">
               <label>Duration (Mins)</label>
               <input type="number" className="input-field" required
-                value={examInfo.duration} onChange={e => setExamInfo({ ...examInfo, duration: parseInt(e.target.value) })} />
+                value={examInfo.duration} onChange={e => setExamInfo({ ...examInfo, duration: e.target.value === '' ? '' : (parseInt(e.target.value) || 0) })} />
             </div>
             <div className="input-group">
               <label>Total Marks</label>
               <input type="number" className="input-field" required
-                value={examInfo.totalMarks} onChange={e => setExamInfo({ ...examInfo, totalMarks: parseInt(e.target.value) })} />
+                value={examInfo.totalMarks} onChange={e => setExamInfo({ ...examInfo, totalMarks: e.target.value === '' ? '' : (parseInt(e.target.value) || 0) })} />
             </div>
             <div className="input-group">
               <label>Negative Mark</label>
               <input type="number" step="0.01" className="input-field" required
-                value={examInfo.negativeMarking} onChange={e => setExamInfo({ ...examInfo, negativeMarking: parseFloat(e.target.value) })} />
+                value={examInfo.negativeMarking} onChange={e => setExamInfo({ ...examInfo, negativeMarking: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) })} />
             </div>
+
+            {/* Free / Paid Toggle */}
+            <div className="input-group">
+              <label>Exam Type</label>
+              <div style={{ display: 'flex', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)', width: 'fit-content' }}>
+                <button
+                  type="button"
+                  onClick={() => setExamInfo({ ...examInfo, isPaid: false, price: 0 })}
+                  style={{
+                    padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem', border: 'none', cursor: 'pointer',
+                    background: !examInfo.isPaid ? 'var(--primary)' : 'transparent',
+                    color: !examInfo.isPaid ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.2s'
+                  }}
+                >Free</button>
+                <button
+                  type="button"
+                  onClick={() => setExamInfo({ ...examInfo, isPaid: true })}
+                  style={{
+                    padding: '10px 22px', fontWeight: 700, fontSize: '0.9rem', border: 'none', cursor: 'pointer',
+                    background: examInfo.isPaid ? '#f59e0b' : 'transparent',
+                    color: examInfo.isPaid ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.2s'
+                  }}
+                >Paid</button>
+              </div>
+            </div>
+
+            {/* Price (only if Paid) */}
+            {examInfo.isPaid && (
+              <div className="input-group">
+                <label>Price (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="input-field"
+                  placeholder="e.g. 99"
+                  value={examInfo.price}
+                  onChange={e => setExamInfo({ ...examInfo, price: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) })}
+                  style={{ borderColor: '#f59e0b' }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Questions Section Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             <ListPlus size={20} color="var(--primary)" /> Questions ({localQuestions.length})
           </h3>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -262,7 +336,7 @@ const CreateExam = () => {
               type="button"
               onClick={openBankModal}
               className="btn btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', borderColor: '#6366f1', color: '#6366f1', background: '#eef2ff' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--primary-ultra)' }}
             >
               <BookOpen size={18} /> Add from Question Bank
             </button>
@@ -281,13 +355,15 @@ const CreateExam = () => {
         {/* Questions List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '32px' }}>
           {localQuestions.map((q, qIdx) => (
-            <div key={qIdx} className="glass animate-fade-in" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', position: 'relative', border: '1px solid var(--border-light)' }}>
+            <div key={qIdx} className="glass animate-fade-in" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', position: 'relative', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                <div style={{ background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 700 }}>
+                <div style={{ background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 700, boxShadow: 'var(--shadow-orange)' }}>
                   Q{qIdx + 1}
                 </div>
                 <button type="button" onClick={() => removeQuestion(qIdx)}
-                  style={{ color: '#ef4444', background: '#fef2f2', border: '1px solid #fee2e2', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}>
+                  style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', transition: 'var(--transition-fast)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}>
                   <Trash2 size={18} />
                 </button>
               </div>
@@ -315,15 +391,15 @@ const CreateExam = () => {
                 {q.options.map((opt, optIdx) => (
                   <div key={optIdx} style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
-                    background: q.correctOption === optIdx ? '#f0fdf4' : 'rgba(255,255,255,0.5)',
+                    background: q.correctOption === optIdx ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
                     padding: '12px', borderRadius: '12px',
-                    border: `1.5px solid ${q.correctOption === optIdx ? '#bbf7d0' : 'var(--border-light)'}`,
+                    border: `1.5px solid ${q.correctOption === optIdx ? 'rgba(34, 197, 94, 0.4)' : 'var(--border)'}`,
                     transition: 'all 0.2s'
                   }}>
                     <input type="radio" name={`correct-${qIdx}`} checked={q.correctOption === optIdx}
                       onChange={() => updateQuestion(qIdx, 'correctOption', optIdx)}
-                      style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#10b981' }} />
-                    <span style={{ fontWeight: 700, color: q.correctOption === optIdx ? '#059669' : 'var(--text-muted)', width: '20px' }}>
+                      style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#22c55e' }} />
+                    <span style={{ fontWeight: 700, color: q.correctOption === optIdx ? '#22c55e' : 'var(--text-secondary)', width: '20px' }}>
                       {String.fromCharCode(65 + optIdx)}.
                     </span>
                     <input type="text" className="input-field"
@@ -358,20 +434,21 @@ const CreateExam = () => {
       ============================================================ */}
       {showBankModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)',
+          position: 'fixed', inset: 0, background: 'rgba(5, 11, 20, 0.85)',
+          backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 2000, padding: '16px'
         }}>
           <div style={{
-            background: 'white', borderRadius: '16px', width: '100%',
+            background: 'var(--bg-dark-2)', borderRadius: '16px', border: '1px solid var(--border)', width: '100%',
             maxWidth: '900px', height: '88vh', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)', overflow: 'hidden'
+            boxShadow: 'var(--shadow-lg)', overflow: 'hidden'
           }}>
             {/* Modal Header */}
             <div style={{
-              padding: '24px 28px', borderBottom: '1px solid #e2e8f0',
+              padding: '24px 28px', borderBottom: '1px solid var(--border)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: 'white'
+              background: 'var(--orange-gradient)', color: 'white'
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
@@ -391,9 +468,9 @@ const CreateExam = () => {
             </div>
 
             {/* Search & Filter Bar */}
-            <div style={{ padding: '16px 28px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', background: '#f8fafc' }}>
+            <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', background: 'rgba(0,0,0,0.1)' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
                   type="text"
                   placeholder="Search questions..."
@@ -405,16 +482,17 @@ const CreateExam = () => {
               </div>
               <select
                 className="input-field"
-                style={{ height: '40px', fontSize: '0.875rem', minWidth: '180px', flex: 'none' }}
+                style={{ height: '40px', fontSize: '0.875rem', minWidth: '180px', flex: 'none', background: 'var(--bg-card)' }}
                 value={bankFilterTopic}
                 onChange={e => setBankFilterTopic(e.target.value)}
               >
-                {bankTopics.map(t => <option key={t} value={t}>{t}</option>)}
+                {bankTopics.map(t => <option key={t} value={t} style={{ background: 'var(--bg-card)', color: 'white' }}>{t}</option>)}
               </select>
               {selectedBankIds.size > 0 && (
                 <div style={{
-                  background: '#6366f1', color: 'white', padding: '6px 14px',
-                  borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap'
+                  background: 'var(--primary)', color: 'white', padding: '6px 14px',
+                  borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap',
+                  boxShadow: 'var(--shadow-sm)'
                 }}>
                   {selectedBankIds.size} selected
                 </div>
@@ -422,13 +500,13 @@ const CreateExam = () => {
             </div>
 
             {/* Question Cards Scrollable Area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }} className="admin-main-content">
               {bankLoading ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
                   <Skeleton type="card" count={6} />
                 </div>
               ) : filteredBankQuestions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
+                <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
                   <Search size={40} style={{ marginBottom: '12px', opacity: 0.5 }} />
                   <p>No questions match your search.</p>
                 </div>
@@ -443,13 +521,13 @@ const CreateExam = () => {
                         key={q._id}
                         onClick={() => toggleSelectBank(q._id)}
                         style={{
-                          border: `2px solid ${isSelected ? '#6366f1' : '#e2e8f0'}`,
+                          border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
                           borderRadius: '12px',
                           padding: '16px',
                           cursor: 'pointer',
-                          background: isSelected ? '#eef2ff' : 'white',
+                          background: isSelected ? 'var(--primary-ultra)' : 'var(--bg-card)',
                           transition: 'all 0.2s',
-                          boxShadow: isSelected ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
+                          boxShadow: isSelected ? 'var(--shadow-orange)' : 'none',
                           position: 'relative'
                         }}
                       >
@@ -457,27 +535,27 @@ const CreateExam = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {subject && (
-                              <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: '10px' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'rgba(14, 165, 233, 0.1)', color: '#0ea5e9', padding: '2px 8px', borderRadius: '10px' }}>
                                 {subject}
                               </span>
                             )}
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: '10px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', padding: '2px 8px', borderRadius: '10px' }}>
                               {topic}
                             </span>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '10px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '10px' }}>
                               {q.section}
                             </span>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '10px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'rgba(255, 107, 0, 0.1)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '10px' }}>
                               {q.marks} mark{q.marks > 1 ? 's' : ''}
                             </span>
                           </div>
-                          <div style={{ color: isSelected ? '#6366f1' : '#cbd5e1', flexShrink: 0, marginLeft: '8px' }}>
+                          <div style={{ color: isSelected ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0, marginLeft: '8px' }}>
                             {isSelected ? <CheckSquare size={22} /> : <Square size={22} />}
                           </div>
                         </div>
 
                         {/* Question Text */}
-                        <p style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b', marginBottom: '12px', lineHeight: '1.5' }}>
+                        <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '12px', lineHeight: '1.5' }}>
                           {q.text}
                         </p>
 
@@ -490,10 +568,10 @@ const CreateExam = () => {
                                 fontSize: '0.78rem',
                                 padding: '5px 10px',
                                 borderRadius: '8px',
-                                background: q.correctOption === i ? '#d1fae5' : '#f8fafc',
-                                color: q.correctOption === i ? '#065f46' : '#64748b',
+                                background: q.correctOption === i ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                                color: q.correctOption === i ? '#22c55e' : 'var(--text-secondary)',
                                 fontWeight: q.correctOption === i ? 700 : 400,
-                                border: `1px solid ${q.correctOption === i ? '#a7f3d0' : '#e2e8f0'}`,
+                                border: `1px solid ${q.correctOption === i ? 'rgba(34, 197, 94, 0.3)' : 'var(--border)'}`,
                                 display: 'flex', alignItems: 'center', gap: '6px'
                               }}
                             >
@@ -511,14 +589,14 @@ const CreateExam = () => {
 
             {/* Modal Footer */}
             <div style={{
-              padding: '16px 28px', borderTop: '1px solid #e2e8f0',
+              padding: '16px 28px', borderTop: '1px solid var(--border)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              background: '#f8fafc'
+              background: 'rgba(0,0,0,0.2)'
             }}>
-              <div style={{ color: '#64748b', fontSize: '0.875rem' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                 {filteredBankQuestions.length} question{filteredBankQuestions.length !== 1 ? 's' : ''} shown
                 {selectedBankIds.size > 0 && (
-                  <span style={{ marginLeft: '12px', color: '#6366f1', fontWeight: 700 }}>
+                  <span style={{ marginLeft: '12px', color: 'var(--primary)', fontWeight: 700 }}>
                     · {selectedBankIds.size} selected
                   </span>
                 )}
@@ -537,7 +615,7 @@ const CreateExam = () => {
                   disabled={selectedBankIds.size === 0}
                   style={{
                     padding: '10px 24px',
-                    background: selectedBankIds.size === 0 ? '#c7d2fe' : '#6366f1',
+                    opacity: selectedBankIds.size === 0 ? 0.5 : 1,
                     cursor: selectedBankIds.size === 0 ? 'not-allowed' : 'pointer'
                   }}
                 >

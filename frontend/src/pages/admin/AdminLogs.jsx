@@ -11,9 +11,9 @@ const AdminLogs = () => {
   const [loading, setLoading] = useState(true);
   const { admin } = useAuth();
   
-  const [newAdmin, setNewAdmin] = useState({ email: '', password: '' });
+  const [newAdmin, setNewAdmin] = useState({ email: '', password: '', role: 'Admin' });
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ email: '', password: '' });
+  const [editForm, setEditForm] = useState({ email: '', password: '', role: 'Admin' });
 
   useEffect(() => {
     fetchAdmins();
@@ -40,7 +40,7 @@ const AdminLogs = () => {
       await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admins`, newAdmin, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setNewAdmin({ email: '', password: '' });
+      setNewAdmin({ email: '', password: '', role: 'Admin' });
       fetchAdmins();
       alertSuccess('Created!', 'Admin created successfully');
     } catch (err) {
@@ -50,12 +50,12 @@ const AdminLogs = () => {
 
   const handleEditClick = (a) => {
     setEditingId(a._id);
-    setEditForm({ email: a.email, password: a.plainPassword || '' });
+    setEditForm({ email: a.email, password: a.plainPassword || '', role: a.role || 'Admin' });
   };
 
   const handleCancelClick = () => {
     setEditingId(null);
-    setEditForm({ email: '', password: '' });
+    setEditForm({ email: '', password: '', role: 'Admin' });
   };
 
   const handleUpdate = async (id) => {
@@ -93,14 +93,14 @@ const AdminLogs = () => {
   return (
     <AdminLayout>
       <div style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Admin Logs</h2>
-        <p style={{ color: 'var(--text-muted)' }}>View, edit, and delete administrator accounts instantly</p>
+        <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Admin Logs</h1>
+        <p style={{ color: 'var(--text-secondary)' }}>View, edit, and delete administrator accounts instantly</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2.5fr', gap: '2rem' }}>
+      <div className="admin-logs-grid">
         {/* Create Admin Form */}
-        <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)', alignSelf: 'start' }}>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Create Admin</h3>
+        <div className="glass" style={{ padding: '2rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Create Admin</h3>
           <form onSubmit={handleCreate}>
             <div className="input-group">
               <label>Email Address</label>
@@ -123,7 +123,19 @@ const AdminLogs = () => {
                 value={newAdmin.password}
                 onChange={e => setNewAdmin({...newAdmin, password: e.target.value})}
               />
-              <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Password is saved and displayed for QA purposes.</small>
+              <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '6px', fontSize: '0.78rem' }}>Password is saved and displayed for QA purposes.</small>
+            </div>
+            <div className="input-group">
+              <label>Role</label>
+              <select 
+                className="input-field" 
+                style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                value={newAdmin.role}
+                onChange={e => setNewAdmin({...newAdmin, role: e.target.value})}
+              >
+                <option value="Admin" style={{ background: '#ffffff', color: '#000000' }}>Admin</option>
+                <option value="Root Admin" style={{ background: '#ffffff', color: '#000000' }}>Root Admin</option>
+              </select>
             </div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
               Create Account
@@ -132,16 +144,17 @@ const AdminLogs = () => {
         </div>
 
         {/* Admin List */}
-        <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Existing Admins</h3>
+        <div className="glass" style={{ padding: '2rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Existing Admins</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
-                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>ID</th>
-                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Email (ID)</th>
-                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>Password</th>
-                  <th style={{ padding: '12px 16px', color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                  <th style={{ padding: '12px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>ID</th>
+                  <th style={{ padding: '12px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Email (ID)</th>
+                  <th style={{ padding: '12px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Password</th>
+                  <th style={{ padding: '12px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Role</th>
+                  <th style={{ padding: '12px 16px', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -157,9 +170,9 @@ const AdminLogs = () => {
                   admins.map((a, i) => {
                     const isEditing = editingId === a._id;
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a._id}</td>
-                        <td style={{ padding: '12px 16px', fontWeight: '600' }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{a._id}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-primary)' }}>
                           {isEditing ? (
                             <input 
                               type="email" 
@@ -173,12 +186,12 @@ const AdminLogs = () => {
                             a.email
                           )}
                         </td>
-                        <td style={{ padding: '12px 16px', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        <td style={{ padding: '12px 16px', color: '#22c55e', fontFamily: 'monospace', fontWeight: 'bold' }}>
                           {isEditing ? (
                             <input 
                               type="text" 
                               className="input-field" 
-                              style={{ padding: '6px 10px', fontSize: '0.875rem', margin: 0, width: '100%', color: '#10b981', fontFamily: 'monospace', fontWeight: 'bold' }}
+                              style={{ padding: '6px 10px', fontSize: '0.875rem', margin: 0, width: '100%', color: '#22c55e', fontFamily: 'monospace', fontWeight: 'bold' }}
                               value={editForm.password}
                               onChange={e => setEditForm({ ...editForm, password: e.target.value })}
                               required
@@ -187,12 +200,36 @@ const AdminLogs = () => {
                             a.plainPassword || '****** (Legacy)'
                           )}
                         </td>
+                        <td style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {isEditing ? (
+                            <select 
+                              className="input-field" 
+                              style={{ padding: '6px 10px', fontSize: '0.875rem', margin: 0, width: '100%', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                              value={editForm.role}
+                              onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                            >
+                              <option value="Admin" style={{ background: '#ffffff', color: '#000000' }}>Admin</option>
+                              <option value="Root Admin" style={{ background: '#ffffff', color: '#000000' }}>Root Admin</option>
+                            </select>
+                          ) : (
+                            <span style={{ 
+                              padding: '4px 10px', 
+                              borderRadius: '4px', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 700, 
+                              background: a.role === 'Root Admin' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)', 
+                              color: a.role === 'Root Admin' ? '#a855f7' : '#0ea5e9' 
+                            }}>
+                              {a.role || 'Admin'}
+                            </span>
+                          )}
+                        </td>
                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                           {isEditing ? (
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                               <button 
                                 onClick={() => handleUpdate(a._id)}
-                                style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}
+                                style={{ background: 'none', border: 'none', color: '#22c55e', cursor: 'pointer', padding: '4px' }}
                                 title="Save"
                               >
                                 <Check size={18} />
@@ -209,7 +246,7 @@ const AdminLogs = () => {
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                               <button 
                                 onClick={() => handleEditClick(a)}
-                                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px' }}
                                 title="Edit"
                               >
                                 <Edit2 size={18} />
@@ -238,4 +275,3 @@ const AdminLogs = () => {
 };
 
 export default AdminLogs;
-

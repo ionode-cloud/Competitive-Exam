@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import './ExamInstructions.css';
 import Skeleton from '../../components/Skeleton';
 
 const TEXT_SIZES = ['Small', 'Medium', 'Large'];
@@ -169,7 +168,12 @@ const buildSections = (questions = [], totalDuration = 0) => {
 
 const ExamInstructions = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { student } = useAuth();
+
+  const queryParams = new URLSearchParams(location.search);
+  const urlExamId = queryParams.get('examId');
+  const urlMockTestId = queryParams.get('mockTestId');
 
   const [exam, setExam]                       = useState(null);
   const [loading, setLoading]                 = useState(true);
@@ -186,14 +190,15 @@ const ExamInstructions = () => {
 
   /* ── Fetch exam ── */
   useEffect(() => {
-    if (!student?.subject) { setLoading(false); return; }
+    const subjectId = student?.subject || urlExamId;
+    if (!subjectId) { setLoading(false); return; }
 
     const fetchExam = async () => {
       try {
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5117'}/api/exams`
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/exams`
         );
-        const found = res.data.find(e => e._id === student.subject);
+        const found = res.data.find(e => e._id === subjectId);
         setExam(found || null);
 
         if (found?.languages?.length) {
@@ -211,7 +216,7 @@ const ExamInstructions = () => {
     };
 
     fetchExam();
-  }, [student]);
+  }, [student, urlExamId]);
 
   /* When student picks their default language → also update the "View in" preview */
   const handleLanguageChange = (lang) => {
@@ -224,7 +229,14 @@ const ExamInstructions = () => {
     let valid = true;
     if (!language) { setLangError(true);   valid = false; } else setLangError(false);
     if (!accepted) { setAcceptError(true); valid = false; } else setAcceptError(false);
-    if (valid) navigate('/exams');
+    if (valid) {
+      const examId = student?.subject || urlExamId;
+      let target = `/exams?examId=${examId}`;
+      if (urlMockTestId) {
+        target += `&mockTestId=${urlMockTestId}`;
+      }
+      navigate(target);
+    }
   };
 
   /* ── Derive data ── */
@@ -500,7 +512,7 @@ const ExamInstructions = () => {
 
       {/* ── Footer ── */}
       <footer className="ei-footer">
-        <button className="ei-btn ei-btn-prev" onClick={() => navigate('/login')}>
+        <button className="ei-btn ei-btn-prev" onClick={() => navigate('/services')}>
           &#8249; Previous
         </button>
         <button

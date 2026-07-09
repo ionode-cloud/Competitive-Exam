@@ -120,8 +120,8 @@ const adminLogin = async (req, res) => {
     if (!admin || !await bcrypt.compare(password, admin.password)) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
-    const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET);
-    res.json({ token });
+    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET);
+    res.json({ token, role: admin.role, email: admin.email, id: admin._id });
   } catch (err) {
     console.error('Admin login error:', err);
     res.status(500).json({ message: 'Server error during login' });
@@ -141,15 +141,15 @@ const getAdmins = async (req, res) => {
 // Create Admin
 const createAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     const existing = await Admin.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Admin already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = new Admin({ email, password: hashedPassword, plainPassword: password });
+    const admin = new Admin({ email, password: hashedPassword, plainPassword: password, role: role || 'Admin' });
     await admin.save();
 
-    res.status(201).json({ _id: admin._id, email: admin.email, plainPassword: admin.plainPassword });
+    res.status(201).json({ _id: admin._id, email: admin.email, plainPassword: admin.plainPassword, role: admin.role });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -159,7 +159,7 @@ const createAdmin = async (req, res) => {
 const updateAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     const adminInstance = await Admin.findById(id);
     if (!adminInstance) return res.status(404).json({ message: 'Admin not found' });
@@ -176,8 +176,12 @@ const updateAdmin = async (req, res) => {
       adminInstance.plainPassword = password;
     }
 
+    if (role) {
+      adminInstance.role = role;
+    }
+
     await adminInstance.save();
-    res.json({ _id: adminInstance._id, email: adminInstance.email, plainPassword: adminInstance.plainPassword });
+    res.json({ _id: adminInstance._id, email: adminInstance.email, plainPassword: adminInstance.plainPassword, role: adminInstance.role });
   } catch (err) {
     console.error('Update admin error:', err);
     res.status(500).json({ message: 'Server error' });

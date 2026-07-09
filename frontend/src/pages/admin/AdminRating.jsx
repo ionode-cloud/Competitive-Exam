@@ -112,8 +112,8 @@ const AdminRating = () => {
             {
               label: 'Average Score (%)',
               data: dataPoints,
-              backgroundColor: 'rgba(2, 136, 209, 0.8)', // Primary brand color
-              borderColor: 'rgba(2, 136, 209, 1)',
+              backgroundColor: 'rgba(255, 107, 0, 0.8)', // Primary brand color orange
+              borderColor: 'rgba(255, 107, 0, 1)',
               borderWidth: 1,
               borderRadius: 6,
             }
@@ -134,27 +134,52 @@ const AdminRating = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
+      legend: { 
+        position: 'top',
+        labels: {
+          color: '#94a3b8',
+          font: { family: 'Inter', weight: '500' }
+        }
+      },
       title: { display: false }
     },
     scales: {
-      y: { min: 0, max: 100 }
+      y: { 
+        min: 0, 
+        max: 100,
+        grid: {
+          color: 'rgba(255, 255, 255, 0.08)'
+        },
+        ticks: {
+          color: '#94a3b8',
+          font: { family: 'Inter' }
+        }
+      },
+      x: {
+        grid: {
+          color: 'rgba(255, 255, 255, 0.08)'
+        },
+        ticks: {
+          color: '#94a3b8',
+          font: { family: 'Inter' }
+        }
+      }
     }
   };
 
   return (
     <AdminLayout>
       <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Ratings & Analytics</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Monitor global star ratings, pass metrics, and monthly performance trends.</p>
+        <h1 style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '8px', background: 'var(--orange-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Ratings & Analytics</h1>
+        <p style={{ color: 'var(--text-secondary)' }}>Monitor global star ratings, pass metrics, and monthly performance trends.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
-        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-muted)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-secondary)' }}>
             <Star color="#fbbf24" fill="#fbbf24" /> <span style={{ fontWeight: 600 }}>Global Avg Rating</span>
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px', color: 'var(--text-primary)' }}>
             {loading ? (
               <Skeleton type="text" width="80px" height="38px" style={{ marginBottom: 0 }} />
             ) : (
@@ -165,11 +190,11 @@ const AdminRating = () => {
           </div>
         </div>
 
-        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-muted)' }}>
-            <Award color="#9c27b0" /> <span style={{ fontWeight: 600 }}>5-Star Honors</span>
+        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            <Award color="#a855f7" /> <span style={{ fontWeight: 600 }}>5-Star Honors</span>
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, display: 'flex', alignItems: 'baseline', gap: '4px', color: 'var(--text-primary)' }}>
             {loading ? (
               <Skeleton type="text" width="120px" height="38px" style={{ marginBottom: 0 }} />
             ) : (
@@ -180,11 +205,11 @@ const AdminRating = () => {
           </div>
         </div>
 
-        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-muted)' }}>
-            <TrendingUp color="#2e7d32" /> <span style={{ fontWeight: 600 }}>Global Pass Rate</span>
+        <div className="glass" style={{ padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            <TrendingUp color="#22c55e" /> <span style={{ fontWeight: 600 }}>Global Pass Rate</span>
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             {loading ? (
               <Skeleton type="text" width="80px" height="38px" style={{ marginBottom: 0 }} />
             ) : (
@@ -194,10 +219,10 @@ const AdminRating = () => {
         </div>
       </div>
 
-      <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', height: '400px' }}>
+      <div className="glass" style={{ padding: '32px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', height: '400px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
           <BarChart2 color="var(--primary)" />
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Monthly Performance Trajectory</h3>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>Monthly Performance Trajectory</h3>
         </div>
         
         <div style={{ height: '300px', width: '100%' }}>

@@ -9,6 +9,8 @@ const ExamSchema = new mongoose.Schema({
   sections: [String],
   questions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
   isActive: { type: Boolean, default: true },
+  isPaid: { type: Boolean, default: false },
+  price: { type: Number, default: 0 },
   languages: { type: [String], default: ['English', 'Hindi', 'Odia'] },
   instructions: { type: mongoose.Schema.Types.Mixed, default: { English: '', Hindi: '', Odia: '' } },
   customSections: [{

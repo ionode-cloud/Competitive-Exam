@@ -8,11 +8,27 @@ dotenv.config();
 const connectDB = require('./config/db');
 const Admin = require('./models/Admin');
 
-const adminRoutes = require('./routes/adminRoutes');
-const studentRoutes = require('./routes/studentRoutes');
-const questionRoutes = require('./routes/questionRoutes');
-const examRoutes = require('./routes/examRoutes');
-const resultRoutes = require('./routes/resultRoutes');
+// Existing routes
+const adminRoutes       = require('./routes/adminRoutes');
+const studentRoutes     = require('./routes/studentRoutes');
+const questionRoutes    = require('./routes/questionRoutes');
+const examRoutes        = require('./routes/examRoutes');
+const subjectRoutes     = require('./routes/subjectRoutes');
+const resultRoutes      = require('./routes/resultRoutes');
+
+// ExamSphere existing routes
+const userRoutes        = require('./routes/userRoutes');
+const paymentRoutes     = require('./routes/paymentRoutes');
+const contactRoutes     = require('./routes/contactRoutes');
+const pageContentRoutes = require('./routes/pageContentRoutes');
+
+// New platform routes
+const courseRoutes       = require('./routes/courseRoutes');
+const mockTestRoutes     = require('./routes/mockTestRoutes');
+const couponRoutes       = require('./routes/couponRoutes');
+const certificateRoutes  = require('./routes/certificateRoutes');
+const scheduleRoutes     = require('./routes/scheduleRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -20,19 +36,55 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman) or any localhost port
+    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    // Allow deployed frontend domains
+    const allowed = [
+      'https://examsphere.in',
+      'https://www.examsphere.in',
+    ];
+    if (allowed.includes(origin)) return callback(null, true);
+    callback(new Error('CORS: Not allowed — ' + origin));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 0, // Disable CORS preflight caching so stale responses don't persist
+}));
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Routes
 app.get("/", (req, res) => {
-  res.send("TechFusion API Running Successfully");
+  res.send("ExamSphere API Running Successfully");
 });
 
+// Existing routes
 app.use('/api', adminRoutes);
 app.use('/api', studentRoutes);
 app.use('/api', questionRoutes);
 app.use('/api', examRoutes);
+app.use('/api', subjectRoutes);
 app.use('/api', resultRoutes);
+
+// ExamSphere existing routes
+app.use('/api', userRoutes);
+app.use('/api', paymentRoutes);
+app.use('/api', contactRoutes);
+app.use('/api', pageContentRoutes);
+
+// New platform routes
+app.use('/api', courseRoutes);
+app.use('/api', mockTestRoutes);
+app.use('/api', couponRoutes);
+app.use('/api', certificateRoutes);
+app.use('/api', scheduleRoutes);
+app.use('/api', notificationRoutes);
 
 // Initial Admin Creation (Seed)
 const seedAdmin = async () => {
