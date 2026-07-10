@@ -46,9 +46,12 @@ app.use(cors({
     const allowed = [
       'https://examsphere.in',
       'https://www.examsphere.in',
+      'https://sunilsiracademy.com',
+      'https://www.sunilsiracademy.com',
     ];
     if (allowed.includes(origin)) return callback(null, true);
-    callback(new Error('CORS: Not allowed — ' + origin));
+    console.warn('CORS blocked origin:', origin);
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
