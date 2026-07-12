@@ -40,15 +40,6 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       }
     };
 
-    // Detect lost focus (e.g., if screenshot tool / another app takes focus)
-    const handleWindowBlur = () => {
-      setBlurred(true);
-    };
-
-    const handleWindowFocus = () => {
-      setBlurred(false);
-    };
-
     // Prevent print-screen clipboard copying if possible
     const handleKeyUp = (e) => {
       if (e.key === 'PrintScreen') {
@@ -57,37 +48,60 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       }
     };
 
-    // ── MOBILE SCREENSHOT DETECTION ──────────────────────────────────────────
-    // On Android/iOS: when user presses the screenshot button, the browser
-    // page momentarily goes hidden then immediately becomes visible again.
-    // We detect this rapid hide→show cycle (within 2 seconds) as a screenshot.
-    let hiddenAt = null;
-    const SCREENSHOT_WINDOW_MS = 2000; // typical screenshot transition is <500ms
+    // ── MOBILE vs DESKTOP: Smart blur+focus timing ───────────────────────────
+    // On touch devices, a screenshot causes a VERY SHORT focus loss (< ~1.2s)
+    // because the OS just flashes the screen and returns. App-switching takes longer.
+    // Strategy: on mobile, if focus returns within 1200ms → screenshot alert.
+    //           if focus takes longer → it's app switching, just show blur overlay.
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    let blurTimestamp = null;
+    const MOBILE_SCREENSHOT_BLUR_MS = 1200; // screenshot blur duration on Android/iOS
 
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Page just went hidden — record when
-        hiddenAt = Date.now();
+    const handleWindowBlur = () => {
+      if (isMobile) {
+        blurTimestamp = Date.now(); // Record when focus was lost on mobile
       } else {
-        // Page came back — check if it was a rapid toggle
-        if (hiddenAt !== null) {
-          const elapsed = Date.now() - hiddenAt;
-          if (elapsed < SCREENSHOT_WINDOW_MS) {
-            // Very fast hide+show → highly likely a screenshot
-            setScreenshotAlert(true);
-          }
-          hiddenAt = null;
-        }
+        setBlurred(true); // Desktop: just show blur overlay
       }
     };
 
-    // Prevent long-press context menu on touch devices (iOS save-image, Android share)
-    const handleTouchStart = (e) => {
-      // Record touch start time for long-press detection
-      e.currentTarget._touchStartTime = Date.now();
+    const handleWindowFocus = () => {
+      if (isMobile && blurTimestamp !== null) {
+        const elapsed = Date.now() - blurTimestamp;
+        blurTimestamp = null;
+        if (elapsed < MOBILE_SCREENSHOT_BLUR_MS) {
+          // Very fast focus loss → screenshot taken on mobile
+          setScreenshotAlert(true);
+        } else {
+          // Longer focus loss → app switching, dismiss blur overlay
+          setBlurred(false);
+        }
+      } else {
+        setBlurred(false);
+      }
     };
 
-    const handleTouchEnd = () => { /* noop */ };
+    // ── MOBILE SCREENSHOT DETECTION via visibilitychange (backup) ─────────────
+    // On some Android browsers: screenshot briefly hides the page.
+    // Tighter 1500ms window catches screenshot hide/show; longer = tab switch.
+    let hiddenAt = null;
+    const SCREENSHOT_WINDOW_MS = 1500;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+      } else {
+        if (hiddenAt !== null) {
+          const elapsed = Date.now() - hiddenAt;
+          hiddenAt = null;
+          if (elapsed < SCREENSHOT_WINDOW_MS) {
+            // Rapid hide+show on mobile → screenshot detected
+            setScreenshotAlert(true);
+          }
+          // else: longer hide = tab switch, don't alert
+        }
+      }
+    };
 
     // Prevent image drag-and-drop saving on mobile
     const handleDragStart = (e) => e.preventDefault();
@@ -108,10 +122,10 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       }
       .pdf-container {
         display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(2, auto) !important;
+        justify-content: center !important;
         gap: 24px !important;
-        width: 100% !important;
-        max-width: 1200px !important;
+        width: max-content !important;
         margin: 0 auto !important;
         padding-bottom: 40px !important;
         box-sizing: border-box !important;
@@ -128,6 +142,7 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       @media (max-width: 900px) {
         .pdf-container {
           grid-template-columns: 1fr !important;
+          width: max-content !important;
           padding: 0 12px !important;
         }
       }
@@ -221,6 +236,8 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
     if (!containerRef.current) return;
     containerRef.current.innerHTML = ''; // clear previous render
 
+    const dpr = window.devicePixelRatio || 1;
+
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       try {
         const page = await pdf.getPage(pageNum);
@@ -231,7 +248,8 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
         pageWrapper.style.position = 'relative';
         pageWrapper.style.marginBottom = '28px';
         pageWrapper.style.display = 'block';
-        pageWrapper.style.width = '100%';
+        pageWrapper.style.width = `${viewport.width}px`;
+        pageWrapper.style.height = `${viewport.height}px`;
         pageWrapper.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
         pageWrapper.style.borderRadius = '12px';
         pageWrapper.style.overflow = 'hidden';
@@ -241,8 +259,10 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
         // Create canvas
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
         canvas.style.display = 'block';
 
         pageWrapper.appendChild(canvas);
@@ -250,7 +270,8 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
 
         const renderContext = {
           canvasContext: context,
-          viewport: viewport
+          viewport: viewport,
+          transform: [dpr, 0, 0, dpr, 0, 0]
         };
         await page.render(renderContext).promise;
 
@@ -268,8 +289,9 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
     const ctx = canvas.getContext('2d');
     ctx.save();
     
+    const dpr = window.devicePixelRatio || 1;
     // Transparent overlay setup
-    ctx.font = 'bold 22px Outfit, Inter, sans-serif';
+    ctx.font = `bold ${Math.round(22 * dpr)}px Outfit, Inter, sans-serif`;
     ctx.fillStyle = 'rgba(255, 107, 0, 0.13)'; // Brand accent orange with very high transparency
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -279,8 +301,8 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
     ctx.rotate(-35 * Math.PI / 180);
     
     // Repeat the text in grid pattern
-    const textWidth = ctx.measureText(text).width + 120;
-    const spacingY = 160;
+    const textWidth = ctx.measureText(text).width + (120 * dpr);
+    const spacingY = 160 * dpr;
 
     for (let x = -canvas.width; x < canvas.width; x += textWidth) {
       for (let y = -canvas.height; y < canvas.height; y += spacingY) {
@@ -391,19 +413,18 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
         padding: '32px 16px',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
         background: '#090d16',
         position: 'relative'
       }}>
         {loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '120px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '120px', alignSelf: 'center' }}>
             <Loader size={36} className="spin" color="#ff6b00" />
             <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600 }}>Securing and rendering PDF pages...</p>
           </div>
         )}
 
         {error && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '120px', maxWidth: '400px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '120px', maxWidth: '400px', textAlign: 'center', alignSelf: 'center' }}>
             <div style={{ padding: '16px', borderRadius: '50%', background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
               <EyeOff size={32} />
             </div>

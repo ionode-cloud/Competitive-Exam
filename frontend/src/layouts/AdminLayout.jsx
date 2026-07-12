@@ -22,8 +22,9 @@ const AdminLayout = ({ children }) => {
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/admin/login');
+    localStorage.removeItem('admin');
+    localStorage.removeItem('student');
+    window.location.href = '/home';
   };
 
   const toggleSidebar = () => {
