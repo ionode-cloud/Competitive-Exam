@@ -29,6 +29,8 @@ const couponRoutes       = require('./routes/couponRoutes');
 const certificateRoutes  = require('./routes/certificateRoutes');
 const scheduleRoutes     = require('./routes/scheduleRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const questionBookRoutes = require('./routes/questionBookRoutes');
+const questionBookSubjectRoutes = require('./routes/questionBookSubjectRoutes');
 
 const app = express();
 
@@ -88,6 +90,8 @@ app.use('/api', couponRoutes);
 app.use('/api', certificateRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', notificationRoutes);
+app.use('/api', questionBookRoutes);
+app.use('/api', questionBookSubjectRoutes);
 
 // Initial Admin Creation (Seed)
 const seedAdmin = async () => {

@@ -17,7 +17,7 @@ const getRazorpay = () => {
 /* ─── CREATE ORDER ─── */
 const createOrder = async (req, res) => {
   try {
-    const { amount, testId, userId, mockTestId, courseId, couponCode, purchaseType } = req.body;
+    const { amount, testId, userId, mockTestId, courseId, questionBookId, couponCode, purchaseType } = req.body;
 
     // Check if already purchased
     if (userId) {
@@ -30,6 +30,10 @@ const createOrder = async (req, res) => {
         // MockTest check
         if (mockTestId && user.purchases.map(p => p.toString()).includes(mockTestId.toString())) {
           return res.status(400).json({ message: 'Mock test already purchased' });
+        }
+        // QuestionBook check
+        if (questionBookId && user.purchases.map(p => p.toString()).includes(questionBookId.toString())) {
+          return res.status(400).json({ message: 'E-Book already purchased' });
         }
       }
     }
@@ -73,7 +77,8 @@ const createOrder = async (req, res) => {
         testId:           testId || 0,
         mockTestId:       mockTestId || null,
         courseId:         courseId  || null,
-        purchaseType:     purchaseType || (courseId ? 'course' : mockTestId ? 'mock-test' : 'legacy'),
+        questionBookId:   questionBookId || null,
+        purchaseType:     purchaseType || (courseId ? 'course' : mockTestId ? 'mock-test' : questionBookId ? 'question-book' : 'legacy'),
         razorpayOrderId:  orderId,
         amount:           amountPaise,
         originalAmount:   originalAmount * 100,
@@ -99,7 +104,7 @@ const verifyPayment = async (req, res) => {
   try {
     const {
       razorpay_order_id, razorpay_payment_id, razorpay_signature,
-      testId, userId, mockTestId, courseId, purchaseType
+      testId, userId, mockTestId, courseId, questionBookId, purchaseType
     } = req.body;
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
@@ -137,6 +142,18 @@ const verifyPayment = async (req, res) => {
         });
 
         res.json({ message: 'Payment verified. Full course unlocked!', courseId, unlockedTests: mtIds.length });
+      } else if (purchaseType === 'question-book' && questionBookId) {
+        // Unlock single question book (E-Book)
+        await User.findByIdAndUpdate(userId, { $addToSet: { purchases: questionBookId } });
+
+        await sendNotification({
+          userId, type: 'payment_success',
+          title: 'E-Book Unlocked! 🎉',
+          message: 'Your Previous Year Question Book is now available.',
+          link: `/ebook`
+        });
+
+        res.json({ message: 'Payment verified. E-Book unlocked!', questionBookId });
       } else {
         // Unlock single mock test
         const idToUnlock = mockTestId || testId;

@@ -3,16 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
+import SecurePDFViewer from '../../components/student/SecurePDFViewer';
 import axios from 'axios';
 import {
   Zap, User, BookOpen, Lock, Trophy, BarChart2, Bell,
-  TrendingUp, Clock, Star, LogOut, CreditCard, CheckCircle,
-  X, Loader, Target, Award, ChevronRight, Home, Crown, GraduationCap, FileText, Edit2
+  Clock, Star, LogOut, CreditCard, CheckCircle,
+  X, Loader, Target, Award, ChevronRight, Home, Crown, GraduationCap, FileText, Edit2, Menu, Eye, EyeOff
 } from 'lucide-react';
-import { Doughnut, Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
-
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5117';
 
@@ -24,13 +21,7 @@ const mockTests = [
   { id: 5, title: 'UPSC Prelims Full Mock', tag: 'UPSC', questions: 100, time: '120 min', difficulty: 'Hard', rating: 4.8, free: false, attempts: 4100 },
 ];
 
-const leaderboard = [
-  { rank: 1, name: 'Priya Sharma', score: 98, avatar: 'PS', exam: 'SBI PO' },
-  { rank: 2, name: 'Rahul Kumar', score: 96, avatar: 'RK', exam: 'SSC CGL' },
-  { rank: 3, name: 'Anjali Patel', score: 94, avatar: 'AP', exam: 'IBPS PO' },
-  { rank: 4, name: 'Deepak Nayak', score: 92, avatar: 'DN', exam: 'Odisha SI' },
-  { rank: 5, name: 'Suresh Rao', score: 90, avatar: 'SR', exam: 'Railway' },
-];
+
 
 function PaymentModal({ test, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -178,21 +169,74 @@ export default function StudentDashboard() {
   const [payTest, setPayTest] = useState(null);
   const [purchases, setPurchases] = useState(user?.purchases || []);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [certificates, setCertificates] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [loadingCerts, setLoadingCerts] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Profile editing state
   const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '' });
   const [profileAvatar, setProfileAvatar] = useState(user?.avatar || '');
   const [profileSaving, setProfileSaving] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [collectionFilter, setCollectionFilter] = useState('free');
+
+  // EBook states
+  const [dbBooks, setDbBooks] = useState([]);
+  const [loadingBooks, setLoadingBooks] = useState(false);
+  const [watermarkTemplate, setWatermarkTemplate] = useState('');
+  const [activeBook, setActiveBook] = useState(null);
+  const [pdfData, setPdfData] = useState(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+
+  const fetchDbBooks = async () => {
+    setLoadingBooks(true);
+    try {
+      const res = await axios.get(`${API}/api/question-books`);
+      setDbBooks(res.data);
+    } catch (e) {
+      console.error('Failed to fetch books', e);
+    } finally {
+      setLoadingBooks(false);
+    }
+  };
+
+  const fetchWatermark = async () => {
+    try {
+      const res = await axios.get(`${API}/api/page-content/ebook-settings`);
+      if (res.data && res.data.content && res.data.content.watermarkText) {
+        setWatermarkTemplate(res.data.content.watermarkText);
+      }
+    } catch (e) {
+      console.warn('Failed to load watermark settings:', e);
+    }
+  };
+
+  const handleOpenBook = async (book) => {
+    setLoadingPdf(true);
+    setActiveBook(book);
+    try {
+      const token = user?.token;
+      const res = await axios.get(`${API}/api/question-books/${book._id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPdfData(res.data.pdfData);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load PDF file.');
+      setActiveBook(null);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
 
   // Read ?tab= from URL and set the active tab on mount / URL change
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
-    const VALID_TABS = ['dashboard', 'profile', 'exams', 'leaderboard', 'payments', 'courses', 'analytics', 'certificates'];
+    const VALID_TABS = ['dashboard', 'profile', 'exams', 'payments', 'courses'];
     if (tabParam && VALID_TABS.includes(tabParam)) {
       setActiveTab(tabParam);
     }
@@ -202,21 +246,14 @@ export default function StudentDashboard() {
     if (user?._id) {
       fetchNotifications(user._id);
     }
+    fetchDbBooks();
+    fetchWatermark();
   }, [user?._id, fetchNotifications]);
 
   const handleTabChange = async (tab) => {
     setActiveTab(tab);
-    if (tab === 'certificates' && user?._id && certificates.length === 0) {
-      setLoadingCerts(true);
-      try {
-        const r = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/certificates/user/${user._id}`);
-        setCertificates(r.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingCerts(false);
-      }
-    }
+    setIsSidebarOpen(false);
+
     if (tab === 'payments' && user?._id && payments.length === 0) {
       setLoadingPayments(true);
       try {
@@ -230,29 +267,7 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleCertDownload = (cert) => {
-    const win = window.open('', '_blank');
-    win.document.write(`
-      <html><head><title>Certificate - ExamSphere</title><style>
-        body { font-family: Georgia, serif; background: #fff; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        .cert { border: 12px solid #ff6b00; max-width: 800px; width: 100%; padding: 60px; text-align: center; margin: 20px auto; }
-        h1 { color: #ff6b00; font-size: 2.5rem; margin-bottom: 8px; } h2 { color: #333; font-size: 1.5rem; }
-        .name { font-size: 2rem; color: #1a1a1a; font-weight: bold; margin: 20px 0; border-bottom: 2px solid #ff6b00; padding-bottom: 10px; }
-        .details { color: #555; font-size: 1.1rem; margin: 16px 0; } .cert-num { color: #999; font-size: 0.9rem; margin-top: 30px; }
-        .score { font-size: 1.3rem; color: #22c55e; font-weight: bold; }
-      </style></head><body><div class="cert">
-        <h1>ExamSphere</h1><h2>Certificate of Achievement</h2>
-        <p class="details">This certifies that</p>
-        <div class="name">${user.name}</div>
-        <p class="details">has successfully completed</p>
-        <p class="details"><strong>${cert.mockTest?.testName || cert.course?.title || 'Mock Test'}</strong></p>
-        <p class="score">Score: ${cert.score}/${cert.totalMarks} (${cert.percentage}%)</p>
-        <p class="details">Issued on: ${new Date(cert.issuedAt).toLocaleDateString()}</p>
-        <p class="cert-num">Certificate #: ${cert.certificateNumber}</p>
-      </div></body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 500);
-  };
+
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -275,37 +290,32 @@ export default function StudentDashboard() {
   };
 
   const handleProfileSave = async () => {
+    if (password && password !== confirmPassword) {
+      alert('New Password and Confirm Password do not match.');
+      return;
+    }
+    if (password && password.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
     setProfileSaving(true);
     try {
-      await updateUserProfile({ name: profileForm.name, phone: profileForm.phone, avatar: profileAvatar });
+      const payload = { name: profileForm.name, phone: profileForm.phone, avatar: profileAvatar };
+      if (password) {
+        payload.password = password;
+      }
+      await updateUserProfile(payload);
+      alert('Profile updated successfully!');
+      setPassword('');
+      setConfirmPassword('');
     } catch (err) {
-      alert('Failed to save profile. Please try again.');
+      alert(err.response?.data?.message || 'Failed to save profile. Please try again.');
     } finally {
       setProfileSaving(false);
     }
   };
 
-  // Chart data
-  const doughnutData = {
-    labels: ['Correct', 'Wrong', 'Skipped'],
-    datasets: [{
-      data: [65, 20, 15],
-      backgroundColor: ['#22c55e', '#ef4444', '#94a3b8'],
-      borderWidth: 0,
-    }],
-  };
 
-  const barData = {
-    labels: ['Reasoning', 'English', 'Quant', 'GK'],
-    datasets: [{
-      label: 'Score %',
-      data: [78, 65, 72, 55],
-      backgroundColor: ['#4f46e5', '#3b82f6', '#10b981', '#8b5cf6'],
-      borderRadius: 8,
-    }],
-  };
-
-  const chartOpts = { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'transparent' } } } };
 
   if (!user) {
     return (
@@ -319,13 +329,31 @@ export default function StudentDashboard() {
 
   return (
     <div className="dashboard">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="dashboard-sidebar-overlay" 
+          onClick={() => setIsSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999
+          }}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="dashboard-sidebar glass">
-        <div className="sidebar-logo">
+      <aside className={`dashboard-sidebar glass ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           <Link to="/home" className="auth-logo" style={{ fontSize: '1.1rem', textDecoration: 'none' }}>
             <div className="auth-logo__icon" style={{ width: 30, height: 30 }}><Zap size={16} strokeWidth={2.5} /></div>
             <span style={{ fontFamily: 'Outfit', fontWeight: 800, color: 'var(--text-primary)' }}>Exam<span className="text-orange">Sphere</span></span>
           </Link>
+          <button className="dashboard-close-btn" onClick={() => setIsSidebarOpen(false)} style={{ display: 'none', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <X size={22} />
+          </button>
         </div>
 
         <div className="sidebar-user" style={{ flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 12px', gap: 0 }}>
@@ -340,8 +368,8 @@ export default function StudentDashboard() {
           {[
             { id: 'dashboard', icon: BarChart2, label: 'Dashboard' },
             { id: 'profile', icon: User, label: 'My Profile' },
+            { id: 'courses', icon: GraduationCap, label: 'My Collection' },
             { id: 'exams', icon: FileText, label: 'Exams Attended' },
-            { id: 'leaderboard', icon: Trophy, label: 'Leaderboard' },
             { id: 'payments', icon: CreditCard, label: 'Payments' },
           ].map(({ id, icon: Icon, label }) => (
             <button
@@ -367,61 +395,71 @@ export default function StudentDashboard() {
       {/* Main */}
       <main className="dashboard-main">
         {/* Header */}
-        <div className="dashboard-header">
-          <div>
-            <h1 className="dashboard-header__title">
-              Welcome back, <span className="gradient-text">{user.name?.split(' ')[0]}</span>! 👋
-            </h1>
-            <p className="dashboard-header__sub">Continue your exam preparation journey</p>
-          </div>
-          {/* Bell icon with notification dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowNotifDropdown(p => !p)}
-              style={{ position: 'relative', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'all 0.2s' }}
-            >
-              <Bell size={20} />
-              {unreadCount > 0 && (
-                <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: '50%', background: '#ef4444', border: '2px solid var(--bg)' }} />
-              )}
+        {/* Header */}
+        <div className="dashboard-header" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button className="dashboard-toggle-btn" onClick={() => setIsSidebarOpen(true)} style={{ display: 'none', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+              <Menu size={22} />
             </button>
-            <AnimatePresence>
-              {showNotifDropdown && (
-                <motion.div
-                  key="notif-drop"
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  style={{ position: 'absolute', top: 50, right: 0, width: 340, maxHeight: 420, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', zIndex: 999, padding: '8px 0' }}
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h1 className="dashboard-header__title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="welcome-text-prefix">Welcome back, </span>
+                <span className="gradient-text">{user.name?.split(' ')[0]}</span>
+                <span className="welcome-text-suffix">! 👋</span>
+              </h1>
+
+              {/* Bell icon with notification dropdown (placed directly next to name) */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowNotifDropdown(p => !p)}
+                  style={{ position: 'relative', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'all 0.2s' }}
                 >
-                  <div style={{ padding: '12px 16px 8px', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Bell size={15} color="var(--primary)" /> Notifications
-                    {unreadCount > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: 100, padding: '1px 7px', fontSize: '0.7rem', fontWeight: 700 }}>{unreadCount} new</span>}
-                  </div>
-                  {notifications.length === 0 ? (
-                    <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      <Bell size={28} style={{ opacity: 0.2, display: 'block', margin: '0 auto 10px' }} />
-                      No notifications yet
-                    </div>
-                  ) : (
-                    notifications.map(n => (
-                      <div key={n._id} onClick={() => markNotificationRead(n._id)}
-                        style={{ padding: '12px 16px', cursor: 'pointer', background: n.isRead ? 'transparent' : 'rgba(255,107,0,0.05)', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', transition: 'background 0.15s' }}
-                      >
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: n.isRead ? '#475569' : '#ff6b00', marginTop: 6, flexShrink: 0 }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: n.isRead ? 600 : 700, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: 2 }}>{n.title}</div>
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>{n.message}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.createdAt).toLocaleString()}</div>
-                        </div>
-                      </div>
-                    ))
+                  <Bell size={18} />
+                  {unreadCount > 0 && (
+                    <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#ef4444', border: '1.5px solid var(--bg)' }} />
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </button>
+                <AnimatePresence>
+                  {showNotifDropdown && (
+                    <motion.div
+                      key="notif-drop"
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ position: 'absolute', top: 45, left: 0, width: 320, maxHeight: 420, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', zIndex: 999, padding: '8px 0' }}
+                    >
+                      <div style={{ padding: '12px 16px 8px', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Bell size={15} color="var(--primary)" /> Notifications
+                        {unreadCount > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: 100, padding: '1px 7px', fontSize: '0.7rem', fontWeight: 700 }}>{unreadCount} new</span>}
+                      </div>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          <Bell size={28} style={{ opacity: 0.2, display: 'block', margin: '0 auto 10px' }} />
+                          No notifications yet
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n._id} onClick={() => markNotificationRead(n._id)}
+                            style={{ padding: '12px 16px', cursor: 'pointer', background: n.isRead ? 'transparent' : 'rgba(255,107,0,0.05)', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', transition: 'background 0.15s' }}
+                          >
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: n.isRead ? '#475569' : '#ff6b00', marginTop: 6, flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: n.isRead ? 600 : 700, color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: 2 }}>{n.title}</div>
+                              <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>{n.message}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.createdAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
+          <p className="dashboard-header__sub welcome-text-desc" style={{ margin: '2px 0 0 0' }}>Continue your exam preparation journey</p>
         </div>
 
 
@@ -435,7 +473,7 @@ export default function StudentDashboard() {
               {/* Quick Action Cards — 4 in a single row (Show on top) */}
               <div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                   {[
                     { icon: FileText, label: 'Give Free Exam', desc: '2 tests available', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', tab: 'payments' },
                     { icon: Trophy, label: 'Leaderboard', desc: 'Your rank #142', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', tab: 'leaderboard' },
@@ -563,6 +601,44 @@ export default function StudentDashboard() {
                       style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', color: 'var(--text-muted)', boxSizing: 'border-box', fontSize: '0.9rem', cursor: 'not-allowed' }}
                     />
                   </div>
+                  <div>
+                    <label style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 6 }}>New Password (optional)</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="••••••"
+                        style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(p => !p)}
+                        style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        placeholder="••••••"
+                        style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(p => !p)}
+                        style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <button
@@ -577,98 +653,122 @@ export default function StudentDashboard() {
             </motion.div>
           )}
 
-          {activeTab === 'courses' && (
-            <motion.div key="courses" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="dashboard-section-title"><GraduationCap size={18} /> My Courses</div>
-              <div style={{ background: 'rgba(255,107,0,0.05)', border: '1px dashed rgba(255,107,0,0.2)', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-                <GraduationCap size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-                <h3 style={{ color: 'var(--text-secondary)', marginBottom: 8 }}>No courses purchased yet</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: 20, fontSize: '0.9rem' }}>Explore our courses and start practicing with free mock tests.</p>
-                <Link to="/courses" className="btn btn-primary">Explore Courses →</Link>
-              </div>
-            </motion.div>
-          )}
+          {activeTab === 'courses' && (() => {
+            const filteredBooks = collectionFilter === 'free'
+              ? dbBooks.filter(b => b.isFree)
+              : dbBooks.filter(b => !b.isFree && purchases.map(p => p.toString()).includes(b._id.toString()));
 
-          {activeTab === 'analytics' && (
-            <motion.div key="analytics" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="dashboard-section-title"><BarChart2 size={18} /> Performance Analytics</div>
-              <div className="analytics-grid">
-                <div className="analytics-card glass">
-                  <h3 className="analytics-card__title">Overall Accuracy</h3>
-                  <div className="chart-wrap"><Doughnut data={doughnutData} options={{ responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } } }} /></div>
-                </div>
-                <div className="analytics-card glass">
-                  <h3 className="analytics-card__title">Subject-wise Score</h3>
-                  <Bar data={barData} options={chartOpts} />
-                </div>
-              </div>
-              <div className="improvement-card glass">
-                <h3 className="improvement-card__title">💡 Improvement Suggestions</h3>
-                <div className="improvement-items">
-                  {['GK needs attention — focus on current affairs daily', 'English RC — practice 5 passages per day', 'Quant DI is improving — keep it up!'].map(s => (
-                    <div key={s} className="improvement-item"><ChevronRight size={14} color="var(--primary)" /> {s}</div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
+            const filteredMockTests = collectionFilter === 'free'
+              ? mockTests.filter(t => t.free)
+              : mockTests.filter(t => !t.free && purchases.map(p => p.toString()).includes(t.id.toString()));
 
-          {activeTab === 'leaderboard' && (
-            <motion.div key="leaderboard" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="dashboard-section-title"><Trophy size={18} /> Top Performers This Month</div>
-              <div className="leaderboard-card glass">
-                {leaderboard.map((entry, i) => (
-                  <motion.div
-                    key={entry.rank}
-                    className={`leaderboard-row ${i < 3 ? 'leaderboard-row--top' : ''}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.07 }}
-                  >
-                    <div className={`leaderboard-rank rank-${entry.rank}`}>#{entry.rank}</div>
-                    <div className="leaderboard-avatar">{entry.avatar}</div>
-                    <div className="leaderboard-info">
-                      <div className="leaderboard-name">{entry.name}</div>
-                      <div className="leaderboard-exam">{entry.exam}</div>
-                    </div>
-                    <div className="leaderboard-score">{entry.score}%</div>
-                  </motion.div>
-                ))}
-                <div className="leaderboard-your-rank glass">
-                  <Trophy size={16} color="var(--primary)" />
-                  Your current rank: <strong>#142</strong> — Keep practicing to climb up!
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'certificates' && (
-            <motion.div key="certificates" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="dashboard-section-title"><Award size={18} /> My Certificates</div>
-              {loadingCerts ? <div style={{ textAlign: 'center', padding: 48 }}><Loader className="spin" size={28} style={{ color: 'var(--primary)' }} /></div>
-                : certificates.length === 0 ? (
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-                    <Award size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
-                    <h3 style={{ color: 'var(--text-secondary)', marginBottom: 8 }}>No certificates yet</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Complete mock tests with passing scores to earn certificates.</p>
+            return (
+              <motion.div key="courses" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                {/* Section Header with Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+                  <div className="dashboard-section-title" style={{ margin: 0 }}><GraduationCap size={18} /> My Collection</div>
+                  <div>
+                    <select
+                      value={collectionFilter}
+                      onChange={e => setCollectionFilter(e.target.value)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        background: 'rgba(255,255,255,0.04)',
+                        color: 'var(--text-primary)',
+                        fontFamily: 'Outfit',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: 'var(--shadow-sm)',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="free" style={{ background: 'var(--surface)', color: 'var(--text-primary)' }}>Free Content</option>
+                      <option value="purchased" style={{ background: 'var(--surface)', color: 'var(--text-primary)' }}>Purchased Content</option>
+                    </select>
                   </div>
-                ) : (
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    {certificates.map(cert => (
-                      <div key={cert._id} className="glass" style={{ padding: '18px 22px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{cert.mockTest?.testName || cert.course?.title || 'Certificate'}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>#{cert.certificateNumber} | Score: {cert.score}/{cert.totalMarks} ({cert.percentage}%) | {new Date(cert.issuedAt).toLocaleDateString()}</div>
-                        </div>
-                        <button className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '0.82rem' }} onClick={() => handleCertDownload(cert)}>
-                          Download Certificate
-                        </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                  {/* 1. PYQ Solved PDFs / E-Books */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        {collectionFilter === 'free' ? 'Free PYQ PDFs & Study Materials' : 'Purchased PYQ PDFs & Study Materials'}
                       </div>
-                    ))}
+                      <span style={{ background: 'rgba(255,107,0,0.1)', color: 'var(--primary)', padding: '2px 10px', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700 }}>
+                        {filteredBooks.length} Available
+                      </span>
+                    </div>
+
+                    {filteredBooks.length === 0 ? (
+                      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: 16, padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                        {collectionFilter === 'free' ? 'No free study materials available.' : 'No purchased study materials yet.'}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                        {filteredBooks.map(book => (
+                          <div key={book._id} className="glass" style={{ padding: '16px 20px', borderRadius: 14, border: '1px solid rgba(255,107,0,0.15)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>
+                            <div>
+                              <span className="badge badge-orange" style={{ marginBottom: 8, fontSize: '0.7rem' }}>{book.subject || 'Previous Year Paper'}</span>
+                              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>{book.title}</h3>
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{book.description}</p>
+                            </div>
+                            <button className="btn btn-primary" style={{ width: '100%', padding: '8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => handleOpenBook(book)}>
+                              <BookOpen size={14} /> Read Secure PDF
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-            </motion.div>
-          )}
+
+                  {/* 2. Mock Tests */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        {collectionFilter === 'free' ? 'Free Practice Mock Tests' : 'Purchased Practice Mock Tests'}
+                      </div>
+                      <span style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', padding: '2px 10px', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700 }}>
+                        {filteredMockTests.length} Available
+                      </span>
+                    </div>
+
+                    {filteredMockTests.length === 0 ? (
+                      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: 16, padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                        {collectionFilter === 'free' ? 'No free mock tests available.' : 'No purchased mock tests yet.'}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                        {filteredMockTests.map(test => (
+                          <div key={test.id} className="glass" style={{ padding: '16px 20px', borderRadius: 14, border: '1px solid rgba(34,197,94,0.15)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>
+                            <div>
+                              <span className="badge badge-green" style={{ marginBottom: 8, fontSize: '0.7rem' }}>{test.tag}</span>
+                              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>{test.title}</h3>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {test.questions} Questions · {test.time} · {test.difficulty}
+                              </div>
+                            </div>
+                            <button className="btn btn-primary" style={{ width: '100%', padding: '8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => handleAttempt(test)}>
+                              <Zap size={14} /> Start Mock Test
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+
+
+
+
+
 
           {/* ── EXAMS ATTENDED TAB ── */}
           {activeTab === 'exams' && (
@@ -736,43 +836,15 @@ export default function StudentDashboard() {
           {/* ── PAYMENTS TAB ── */}
           {activeTab === 'payments' && (
             <motion.div key="payments" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="dashboard-section-title"><CreditCard size={18} /> Payments & Purchases</div>
+              <div className="dashboard-section-title"><CreditCard size={18} /> Payment History</div>
 
-              {/* Free Purchased Mock Tests */}
-              <div style={{ marginBottom: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Free Mock Tests Unlocked</div>
-                  <span style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', padding: '2px 10px', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700 }}>{mockTests.filter(t => t.free).length} Free</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {mockTests.filter(t => t.free).map((test, i) => (
-                    <motion.div key={test.id} className="glass" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-                      style={{ padding: '14px 20px', borderRadius: 14, border: '1px solid rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Award size={18} color="#22c55e" />
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{test.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{test.tag} · {test.questions} Qs · <span style={{ color: '#22c55e', fontWeight: 600 }}>FREE</span></div>
-                        </div>
-                      </div>
-                      <button className="btn btn-primary" style={{ padding: '8px 18px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 5 }} onClick={handleAttempt}>
-                        <Zap size={13} /> Give Exam
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Payment History */}
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Payment History</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Payment Transaction History</div>
               {loadingPayments ? <div style={{ textAlign: 'center', padding: 48 }}><Loader className="spin" size={28} style={{ color: 'var(--primary)' }} /></div>
                 : payments.length === 0 ? (
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 16, padding: '36px 24px', textAlign: 'center' }}>
                     <CreditCard size={40} style={{ opacity: 0.2, marginBottom: 12 }} />
-                    <h3 style={{ color: 'var(--text-secondary)', marginBottom: 6, fontSize: '1rem' }}>No paid purchases yet</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem' }}>Purchase premium mock tests to see your payment history.</p>
+                    <h3 style={{ color: 'var(--text-secondary)', marginBottom: 6, fontSize: '1rem' }}>No transaction history</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem' }}>Payments for premium mock tests or E-Books will show here.</p>
                   </div>
                 ) : (
                   <div className="glass" style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
@@ -806,6 +878,31 @@ export default function StudentDashboard() {
           <PaymentModal test={payTest} onClose={() => setPayTest(null)} onSuccess={handlePurchaseSuccess} />
         )}
       </AnimatePresence>
+
+      {/* Secure PDF Viewer Overlay */}
+      {activeBook && pdfData && (
+        <SecurePDFViewer
+          pdfData={pdfData}
+          title={activeBook.title}
+          watermarkTemplate={watermarkTemplate}
+          userInfo={{ name: user?.name, email: user?.email }}
+          onClose={() => {
+            setActiveBook(null);
+            setPdfData(null);
+          }}
+        />
+      )}
+
+      {activeBook && loadingPdf && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: 'white', zIndex: 10000, gap: 16, backdropFilter: 'blur(5px)'
+        }}>
+          <Loader className="spin" size={40} style={{ color: 'var(--primary)' }} />
+          <div style={{ fontFamily: 'Outfit', fontWeight: 600, fontSize: '1.1rem' }}>Decrypting Secure PDF... Please wait.</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -128,13 +128,19 @@ const getProfile = async (req, res) => {
    ============================================= */
 const updateProfile = async (req, res) => {
   try {
-    const { name, phone, avatar } = req.body;
+    const { name, phone, avatar, password } = req.body;
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (name)   user.name   = name.trim();
     if (phone !== undefined) user.phone = phone;
     if (avatar !== undefined) user.avatar = avatar; // base64 or URL string
+    if (password) {
+      if (password.trim().length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+      }
+      user.password = password;
+    }
 
     await user.save();
 

@@ -44,12 +44,13 @@ const AdminLayout = ({ children }) => {
     {
       title: 'Platform',
       items: [
-        { icon: <GraduationCap size={18} />, label: 'Courses',        path: '/admin/courses' },
+        // { icon: <GraduationCap size={18} />, label: 'Courses',        path: '/admin/courses' },
         { icon: <Folder size={18} />,        label: 'Categories',     path: '/admin/categories' },
+        { icon: <BookOpen size={18} />,      label: 'Question Book',  path: '/admin/question-book' },
         { icon: <Home size={18} />,          label: 'Home',           path: '/admin/home' },
         { icon: <Info size={18} />,          label: 'About',          path: '/admin/about' },
         { icon: <Phone size={18} />,         label: 'Contact us',     path: '/admin/contact' },
-        { icon: <Image size={18} />,         label: 'Gallery',        path: '/admin/gallery' },
+        // { icon: <Image size={18} />,         label: 'Gallery',        path: '/admin/gallery' },
         { icon: <Globe size={18} />,         label: 'Footer',         path: '/admin/footer' },
       ]
     },

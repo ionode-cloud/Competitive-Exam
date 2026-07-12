@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUp } from 'lucide-react';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
 
 // Public pages
 import Home from './pages/public/Home';
@@ -12,6 +22,7 @@ import Contact from './pages/public/Contact';
 import StudentAuthPage from './pages/public/StudentAuthPage';
 import CoursesPage from './pages/public/Courses';
 import CourseDetailPage from './pages/public/CourseDetail';
+import EBook from './pages/public/EBook';
 
 // Student exam pages (existing)
 import StudentLogin from './pages/student/Login';
@@ -49,6 +60,7 @@ import AdminAbout from './pages/admin/AdminAbout';
 import AdminContact from './pages/admin/AdminContact';
 import AdminGallery from './pages/admin/AdminGallery';
 import AdminFooter from './pages/admin/AdminFooter';
+import AdminQuestionBook from './pages/admin/AdminQuestionBook';
 
 import { useAuth } from './context/AuthContext';
 import { useUser } from './context/UserContext';
@@ -60,6 +72,7 @@ function App() {
 
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* ==============================
             ROOT — redirect to home
@@ -74,6 +87,7 @@ function App() {
         <Route path="/services" element={<Services />} />
         <Route path="/gallery"  element={<Gallery />} />
         <Route path="/contact"  element={<Contact />} />
+        <Route path="/ebook"    element={<EBook />} />
 
         {/* Courses (new) */}
         <Route path="/courses"       element={<CoursesPage />} />
@@ -125,6 +139,7 @@ function App() {
         <Route path="/admin/contact"          element={admin ? <AdminContact />       : <Navigate to="/admin/login" />} />
         <Route path="/admin/gallery"          element={admin ? <AdminGallery />       : <Navigate to="/admin/login" />} />
         <Route path="/admin/footer"           element={admin ? <AdminFooter />        : <Navigate to="/admin/login" />} />
+        <Route path="/admin/question-book"    element={admin ? <AdminQuestionBook />  : <Navigate to="/admin/login" />} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/home" />} />
@@ -177,6 +192,10 @@ function ScrollToTopButton() {
             right: '24px',
             width: '46px',
             height: '46px',
+            minWidth: '46px',
+            minHeight: '46px',
+            maxWidth: '46px',
+            maxHeight: '46px',
             borderRadius: '50%',
             background: 'linear-gradient(135deg, #ff6b00, #ff8c00)',
             border: '1px solid rgba(255,255,255,0.1)',
@@ -185,6 +204,8 @@ function ScrollToTopButton() {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
+            padding: 0,
+            boxSizing: 'border-box',
             boxShadow: '0 4px 16px rgba(255, 107, 0, 0.4)',
             zIndex: 9999,
             transition: 'box-shadow 0.2s ease'

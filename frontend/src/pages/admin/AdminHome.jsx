@@ -723,7 +723,7 @@ export default function AdminHome() {
     { id: 'stats',    label: 'Stats',               icon: BarChart2 },
     { id: 'exams',    label: 'Live Exams',          icon: Calendar },
     { id: 'tests',    label: 'Trending Tests',      icon: TrendingUp },
-    { id: 'galleryGrid', label: 'Photo Grid',       icon: Grid },
+    // { id: 'galleryGrid', label: 'Photo Grid',       icon: Grid },
     { id: 'features', label: 'Features Section',    icon: Star },
     { id: 'cta',      label: 'CTA Section',         icon: Target },
   ];
@@ -846,7 +846,7 @@ export default function AdminHome() {
           )}
 
           {/* ─── PHOTO GRID ─── */}
-          {activeTab === 'galleryGrid' && (
+          {/* {activeTab === 'galleryGrid' && (
             <Card>
               <SectionHeader icon={Grid} title="Photo Grid Section" subtitle="Edit the 8 images and hover descriptions displayed in the Photo Grid section of the Home page." />
               <GalleryGridEditor 
@@ -854,7 +854,7 @@ export default function AdminHome() {
                 onChange={val => setField('galleryGrid', val)}
               />
             </Card>
-          )}
+          )} */}
 
           {/* ─── FEATURES ─── */}
           {activeTab === 'features' && (

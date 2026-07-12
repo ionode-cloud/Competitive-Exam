@@ -245,6 +245,23 @@ export default function Home() {
   const [dbSubjects, setDbSubjects] = useState([]);
   // Exams by topic (for "Trending Mock Tests")
   const [dbExams, setDbExams] = useState([]);
+  // EBook Subjects
+  const [ebookSubjects, setEbookSubjects] = useState([]);
+
+  useEffect(() => {
+    const fetchEbookSubjects = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5117';
+        const res = await axios.get(`${API_URL}/api/ebook-subjects`);
+        if (res.data && Array.isArray(res.data)) {
+          setEbookSubjects(res.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load eBook subjects on Home', err);
+      }
+    };
+    fetchEbookSubjects();
+  }, []);
 
   const carouselImages = content.carouselImages && content.carouselImages.length > 0
     ? content.carouselImages
@@ -409,12 +426,12 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.45 }}
                 >
-                  <button onClick={openRegister} className="btn btn-primary btn-lg">
+                  <button onClick={() => navigate('/services')} className="btn btn-primary btn-lg">
                     <Zap size={18} /> Start Free Test
                   </button>
-                  <Link to="/courses" className="btn btn-ghost btn-lg">
+                  {/* <Link to="/courses" className="btn btn-ghost btn-lg">
                     <BookOpen size={18} /> Explore Courses
-                  </Link>
+                  </Link> */}
                 </motion.div>
 
                 {/* Trust Badges */}
@@ -551,6 +568,141 @@ export default function Home() {
             {resolvedStats.map((s, idx) => (
               <StatCard key={s.label} value={s.value} suffix={s.suffix} label={s.label} icon={s.icon} delay={idx * 0.1} />
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ==============================
+          PREVIOUS YEAR QUESTION & EBOOK SECTION
+          ============================== */}
+      <section className="section" style={{ background: 'rgba(255, 255, 255, 0.005)', paddingBottom: '32px' }}>
+        <div className="container">
+          {/* Section header with View All */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
+            <div className="section-header" style={{ marginBottom: 0, flex: 1 }}>
+              <motion.div className="section-label" whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }}>
+                <BookOpen size={12} color="#ff6b00" /> Solved Papers Collection
+              </motion.div>
+              <motion.h2 className="section-title" whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 30 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+                Previous Year <span className="gradient-text">Question & EBook</span>
+              </motion.h2>
+              <motion.p className="section-subtitle" whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>
+                Access solved papers for major subjects, protected with secure anti-copy view mode
+              </motion.p>
+            </div>
+            <motion.div whileInView={{ opacity: 1 }} initial={{ opacity: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }}>
+              <Link
+                to="/ebook"
+                className="btn btn-outline btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', borderColor: '#ff6b00', color: '#ff6b00' }}
+              >
+                View All <ArrowRight size={14} />
+              </Link>
+            </motion.div>
+          </div>
+
+          {/* 4 Subject Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+            {(() => {
+              const cardStyles = [
+                { bg: 'linear-gradient(135deg, #e5e3ea 0%, #d8d6e0 100%)', text: '#1e293b', accent: '#7c3aed' },
+                { bg: 'linear-gradient(135deg, #fae8d7 0%, #f3dec6 100%)', text: '#1e293b', accent: '#ea580c' },
+                { bg: 'linear-gradient(135deg, #fcebf7 0%, #f6def0 100%)', text: '#1e293b', accent: '#db2777' },
+                { bg: 'linear-gradient(135deg, #e1ebd5 0%, #d4e2c7 100%)', text: '#1e293b', accent: '#16a34a' }
+              ];
+              const defaultSubs = [
+                { name: 'Computer', description: 'MS Office, networking, basic coding, hardware and software fundamentals.' },
+                { name: 'Odia', description: 'Odia grammar, vocabulary, composition, comprehensions and syntax rules.' },
+                { name: 'English', description: 'Grammar rules, sentence corrections, vocabulary, synonyms and antonyms.' },
+                { name: 'Reasoning', description: 'Logical flow, verbal reasoning, syllogisms, blood relations and puzzles.' }
+              ];
+              const subjectsToShow = ebookSubjects.filter(sub => sub.showOnHome);
+              const list = subjectsToShow.length > 0 ? subjectsToShow.slice(0, 4) : (ebookSubjects.length > 0 ? ebookSubjects.slice(0, 4) : defaultSubs);
+              return list.map((sub, i) => {
+                const style = cardStyles[i % cardStyles.length];
+                return (
+                  <motion.div
+                    key={sub._id || sub.name}
+                    className="category-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: i * 0.08 }}
+                    whileHover={{ y: -8, scale: 1.02, boxShadow: '0 12px 28px rgba(0,0,0,0.15)' }}
+                    style={{
+                      borderRadius: '16px',
+                      border: '1px solid rgba(0,0,0,0.05)',
+                      background: style.bg,
+                      color: style.text,
+                      padding: '24px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      minHeight: '250px',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => navigate('/ebook', { state: { subject: sub.name } })}
+                  >
+                    {/* Visual Glow shape in background */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '90px',
+                      height: '90px',
+                      borderRadius: '50%',
+                      background: style.accent,
+                      opacity: 0.15,
+                      filter: 'blur(20px)'
+                    }} />
+
+                    <div>
+                      {/* Title */}
+                      <div style={{ marginBottom: '14px' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: style.text }}>
+                          {sub.name}
+                        </h3>
+                      </div>
+
+                      {/* Description */}
+                      <p style={{ fontSize: '0.82rem', color: '#475569', lineHeight: '1.5', margin: 0 }}>
+                        {sub.description || 'Step-by-step solved previous year questions.'}
+                      </p>
+                    </div>
+
+                    {/* Learn More link */}
+                    <div style={{ marginTop: '20px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/ebook', { state: { subject: sub.name } });
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: style.accent,
+                          fontWeight: 800,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          textDecoration: 'none',
+                          transition: 'gap 0.2s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.gap = '8px'}
+                        onMouseLeave={e => e.currentTarget.style.gap = '4px'}
+                      >
+                        Learn more <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              });
+            })()}
           </div>
         </div>
       </section>
@@ -799,9 +951,8 @@ export default function Home() {
       {/* ==============================
           COURSE VIDEOS INFINITE SCROLL SECTION
           ============================== */}
-      <section className="section" style={{ padding: '3.5rem 0', background: 'rgba(255, 107, 0, 0.015)', borderTop: '1px solid rgba(255, 255, 255, 0.03)', borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
+      {/* <section className="section" style={{ padding: '3.5rem 0', background: 'rgba(255, 107, 0, 0.015)', borderTop: '1px solid rgba(255, 255, 255, 0.03)', borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
         <div className="container" style={{ maxWidth: '100%', padding: 0 }}>
-          {/* Header */}
           <div className="container" style={{ marginBottom: '2.5rem' }}>
             <div className="section-header" style={{ marginBottom: 0 }}>
               <motion.div className="section-label" whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }}>
@@ -816,7 +967,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Infinite Scroll Marquee Container */}
           {videoCourses.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
               No video courses loaded.
@@ -829,7 +979,6 @@ export default function Home() {
               display: 'flex',
               padding: '10px 0'
             }}>
-              {/* Left/Right fading glass gradients */}
               <div style={{
                 position: 'absolute',
                 top: 0,
@@ -851,7 +1000,6 @@ export default function Home() {
                 pointerEvents: 'none'
               }} />
 
-              {/* Scrolling track */}
               <div className="marquee-track" style={{
                 display: 'flex',
                 gap: '24px',
@@ -880,7 +1028,6 @@ export default function Home() {
                       onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-6px)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                     >
-                      {/* Thumbnail Image */}
                       <img
                         src={thumb}
                         alt={course.title}
@@ -895,7 +1042,6 @@ export default function Home() {
                         }}
                       />
 
-                      {/* Dark overlay */}
                       <div style={{
                         position: 'absolute',
                         inset: 0,
@@ -903,7 +1049,6 @@ export default function Home() {
                         zIndex: 1
                       }} />
 
-                      {/* Play Button Overlay */}
                       <div style={{
                         position: 'absolute',
                         top: '40%',
@@ -922,7 +1067,6 @@ export default function Home() {
                         <Play size={20} fill="#ff6b00" color="#ff6b00" style={{ marginLeft: '3px' }} />
                       </div>
 
-                      {/* Details */}
                       <div style={{
                         position: 'absolute',
                         bottom: 0,
@@ -963,7 +1107,7 @@ export default function Home() {
             </div>
           )}
         </div>
-      </section>
+      </section> */}
 
       {/* ==============================
           TRENDING MOCK TESTS — EXAM TOPIC NAMES FROM DB
@@ -1095,7 +1239,7 @@ export default function Home() {
       {/* ==============================
           PHOTO GRID SECTION — IMAGES IN 2 ROWS (4/4) WITH HOVER DESCRIPTION
           ============================== */}
-      <section className="section" style={{ padding: '3.5rem 0', background: 'rgba(255, 255, 255, 0.01)', borderTop: '1px solid rgba(255, 255, 255, 0.03)', borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
+      {/* <section className="section" style={{ padding: '3.5rem 0', background: 'rgba(255, 255, 255, 0.01)', borderTop: '1px solid rgba(255, 255, 255, 0.03)', borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
         <div className="container">
           <div className="section-header section-header--center" style={{ marginBottom: '2.5rem' }}>
             <motion.div className="section-label" whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }}>
@@ -1123,7 +1267,6 @@ export default function Home() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: i * 0.06 }}
               >
-                {/* Image */}
                 <img
                   src={img.url}
                   alt={`Gallery ${i + 1}`}
@@ -1133,7 +1276,6 @@ export default function Home() {
                   }}
                 />
 
-                {/* Hover overlay showing description */}
                 <div className="gallery-card-overlay">
                   <p style={{
                     color: '#ffffff',
@@ -1149,7 +1291,7 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* ==============================
           FEATURES — "Everything You Need to Succeed"

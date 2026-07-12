@@ -7,10 +7,11 @@ import { useUser } from '../../context/UserContext';
 
 const navLinks = [
   { label: 'Home',    path: '/home' },
-  { label: 'Courses', path: '/courses' },
+  // { label: 'Courses', path: '/courses' },
   { label: 'About',   path: '/about' },
-  { label: 'Free Moke Test', path: '/services' },
-  { label: 'Gallery', path: '/gallery' },
+  { label: 'Previous Year Question', path: '/ebook' },
+  { label: 'Moke Test', path: '/services' },
+  // { label: 'Gallery', path: '/gallery' },
   { label: 'Contact', path: '/contact' },
 ];
 

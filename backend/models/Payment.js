@@ -12,7 +12,8 @@ const PaymentSchema = new mongoose.Schema({
   // New fields
   mockTestId:         { type: mongoose.Schema.Types.ObjectId, ref: 'MockTest' },
   courseId:           { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
-  purchaseType:       { type: String, enum: ['mock-test', 'course', 'legacy'], default: 'legacy' },
+  questionBookId:     { type: mongoose.Schema.Types.ObjectId, ref: 'QuestionBook' },
+  purchaseType:       { type: String, enum: ['mock-test', 'course', 'legacy', 'question-book'], default: 'legacy' },
   couponCode:         { type: String, default: '' },
   originalAmount:     { type: Number, default: 0 },                  // before discount (paise)
   createdAt:          { type: Date, default: Date.now },
