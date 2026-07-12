@@ -3,15 +3,36 @@ import { X, Lock, EyeOff, Loader, RefreshCw, ZoomIn, ZoomOut, ShieldAlert, Camer
 
 export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, watermarkTemplate }) {
   const containerRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const initialTouchDistanceRef = useRef(null);
+  const initialScaleOnPinchRef = useRef(null);
+  const lastFactorRef = useRef(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [blurred, setBlurred] = useState(false);
-  const [scale, setScale] = useState(1.2);
+
+  const getInitialScale = () => {
+    if (typeof window === 'undefined') return 1.2;
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isMobile) return 1.2;
+    const screenWidth = window.innerWidth;
+    const padding = 32;
+    const targetWidth = screenWidth - padding;
+    const scaleToFit = targetWidth / 595;
+    return Math.min(Math.max(scaleToFit, 0.4), 1.0);
+  };
+
+  const [scale, setScale] = useState(getInitialScale());
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const pdfDocRef = useRef(null);
   const [screenshotAlert, setScreenshotAlert] = useState(false);
   const [securityAlert, setSecurityAlert] = useState(null); // null | string message
+
+  const scaleRef = useRef(scale);
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
 
   // Extract base64 clean data (strip data:application/pdf;base64, prefix if present)
   const getCleanBase64 = (data) => {
@@ -106,6 +127,62 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
     // Prevent image drag-and-drop saving on mobile
     const handleDragStart = (e) => e.preventDefault();
 
+    // Support trackpad pinch-to-zoom on desktop
+    const handleWheel = (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setScale((prev) => Math.min(prev + 0.05, 2.2));
+        } else {
+          setScale((prev) => Math.max(prev - 0.05, 0.8));
+        }
+      }
+    };
+
+    // Support mobile pinch-to-zoom on touch screen
+    const getTouchDistance = (touches) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        initialTouchDistanceRef.current = getTouchDistance(e.touches);
+        initialScaleOnPinchRef.current = scaleRef.current;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (e.touches.length === 2 && initialTouchDistanceRef.current !== null) {
+        e.preventDefault(); // Prevent standard browser pinch zoom
+        const dist = getTouchDistance(e.touches);
+        const factor = dist / initialTouchDistanceRef.current;
+        lastFactorRef.current = factor;
+
+        if (containerRef.current) {
+          containerRef.current.style.transform = `scale(${factor})`;
+          containerRef.current.style.transformOrigin = 'center center';
+          containerRef.current.style.transition = 'none';
+        }
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (initialTouchDistanceRef.current !== null) {
+        if (containerRef.current) {
+          containerRef.current.style.transform = 'none';
+          containerRef.current.style.transition = 'transform 0.15s ease';
+        }
+
+        const finalScale = Math.min(Math.max(initialScaleOnPinchRef.current * lastFactorRef.current, 0.3), 2.2);
+        setScale(Math.round(finalScale * 100) / 100);
+
+        initialTouchDistanceRef.current = null;
+        lastFactorRef.current = 1;
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('keydown', handleKeyDown);
@@ -113,6 +190,14 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
     window.addEventListener('focus', handleWindowFocus);
     window.addEventListener('keyup', handleKeyUp);
     document.addEventListener('dragstart', handleDragStart);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    const scrollContainer = scrollContainerRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+      scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+      scrollContainer.addEventListener('touchend', handleTouchEnd);
+    }
 
     // Inject css to prevent print media and style grid
     const styleEl = document.createElement('style');
@@ -141,7 +226,7 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       }
       @media (max-width: 900px) {
         .pdf-container {
-          grid-template-columns: 1fr !important;
+          grid-template-columns: auto !important;
           width: max-content !important;
           padding: 0 12px !important;
         }
@@ -153,7 +238,7 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
         -ms-user-select: none;
         user-select: none;
         -webkit-touch-callout: none;
-        touch-action: pan-y;
+        touch-action: pan-x pan-y pinch-zoom;
       }
       /* Block tap highlight on mobile */
       .no-select * {
@@ -170,6 +255,12 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('dragstart', handleDragStart);
+      window.removeEventListener('wheel', handleWheel);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('touchstart', handleTouchStart);
+        scrollContainer.removeEventListener('touchmove', handleTouchMove);
+        scrollContainer.removeEventListener('touchend', handleTouchEnd);
+      }
       document.head.removeChild(styleEl);
     };
   }, [blurred]);
@@ -314,7 +405,7 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
   };
 
   const handleZoom = (amount) => {
-    setScale((prev) => Math.min(Math.max(prev + amount, 0.8), 2.2));
+    setScale((prev) => Math.min(Math.max(prev + amount, 0.3), 2.2));
   };
 
   return (
@@ -407,15 +498,18 @@ export default function SecurePDFViewer({ pdfData, title, userInfo, onClose, wat
       </header>
 
       {/* Main Render Area */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        padding: '32px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#090d16',
-        position: 'relative'
-      }}>
+      <div 
+        ref={scrollContainerRef}
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: '32px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#090d16',
+          position: 'relative'
+        }}
+      >
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '120px', alignSelf: 'center' }}>
             <Loader size={36} className="spin" color="#ff6b00" />
