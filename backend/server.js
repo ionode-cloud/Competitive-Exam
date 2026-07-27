@@ -1,116 +1,129 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const bcrypt = require('bcryptjs');
+const morgan = require('morgan');
+const path = require('path');
+const cron = require('node-cron');
 
-dotenv.config();
+const connectDB = require('./src/config/db');
+const errorHandler = require('./src/middleware/errorHandler');
 
-const connectDB = require('./config/db');
-const Admin = require('./models/Admin');
+// Route imports
+const authRoutes = require('./src/routes/auth');
+const examinationRoutes = require('./src/routes/examinations');
+const mockTestRoutes = require('./src/routes/mocktests');
+const questionRoutes = require('./src/routes/questions');
+const subjectRoutes = require('./src/routes/subjects');
+const chapterRoutes = require('./src/routes/chapters');
+const subChapterRoutes = require('./src/routes/subchapters');
+const ebookRoutes = require('./src/routes/ebooks');
+const materialRoutes = require('./src/routes/materials');
+const materialCategoryRoutes = require('./src/routes/materialCategories');
+const materialsConfigRoutes  = require('./src/routes/materialsConfig');
+const ebookConfigRoutes      = require('./src/routes/ebookConfig');
+const pyqCategoryRoutes        = require('./src/routes/pyqCategories');
+const subscriptionConfigRoutes = require('./src/routes/subscriptionConfig');
+const subscriptionRoutes       = require('./src/routes/subscriptions');
+const studentRoutes = require('./src/routes/students');
+const orderRoutes = require('./src/routes/orders');
+const paymentRoutes = require('./src/routes/payments');
+const notificationRoutes = require('./src/routes/notifications');
+const reportRoutes = require('./src/routes/reports');
+const settingRoutes = require('./src/routes/settings');
+const dashboardRoutes = require('./src/routes/dashboard');
 
-// Existing routes
-const adminRoutes       = require('./routes/adminRoutes');
-const studentRoutes     = require('./routes/studentRoutes');
-const questionRoutes    = require('./routes/questionRoutes');
-const examRoutes        = require('./routes/examRoutes');
-const subjectRoutes     = require('./routes/subjectRoutes');
-const resultRoutes      = require('./routes/resultRoutes');
-
-// ExamSphere existing routes
-const userRoutes        = require('./routes/userRoutes');
-const paymentRoutes     = require('./routes/paymentRoutes');
-const contactRoutes     = require('./routes/contactRoutes');
-const pageContentRoutes = require('./routes/pageContentRoutes');
-
-// New platform routes
-const courseRoutes       = require('./routes/courseRoutes');
-const mockTestRoutes     = require('./routes/mockTestRoutes');
-const couponRoutes       = require('./routes/couponRoutes');
-const certificateRoutes  = require('./routes/certificateRoutes');
-const scheduleRoutes     = require('./routes/scheduleRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const questionBookRoutes = require('./routes/questionBookRoutes');
-const questionBookSubjectRoutes = require('./routes/questionBookSubjectRoutes');
+// Connect to database
+connectDB();
 
 const app = express();
 
-// Connect Database
-connectDB();
-
-// Middleware
+// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, Postman) or any localhost port
-    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
-      return callback(null, true);
-    }
-    // Allow deployed frontend domains
-    const allowed = [
-      'https://examsphere.in',
-      'https://www.examsphere.in',
-      'https://sunilsiracademy.com',
-      'https://www.sunilsiracademy.com',
-    ];
-    if (allowed.includes(origin)) return callback(null, true);
-    console.warn('CORS blocked origin:', origin);
-    callback(null, false);
+    callback(null, origin || true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 0, // Disable CORS preflight caching so stale responses don't persist
 }));
 
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ limit: '100mb', extended: true }));
+// Body parser
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Routes
-app.get("/", (req, res) => {
-  res.send("ExamSphere API Running Successfully");
+// Logger
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
+
+// Static files (for local uploads)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date(), env: process.env.NODE_ENV });
 });
 
-// Existing routes
-app.use('/api', adminRoutes);
-app.use('/api', studentRoutes);
-app.use('/api', questionRoutes);
-app.use('/api', examRoutes);
-app.use('/api', subjectRoutes);
-app.use('/api', resultRoutes);
+const odishaExamRoutes = require('./src/routes/odishaExams');
 
-// ExamSphere existing routes
-app.use('/api', userRoutes);
-app.use('/api', paymentRoutes);
-app.use('/api', contactRoutes);
-app.use('/api', pageContentRoutes);
+// Mount routes
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/examinations', examinationRoutes);
+app.use('/api/odisha-exams', odishaExamRoutes);
+app.use('/api/mocktests', mockTestRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/chapters', chapterRoutes);
+app.use('/api/subchapters', subChapterRoutes);
+app.use('/api/ebooks', ebookRoutes);
+app.use('/api/materials', materialRoutes);
+app.use('/api/material-categories', materialCategoryRoutes);
+app.use('/api/materials-config',    materialsConfigRoutes);
+app.use('/api/ebooks-config',        ebookConfigRoutes);
+app.use('/api/pyq-ebooks',           pyqCategoryRoutes);
+app.use('/api/subscription-config',  subscriptionConfigRoutes);
+app.use('/api/subscriptions',        subscriptionRoutes);
+app.use('/api/students',             studentRoutes);
+app.use('/api/orders',               orderRoutes);
+app.use('/api/payments',             paymentRoutes);
+app.use('/api/notifications',        notificationRoutes);
+app.use('/api/reports',              reportRoutes);
+app.use('/api/settings',             settingRoutes);
+const subjectTestRoutes = require('./src/routes/subjectTests');
+const seedSubjectTests  = require('./src/utils/subjectTestSeed');
 
-// New platform routes
-app.use('/api', courseRoutes);
-app.use('/api', mockTestRoutes);
-app.use('/api', couponRoutes);
-app.use('/api', certificateRoutes);
-app.use('/api', scheduleRoutes);
-app.use('/api', notificationRoutes);
-app.use('/api', questionBookRoutes);
-app.use('/api', questionBookSubjectRoutes);
+app.use('/api/subject-tests', subjectTestRoutes);
 
-// Initial Admin Creation (Seed)
-const seedAdmin = async () => {
+// Trigger initial seed check
+seedSubjectTests();
+
+// Cron job: auto-publish scheduled mock tests every minute
+cron.schedule('* * * * *', async () => {
   try {
-    const count = await Admin.countDocuments();
-    if (count === 0) {
-      const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
-      await Admin.create({
-        email: process.env.ADMIN_EMAIL,
-        password: hashedPassword,
-        plainPassword: process.env.ADMIN_PASSWORD
-      });
-      console.log('Seed admin created');
-    }
+    const MockTest = require('./src/models/MockTest');
+    const now = new Date();
+    await MockTest.updateMany(
+      { status: 'scheduled', publishAt: { $lte: now } },
+      { $set: { status: 'published' } }
+    );
   } catch (err) {
-    console.error('Admin seeding failed:', err);
+    console.error('Cron error:', err.message);
   }
-};
-seedAdmin();
+});
 
-const PORT = process.env.PORT;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Error handler (must be last)
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => {
+  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔗 API base: http://localhost:${PORT}/api`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err.message);
+  server.close(() => process.exit(1));
+});

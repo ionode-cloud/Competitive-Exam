@@ -1,222 +1,114 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
+// Existing user-facing
+import Header           from './components/Header';
+import Footer           from './components/Footer';
+import ScrollToTopButton from './components/ScrollToTopButton';
+import LandingPage      from './pages/LandingPage';
+import ExamSectionPage  from './pages/ExamSectionPage';
+import SubjectTestPage  from './pages/SubjectTestPage';
+import MockTestPage     from './pages/MockTestPage';
+import PYQEbookPage     from './pages/PYQEbookPage';
+import MaterialsPage    from './pages/MaterialsPage';
+import ContactUsPage    from './pages/ContactUsPage';
+import SubscriptionPage from './pages/SubscriptionPage';
+import UserProfilePage  from './pages/UserProfilePage';
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+// Admin panel
+import AdminLayout      from './admin/layouts/AdminLayout';
+import Dashboard        from './admin/pages/Dashboard';
+import OdishaExams      from './admin/pages/OdishaExams';
+import MockTests        from './admin/pages/MockTests';
+import ManageMockTest   from './admin/pages/ManageMockTest';
+import CreateMockTest   from './admin/pages/CreateMockTest';
+import QuestionBank     from './admin/pages/QuestionBank';
+import Subjects         from './admin/pages/Subjects';
+import EBooks           from './admin/pages/EBooks';
+import Materials        from './admin/pages/Materials';
+import MaterialCategories from './admin/pages/MaterialCategories';
+import Students         from './admin/pages/Students';
+import AdminCredentials from './admin/pages/AdminCredentials';
+import Orders           from './admin/pages/Orders';
+import Payments         from './admin/pages/Payments';
+import Reports          from './admin/pages/Reports';
+import Notifications    from './admin/pages/Notifications';
+import Subscription     from './admin/pages/Subscription';
+import SubscriptionsManager from './admin/pages/SubscriptionsManager';
+import SubjectTestsManager  from './admin/pages/SubjectTestsManager';
 
-  return null;
-}
+// Student Exam Engine
+import ExamInstructionPage   from './pages/ExamInstructionPage';
+import SubjectTestExamPage   from './pages/SubjectTestExamPage';
+import SubjectTestResultPage from './pages/SubjectTestResultPage';
 
-// Public pages
-import Home from './pages/public/Home';
-import About from './pages/public/About';
-import Services from './pages/public/Services';
-import Gallery from './pages/public/Gallery';
-import Contact from './pages/public/Contact';
-import StudentAuthPage from './pages/public/StudentAuthPage';
-import CoursesPage from './pages/public/Courses';
-import CourseDetailPage from './pages/public/CourseDetail';
-import EBook from './pages/public/EBook';
+// Contexts
+import { AuthProvider } from './admin/context/AuthContext';
+import { ThemeProvider } from './admin/context/ThemeContext';
 
-// Student exam pages (existing)
-import StudentLogin from './pages/student/Login';
-import ExamInterface from './pages/student/ExamInterface';
-import ExamInstructions from './pages/student/ExamInstructions';
-import ResultPage from './pages/student/ResultPage';
-import StudentDashboard from './pages/student/StudentDashboard';
-
-// Admin pages (existing)
-import AdminLogin from './pages/admin/Login';
-import AdminDashboard from './pages/admin/Dashboard';
-import CreateExam from './pages/admin/CreateExam';
-import ManageExams from './pages/admin/ManageExams';
-import ManageQuestions from './pages/admin/ManageQuestions';
-import StudentsView from './pages/admin/Students';
-import ResultsView from './pages/admin/Results';
-import AdminRating from './pages/admin/AdminRating';
-import AdminLogs from './pages/admin/AdminLogs';
-import ForgotPassword from './pages/admin/ForgotPassword';
-import Instructions from './pages/admin/Instructions';
-import AdminLayout from './layouts/AdminLayout';
-
-// New admin pages
-import AdminCourses from './pages/admin/AdminCourses';
-import AdminCategories from './pages/admin/AdminCategories';
-import AdminMockTests from './pages/admin/AdminMockTests';
-import AdminSchedules from './pages/admin/AdminSchedules';
-import AdminCoupons from './pages/admin/AdminCoupons';
-import AdminPayments from './pages/admin/AdminPayments';
-import AdminCertificates from './pages/admin/AdminCertificates';
-import AdminNotifications from './pages/admin/AdminNotifications';
-import AdminSubjects from './pages/admin/AdminSubjects';
-import AdminHome from './pages/admin/AdminHome';
-import AdminAbout from './pages/admin/AdminAbout';
-import AdminContact from './pages/admin/AdminContact';
-import AdminGallery from './pages/admin/AdminGallery';
-import AdminFooter from './pages/admin/AdminFooter';
-import AdminQuestionBook from './pages/admin/AdminQuestionBook';
-
-import { useAuth } from './context/AuthContext';
-import { useUser } from './context/UserContext';
-import AuthModal from './components/public/AuthModal';
-
-function App() {
-  const { student, admin } = useAuth();
-  const { isAuthModalOpen, closeAuthModal, authModalTab, user } = useUser();
-
+// User-facing layout wrapper
+function UserLayout({ children }) {
   return (
-    <Router>
-      <ScrollToTop />
-      <Routes>
-        {/* ==============================
-            ROOT — redirect to home
-            ============================== */}
-        <Route path="/" element={<Navigate to="/home" replace />} />
-
-        {/* ==============================
-            PUBLIC PAGES
-            ============================== */}
-        <Route path="/home"     element={<Home />} />
-        <Route path="/about"    element={<About />} />
-        <Route path="/services" element={<Services />} />
-        <Route path="/gallery"  element={<Gallery />} />
-        <Route path="/contact"  element={<Contact />} />
-        <Route path="/ebook"    element={<EBook />} />
-
-        {/* Courses (new) */}
-        <Route path="/courses"       element={<CoursesPage />} />
-        <Route path="/courses/:courseId" element={<CourseDetailPage />} />
-
-        {/* Auth (register / login for public users) */}
-        <Route path="/auth" element={<StudentAuthPage />} />
-
-        {/* Student Dashboard */}
-        <Route path="/dashboard" element={<StudentDashboard />} />
-
-        {/* ==============================
-            EXAM STUDENT ROUTES (existing)
-            ============================== */}
-        <Route path="/login"        element={<Navigate to="/services" replace />} />
-        <Route path="/instructions" element={<ExamInstructions />} />
-        <Route path="/exams"        element={<ExamInterface />} />
-        <Route path="/result"       element={<ResultPage />} />
-
-        {/* ==============================
-            ADMIN ROUTES (existing)
-            ============================== */}
-        <Route path="/admin/login"           element={<AdminLogin />} />
-        <Route path="/admin/forgot-password" element={<ForgotPassword />} />
-        <Route path="/admin/dashboard"       element={admin ? <AdminDashboard />   : <Navigate to="/admin/login" />} />
-        <Route path="/admin/create-exam"     element={admin ? <CreateExam />       : <Navigate to="/admin/login" />} />
-        <Route path="/admin/manage-exams"    element={admin ? <ManageExams />      : <Navigate to="/admin/login" />} />
-        <Route path="/admin/manage-questions"element={admin ? <ManageQuestions />  : <Navigate to="/admin/login" />} />
-        <Route path="/admin/students"        element={admin ? <StudentsView />     : <Navigate to="/admin/login" />} />
-        <Route path="/admin/results"         element={admin ? <ResultsView />      : <Navigate to="/admin/login" />} />
-        <Route path="/admin/ratings"         element={admin ? <AdminRating />      : <Navigate to="/admin/login" />} />
-        <Route path="/admin/logs"            element={admin && admin.role !== 'Root Admin' ? <AdminLogs /> : <Navigate to="/admin/dashboard" />} />
-        <Route path="/admin/instructions"    element={admin ? <Instructions />     : <Navigate to="/admin/login" />} />
-
-        {/* ==============================
-            ADMIN ROUTES (new)
-            ============================== */}
-        <Route path="/admin/courses"          element={admin ? <AdminCourses />       : <Navigate to="/admin/login" />} />
-        <Route path="/admin/subjects"         element={admin ? <AdminSubjects />      : <Navigate to="/admin/login" />} />
-        <Route path="/admin/categories"       element={admin ? <AdminCategories />    : <Navigate to="/admin/login" />} />
-        <Route path="/admin/mock-tests"       element={admin ? <AdminMockTests />     : <Navigate to="/admin/login" />} />
-        <Route path="/admin/schedules"        element={admin ? <AdminSchedules />     : <Navigate to="/admin/login" />} />
-        <Route path="/admin/coupons"          element={admin ? <AdminCoupons />       : <Navigate to="/admin/login" />} />
-        <Route path="/admin/payments-manage"  element={admin ? <AdminPayments />      : <Navigate to="/admin/login" />} />
-        <Route path="/admin/certificates"     element={admin ? <AdminCertificates />  : <Navigate to="/admin/login" />} />
-        <Route path="/admin/notifications"    element={admin ? <AdminNotifications /> : <Navigate to="/admin/login" />} />
-        <Route path="/admin/home"             element={admin ? <AdminHome />          : <Navigate to="/admin/login" />} />
-        <Route path="/admin/about"            element={admin ? <AdminAbout />         : <Navigate to="/admin/login" />} />
-        <Route path="/admin/contact"          element={admin ? <AdminContact />       : <Navigate to="/admin/login" />} />
-        <Route path="/admin/gallery"          element={admin ? <AdminGallery />       : <Navigate to="/admin/login" />} />
-        <Route path="/admin/footer"           element={admin ? <AdminFooter />        : <Navigate to="/admin/login" />} />
-        <Route path="/admin/question-book"    element={admin ? <AdminQuestionBook />  : <Navigate to="/admin/login" />} />
-
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/home" />} />
-      </Routes>
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={closeAuthModal}
-        initialTab={authModalTab}
-      />
-      <ScrollToTopButton />
-    </Router>
+    <>
+      <Header />
+      <main>{children}</main>
+      <Footer />
+    </>
   );
 }
 
-function ScrollToTopButton() {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const toggleVisibility = () => {
-      if (window.pageYOffset > 300) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
-    };
-    window.addEventListener('scroll', toggleVisibility);
-    return () => window.removeEventListener('scroll', toggleVisibility);
-  }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
-
+export default function App() {
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.button
-          onClick={scrollToTop}
-          initial={{ opacity: 0, y: 20, scale: 0.8 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.8 }}
-          whileHover={{ scale: 1.1, y: -2 }}
-          whileTap={{ scale: 0.9 }}
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '46px',
-            height: '46px',
-            minWidth: '46px',
-            minHeight: '46px',
-            maxWidth: '46px',
-            maxHeight: '46px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ff6b00, #ff8c00)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            padding: 0,
-            boxSizing: 'border-box',
-            boxShadow: '0 4px 16px rgba(255, 107, 0, 0.4)',
-            zIndex: 9999,
-            transition: 'box-shadow 0.2s ease'
-          }}
-          title="Scroll to Top"
-        >
-          <ArrowUp size={20} strokeWidth={2.5} />
-        </motion.button>
-      )}
-    </AnimatePresence>
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <Toaster position="top-right" toastOptions={{ style: { borderRadius: '10px', background: '#1e293b', color: '#f1f5f9' } }} />
+          <ScrollToTopButton />
+          <Routes>
+            {/* Redirect /login to open login modal on portal */}
+            <Route path="/login" element={<Navigate to="/?login=true" replace />} />
+
+            {/* Admin Panel (protected by AdminLayout) */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="exams" element={<OdishaExams />} />
+              <Route path="mock-tests" element={<MockTests />} />
+              <Route path="manage-mock-tests" element={<ManageMockTest />} />
+              <Route path="mock-tests/create" element={<CreateMockTest />} />
+              <Route path="mock-tests/:id/edit" element={<CreateMockTest />} />
+              <Route path="question-bank" element={<QuestionBank />} />
+              <Route path="subjects" element={<Subjects />} />
+              <Route path="ebooks"       element={<EBooks />} />
+              <Route path="materials"    element={<Materials />} />
+              <Route path="material-categories" element={<MaterialCategories />} />
+              <Route path="students" element={<Students />} />
+              <Route path="credentials" element={<AdminCredentials />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="payments" element={<Payments />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="subscription"   element={<Subscription />} />
+              <Route path="subscriptions"  element={<SubscriptionsManager />} />
+              <Route path="subject-tests"  element={<SubjectTestsManager />} />
+            </Route>
+
+            {/* User-facing pages */}
+            <Route path="/" element={<UserLayout><LandingPage /></UserLayout>} />
+            <Route path="/exam-section" element={<UserLayout><ExamSectionPage /></UserLayout>} />
+            <Route path="/subject-test" element={<UserLayout><SubjectTestPage /></UserLayout>} />
+            <Route path="/subject-test/instructions/:testId" element={<UserLayout><ExamInstructionPage /></UserLayout>} />
+            <Route path="/subject-test/exam/:attemptId" element={<SubjectTestExamPage />} />
+            <Route path="/subject-test/result/:attemptId" element={<UserLayout><SubjectTestResultPage /></UserLayout>} />
+            <Route path="/mock-test" element={<UserLayout><MockTestPage /></UserLayout>} />
+            <Route path="/pyq-ebook" element={<UserLayout><PYQEbookPage /></UserLayout>} />
+            <Route path="/materials" element={<UserLayout><MaterialsPage /></UserLayout>} />
+            <Route path="/contact" element={<UserLayout><ContactUsPage /></UserLayout>} />
+            <Route path="/subscription" element={<UserLayout><SubscriptionPage /></UserLayout>} />
+            <Route path="/profile" element={<UserLayout><UserProfilePage /></UserLayout>} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
-
-export default App;
