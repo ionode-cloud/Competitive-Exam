@@ -178,6 +178,7 @@ export default function EBooks() {
       }
       setCatModalOpen(false);
       fetchPyqCategories();
+      window.dispatchEvent(new Event('pyqCategoriesUpdated'));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save category');
     } finally {
@@ -200,6 +201,7 @@ export default function EBooks() {
       await api.delete(`/pyq-ebooks/${cat._id}`);
       toast.success('Category deleted');
       fetchPyqCategories();
+      window.dispatchEvent(new Event('pyqCategoriesUpdated'));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed');
     }
@@ -211,6 +213,7 @@ export default function EBooks() {
       const items = newCategories.map((c, i) => ({ _id: c._id, displayOrder: i + 1 }));
       await api.put('/pyq-ebooks/reorder', { items });
       toast.success('Display order updated!');
+      window.dispatchEvent(new Event('pyqCategoriesUpdated'));
     } catch {
       toast.error('Failed to save order');
     }
@@ -230,7 +233,7 @@ export default function EBooks() {
   const openCreate = () => {
     setEditing(null);
     setInstructions(['']);
-    reset({ pages: '150+ pages', year: '2018-2025', price: 0, isFree: true, status: 'published' });
+    reset({ pages: '150+ pages', year: '2018-2025', price: 0, isFree: true, status: 'published', category: '' });
     setModalOpen(true);
   };
 
@@ -239,8 +242,7 @@ export default function EBooks() {
     setInstructions(e.instructions?.length ? e.instructions : ['']);
     reset({
       title: e.title,
-      subject: e.subject?.name || e.subject || '',
-      category: e.category || '',
+      category: e.category || e.subject?.name || '',
       description: e.description,
       pages: e.pages || '150+ pages',
       year: e.year || '2018-2025',
@@ -254,6 +256,9 @@ export default function EBooks() {
 
   const onSubmit = async (values) => {
     try {
+      if (values.category) {
+        values.subject = values.category;
+      }
       const formData = new FormData();
       Object.entries(values).forEach(([k, v]) => { if (v !== undefined && v !== null) formData.append(k, v); });
       if (values.pdfFile?.[0]) formData.set('pdf', values.pdfFile[0]);
@@ -290,12 +295,9 @@ export default function EBooks() {
         <div>
           <p className="font-semibold text-slate-800 dark:text-white text-sm">{r.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-slate-400">{r.subject?.name}</span>
-            {r.category && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
-                {r.category}
-              </span>
-            )}
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+              {r.category || r.subject?.name || 'General'}
+            </span>
           </div>
         </div>
       )
@@ -590,23 +592,18 @@ export default function EBooks() {
             <input {...register('title', { required: 'Title required' })} className="admin-input" placeholder="e.g. Computer Science Previous Papers" />
             {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>}
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="admin-label">Subject *</label>
-              <input {...register('subject', { required: 'Subject required' })} className="admin-input" placeholder="e.g. Computer Science" />
-              {errors.subject && <p className="text-red-500 text-xs mt-1">{errors.subject.message}</p>}
-            </div>
-            <div>
-              <label className="admin-label">Category *</label>
-              <select {...register('category', { required: 'Category required' })} className="admin-input">
-                <option value="">Select category...</option>
+              <label className="admin-label">PYQ EBOOK CATEGORIES *</label>
+              <select {...register('category', { required: 'PYQ Ebook Category required' })} className="admin-input font-semibold">
+                <option value="">Select PYQ Ebook Category...</option>
                 {pyqCategories.map(c => <option key={c._id} value={c.title}>{c.title}</option>)}
               </select>
               {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category.message}</p>}
             </div>
             <div>
               <label className="admin-label">Status</label>
-              <select {...register('status')} className="admin-input">
+              <select {...register('status')} className="admin-input font-medium">
                 <option value="published">Published</option>
                 <option value="draft">Draft</option>
               </select>

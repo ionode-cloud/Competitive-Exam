@@ -18,6 +18,7 @@ exports.getMockTests = async (req, res, next) => {
     const [data, total] = await Promise.all([
       MockTest.find(filter).sort(sort).skip(skip).limit(lim)
         .populate('examination', 'name')
+        .populate('subject', 'name')
         .populate('createdBy', 'name')
         .select('-questions'),
       MockTest.countDocuments(filter),
@@ -45,6 +46,17 @@ exports.getMockTest = async (req, res, next) => {
       .populate('createdBy', 'name');
 
     if (!mt) return res.status(404).json({ success: false, message: 'Mock test not found' });
+
+    // Filter out deleted questions from Question Bank automatically
+    if (Array.isArray(mt.questions)) {
+      const validQuestions = mt.questions.filter(qItem => qItem.question !== null && qItem.question !== undefined);
+      if (validQuestions.length !== mt.questions.length) {
+        mt.questions = validQuestions;
+        mt.completedQuestions = validQuestions.length;
+        await mt.save();
+      }
+    }
+
     res.json({ success: true, data: mt });
   } catch (err) {
     next(err);
@@ -297,9 +309,13 @@ exports.getPublicMockTestsTree = async (req, res, next) => {
         _id: ex._id,
         category: ex.name,
         name: ex.name,
+        description: ex.description || '',
         icon: ex.icon || 'landmark',
-        color: '#7C3AED',
-        bg: '#F3ECFE',
+        color: ex.color || '#7C3AED',
+        bg: ex.bg || '#F3ECFE',
+        price: ex.price || 0,
+        status: ex.status || 'active',
+        topics: ex.topics || [],
         tests: []
       });
     });

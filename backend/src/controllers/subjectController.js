@@ -61,12 +61,33 @@ exports.reorderSubjects = async (req, res, next) => {
 
 exports.deleteSubject = async (req, res, next) => {
   try {
-    const subject = await Subject.findById(req.params.id);
-    if (!subject) return res.status(404).json({ success: false, message: 'Subject not found' });
-    const chapterCount = await Chapter.countDocuments({ subject: subject._id });
-    if (chapterCount > 0) return res.status(400).json({ success: false, message: `Cannot delete — ${chapterCount} chapters linked` });
-    await subject.deleteOne();
-    res.json({ success: true, message: 'Subject deleted' });
+    const SubjectTestSubject = require('../models/SubjectTestSubject');
+    const Question = require('../models/Question');
+    const targetId = req.params.id;
+
+    const mainSub = await Subject.findById(targetId);
+    let subName = mainSub?.name;
+
+    if (mainSub) {
+      await Chapter.deleteMany({ subject: mainSub._id });
+      await SubChapter.deleteMany({ subject: mainSub._id });
+      await Question.deleteMany({ subject: mainSub._id });
+      await mainSub.deleteOne();
+    }
+
+    let stSub = await SubjectTestSubject.findById(targetId);
+    if (!stSub && subName) {
+      stSub = await SubjectTestSubject.findOne({ name: { $regex: new RegExp(`^${subName.trim()}$`, 'i') } });
+    }
+    if (stSub) {
+      await stSub.deleteOne();
+    }
+
+    if (!mainSub && !stSub) {
+      return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+
+    res.json({ success: true, message: 'Subject deleted successfully from all modules' });
   } catch (err) { next(err); }
 };
 

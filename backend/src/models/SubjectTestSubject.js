@@ -10,6 +10,7 @@ const subjectTestSubjectSchema = new mongoose.Schema({
   displayOrder: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   showInPyqEbook: { type: Boolean, default: true },
+  price: { type: Number, default: 0 },          // Category subscription price (₹). 0 = free
   topics: [{ type: String }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });

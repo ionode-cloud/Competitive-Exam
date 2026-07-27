@@ -61,6 +61,19 @@ export default function SubjectTestsManager() {
     name: '', description: '', icon: 'book', color: '#1957D6', bg: '#EAF1FD', topics: []
   });
   const [topicInput, setTopicInput] = useState('');
+  const [categoryPrices, setCategoryPrices] = useState({});
+
+  const handleSaveCategoryPrice = async (catId, newPrice) => {
+    try {
+      const res = await api.put(`/subject-tests/subjects/${catId}/price`, { price: Number(newPrice) });
+      if (res.data.success) {
+        Swal.fire('Saved!', res.data.message || 'Category price updated', 'success');
+        fetchSubjects();
+      }
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to update category price', 'error');
+    }
+  };
 
   // Question Mapping Modal State
   const [mapModal, setMapModal] = useState(false);
@@ -278,7 +291,7 @@ export default function SubjectTestsManager() {
   const openCreateTest = () => {
     setEditingTest(null);
     setTestForm({
-      categoryId: subjects[0]?._id || '',
+      categoryId: '',
       subjectId: '',
       topicId: '',
       topicName: '',
@@ -316,8 +329,8 @@ export default function SubjectTestsManager() {
   };
 
   const saveTest = async () => {
-    if (!testForm.subjectId || (!testForm.topicId && !testForm.topicName) || !testForm.title.trim()) {
-      return Swal.fire('Error', 'Subject, Topic, and Test Title are required', 'error');
+    if (!testForm.categoryId || !testForm.subjectId || (!testForm.topicId && !testForm.topicName) || !testForm.title.trim()) {
+      return Swal.fire('Error', 'Subject Test Category, Subject, Topic, and Test Title are required', 'error');
     }
     try {
       const payload = { ...testForm };
@@ -466,6 +479,19 @@ export default function SubjectTestsManager() {
             }}
           >
             <RiLayoutGridLine /> User Tab &amp; Categories
+          </button>
+          <button
+            onClick={() => setViewMode('prices')}
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: 'none',
+              fontWeight: 800, fontSize: 13, cursor: 'pointer',
+              background: viewMode === 'prices' ? '#2563eb' : 'transparent',
+              color: viewMode === 'prices' ? '#fff' : '#64748b',
+              boxShadow: viewMode === 'prices' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              display: 'flex', alignItems: 'center', gap: 6
+            }}
+          >
+            <RiPriceTag3Line /> Subject Test Category Price
           </button>
         </div>
       </div>
@@ -843,6 +869,86 @@ export default function SubjectTestsManager() {
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════════════════════════════
+         VIEW 3: SUBJECT TEST CATEGORY PRICE MANAGEMENT
+      ════════════════════════════════════════════════════════════════════════ */}
+      {viewMode === 'prices' && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RiPriceTag3Line style={{ color: '#2563eb' }} /> Subject Test Category Price Management
+            </h3>
+            <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+              Set subscription price for each Subject Test Category. The <strong>first test</strong> in each category is always <strong>FREE</strong> for students.
+              All remaining tests will automatically require purchasing access to that specific Subject Test Category.
+            </p>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '12px 16px' }}>Category Name</th>
+                  <th style={{ padding: '12px 16px' }}>Description</th>
+                  <th style={{ padding: '12px 16px' }}>Access Rule</th>
+                  <th style={{ padding: '12px 16px', width: 220 }}>Category Price (₹)</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjects.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>
+                      No subject categories found.
+                    </td>
+                  </tr>
+                ) : (
+                  subjects.map(cat => (
+                    <tr key={cat._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0f172a' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: cat.color || '#2563eb' }}></span>
+                          {cat.name}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', color: '#64748b', fontSize: 12 }}>
+                        {cat.description || '—'}
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#0f9d58', background: '#e8f8ee', padding: '4px 10px', borderRadius: 20 }}>
+                          1st Test Always Free
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={categoryPrices[cat._id] !== undefined ? categoryPrices[cat._id] : (cat.price ?? 0)}
+                            onChange={e => setCategoryPrices(prev => ({ ...prev, [cat._id]: e.target.value }))}
+                            style={{ width: 120, padding: '7px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 800, fontSize: 14 }}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => handleSaveCategoryPrice(cat._id, categoryPrices[cat._id] !== undefined ? categoryPrices[cat._id] : (cat.price ?? 0))}
+                          className="btn btn-primary"
+                          style={{ padding: '7px 18px', borderRadius: 8, fontSize: 12, fontWeight: 800 }}
+                        >
+                          Save Price
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ── CREATE / EDIT SUBJECT CATEGORY MODAL ── */}
       {subjectModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -977,7 +1083,24 @@ export default function SubjectTestsManager() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Subject *</label>
-                <select value={testForm.subjectId} onChange={e => setTestForm(f => ({ ...f, subjectId: e.target.value, topicId: '', topicName: '' }))} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <select
+                  value={testForm.subjectId}
+                  onChange={e => {
+                    const sId = e.target.value;
+                    const selectedSubj = globalSubjects.find(s => String(s._id) === sId);
+                    let matchedCatId = testForm.categoryId;
+                    if (selectedSubj) {
+                      const matchCat = subjects.find(c => {
+                        const sName = selectedSubj.name.toLowerCase();
+                        const cName = c.name.toLowerCase();
+                        return sName === cName || (sName.includes('math') && cName.includes('math')) || (sName.includes('comp') && cName.includes('comp')) || (sName.includes('gk') && cName.includes('gk')) || (sName.includes('eng') && cName.includes('eng')) || (sName.includes('odia') && cName.includes('odia')) || (sName.includes('reason') && cName.includes('reason'));
+                      });
+                      if (matchCat) matchedCatId = matchCat._id;
+                    }
+                    setTestForm(f => ({ ...f, subjectId: sId, categoryId: matchedCatId, topicId: '', topicName: '' }));
+                  }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                >
                   <option value="">-- Choose Subject --</option>
                   {globalSubjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
@@ -1001,32 +1124,7 @@ export default function SubjectTestsManager() {
               <input value={testForm.title} onChange={e => setTestForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Percentage Practice Set 01" style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Access</label>
-                <select value={testForm.accessType} onChange={e => setTestForm(f => ({ ...f, accessType: e.target.value }))} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-                  <option value="Free">Free</option>
-                  <option value="Premium">Premium</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Price (₹)</label>
-                <input type="number" value={testForm.price ?? 49} onChange={e => setTestForm(f => ({ ...f, price: Number(e.target.value) }))} disabled={testForm.accessType === 'Free'} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 800 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Duration (mins)</label>
-                <input type="number" value={testForm.duration} onChange={e => setTestForm(f => ({ ...f, duration: Number(e.target.value) }))} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Difficulty</label>
-                <select value={testForm.difficulty} onChange={e => setTestForm(f => ({ ...f, difficulty: e.target.value }))} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                  <option value="Mixed">Mixed</option>
-                </select>
-              </div>
-            </div>
+
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setTestModal(false)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>

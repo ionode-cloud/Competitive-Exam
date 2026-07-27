@@ -222,23 +222,31 @@ export default function CreateMockTest() {
     }
   };
 
-  const loadBankQuestions = async () => {
+  const loadBankQuestions = useCallback(async () => {
     setBankLoading(true);
     try {
-      const { data } = await api.get('/questions', {
-        params: { ...bankFilters, status: 'published', limit: 50 }
-      });
-      setBankQuestions(data.data);
+      const params = { limit: 100 };
+      if (bankFilters.subject) params.subject = bankFilters.subject;
+      if (bankFilters.difficulty) params.difficulty = bankFilters.difficulty;
+      if (bankFilters.search?.trim()) params.search = bankFilters.search.trim();
+
+      const { data } = await api.get('/questions', { params });
+      setBankQuestions(data.data || []);
     } catch {
       toast.error('Failed to load question bank');
     } finally {
       setBankLoading(false);
     }
-  };
+  }, [bankFilters]);
+
+  useEffect(() => {
+    if (bankModal) {
+      loadBankQuestions();
+    }
+  }, [bankModal, bankFilters, loadBankQuestions]);
 
   const openBankModal = () => {
     setBankModal(true);
-    loadBankQuestions();
   };
 
   const addFromBank = async () => {
@@ -470,11 +478,10 @@ export default function CreateMockTest() {
                   />
                 ) : (
                   <select {...register('name', { required: 'Mock Test Name required' })} className="admin-input font-mono text-sm">
+                    <option value="">-- Select Mock Test Name --</option>
                     {odishaExamOptions.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
-                    <option value="OSSSC_RI_mockTest-01">OSSSC_RI_mockTest-01</option>
-                    <option value="OPSC_OAS_mockTest-01">OPSC_OAS_mockTest-01</option>
                     <option value="__custom__">+ Create new mock test name...</option>
                   </select>
                 )}

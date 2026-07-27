@@ -32,20 +32,45 @@ const reportRoutes = require('./src/routes/reports');
 const settingRoutes = require('./src/routes/settings');
 const dashboardRoutes = require('./src/routes/dashboard');
 
+const seedMockTestsIfEmpty = require('./src/utils/seedMockTests');
+
 // Connect to database
-connectDB();
+connectDB().then(() => {
+  seedMockTestsIfEmpty();
+});
 
 const app = express();
 
-// CORS configuration
-app.use(cors({
+// Universal CORS configuration middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+const corsOptions = {
   origin: function (origin, callback) {
-    callback(null, origin || true);
+    return callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Body parser
 app.use(express.json({ limit: '50mb' }));
@@ -66,10 +91,14 @@ app.get('/api/health', (req, res) => {
 
 const odishaExamRoutes = require('./src/routes/odishaExams');
 
+const contactRoutes = require('./src/routes/contact');
+
 // Mount routes
 app.use('/api/auth', authRoutes);
+app.use('/api/contact', contactRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/examinations', examinationRoutes);
+app.use('/api/exams', examinationRoutes);
 app.use('/api/odisha-exams', odishaExamRoutes);
 app.use('/api/mocktests', mockTestRoutes);
 app.use('/api/questions', questionRoutes);

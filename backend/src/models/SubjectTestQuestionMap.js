@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const subjectTestQuestionMapSchema = new mongoose.Schema({
   testId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubjectTest', required: true, index: true },
-  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubjectTestQuestion', required: true, index: true },
+  questionId: { type: mongoose.Schema.Types.ObjectId, refPath: 'questionModel', required: true, index: true },
+  questionModel: { type: String, enum: ['SubjectTestQuestion', 'Question'], default: 'SubjectTestQuestion' },
   order: { type: Number, default: 0 },
   marksOverride: { type: Number, default: null }, // Null means use test/question default
   negativeMarksOverride: { type: Number, default: null },

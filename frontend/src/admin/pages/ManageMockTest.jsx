@@ -68,6 +68,36 @@ export default function ManageMockTest() {
   const [examForm, setExamForm] = useState({
     name: '', description: '', icon: 'shield', price: 0, isFree: true, status: 'active'
   });
+  const [draggedExamIdx, setDraggedExamIdx] = useState(null);
+  const [categoryPrices, setCategoryPrices] = useState({});
+
+  useEffect(() => {
+    if (exams.length > 0) {
+      const prices = {};
+      exams.forEach(ex => {
+        prices[ex._id] = ex.price ?? 499;
+      });
+      setCategoryPrices(prices);
+    }
+  }, [exams]);
+
+  const handleSaveExamPrice = async (examId, newPrice) => {
+    try {
+      await api.put(`/exams/${examId}`, { price: Number(newPrice) });
+      Swal.fire('Saved!', 'Mock Test Category price updated successfully', 'success');
+      fetchExams();
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to update category price', 'error');
+    }
+  };
+
+  const moveExam = (fromIdx, toIdx) => {
+    if (toIdx < 0 || toIdx >= exams.length) return;
+    const updated = [...exams];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+    setExams(updated);
+  };
 
   // Question Mapping Modal State
   const [mapModal, setMapModal] = useState(false);
@@ -174,10 +204,13 @@ export default function ManageMockTest() {
     });
   };
 
+  const [topicInput, setTopicInput] = useState('');
+
   // ── Exam Category Handlers ───────────────────────────────────────────────────
   const openCreateExam = () => {
     setEditingExam(null);
-    setExamForm({ name: '', description: '', icon: 'shield', price: 0, isFree: true, status: 'active' });
+    setExamForm({ name: '', description: '', icon: 'landmark', price: 499, isFree: false, status: 'active', topics: [] });
+    setTopicInput('');
     setExamModal(true);
   };
 
@@ -186,12 +219,25 @@ export default function ManageMockTest() {
     setExamForm({
       name: ex.name || '',
       description: ex.description || '',
-      icon: ex.icon || 'shield',
+      icon: ex.icon || 'landmark',
       price: ex.price || 0,
       isFree: ex.isFree !== false,
-      status: ex.status || 'active'
+      status: ex.status || 'active',
+      topics: Array.isArray(ex.topics) ? [...ex.topics] : []
     });
+    setTopicInput('');
     setExamModal(true);
+  };
+
+  const addTopicToExamForm = () => {
+    if (!topicInput.trim()) return;
+    if (examForm.topics?.includes(topicInput.trim())) return;
+    setExamForm(prev => ({ ...prev, topics: [...(prev.topics || []), topicInput.trim()] }));
+    setTopicInput('');
+  };
+
+  const removeTopicFromExamForm = (topName) => {
+    setExamForm(prev => ({ ...prev, topics: (prev.topics || []).filter(t => t !== topName) }));
   };
 
   const saveExam = async () => {
@@ -206,6 +252,7 @@ export default function ManageMockTest() {
       }
       setExamModal(false);
       setEditingExam(null);
+      notifyMockTestsUpdated();
       fetchExams();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Save failed', 'error');
@@ -218,22 +265,59 @@ export default function ManageMockTest() {
     try {
       await api.delete(`/exams/${id}`);
       Swal.fire('Deleted', 'Exam Category deleted', 'success');
+      notifyMockTestsUpdated();
       fetchExams();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Delete failed', 'error');
     }
   };
 
+  const [allSubjects, setAllSubjects] = useState([]);
+  const [availableTopics, setAvailableTopics] = useState([]);
+
+  const fetchSubjectsForModal = useCallback(async () => {
+    try {
+      const res = await api.get('/subjects', { params: { limit: 100 } });
+      if (res.data?.success) {
+        setAllSubjects(res.data.data || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    fetchSubjectsForModal();
+  }, [fetchSubjectsForModal]);
+
+  const handleSubjectChangeInModal = (subjId) => {
+    const selectedSubj = allSubjects.find(s => s._id === subjId);
+    setTestForm(f => ({
+      ...f,
+      subjectId: subjId,
+      subjectName: selectedSubj?.name || '',
+      topicName: ''
+    }));
+    
+    if (selectedSubj && Array.isArray(selectedSubj.topics)) {
+      setAvailableTopics(selectedSubj.topics);
+    } else {
+      setAvailableTopics([]);
+    }
+  };
+
   // ── Mock Test Handlers ───────────────────────────────────────────────────────
   const openCreateTest = () => {
     setEditingTest(null);
+    const defaultSubj = allSubjects[0];
     setTestForm({
       examination: exams[0]?._id || '',
+      subjectId: defaultSubj?._id || '',
+      subjectName: defaultSubj?.name || '',
+      topicName: '',
       name: '',
       testType: 'full_length',
       pricingType: 'free',
       accessType: 'Free',
-      price: 49,
+      price: 0,
       duration: 120,
       totalQuestions: 100,
       totalMarks: 100,
@@ -241,18 +325,24 @@ export default function ManageMockTest() {
       description: '',
       status: 'published'
     });
+    setAvailableTopics(defaultSubj?.topics || []);
     setTestModal(true);
   };
 
   const openEditTest = (t) => {
     setEditingTest(t);
+    const subjIdVal = t.subject?._id || t.subject || t.subjectId || '';
+    const subjObj = allSubjects.find(s => s._id === subjIdVal);
     setTestForm({
       examination: t.examination?._id || t.examination || '',
+      subjectId: subjIdVal,
+      subjectName: subjObj?.name || t.subjectName || t.subject?.name || '',
+      topicName: t.topicName || '',
       name: t.name || t.title || '',
       testType: t.testType || (t.totalMarks >= 100 ? 'full_length' : 'sectional'),
       pricingType: t.pricingType || (t.accessType === 'Free' || t.price === 0 ? 'free' : 'paid'),
       accessType: t.accessType || (t.price > 0 ? 'Premium' : 'Free'),
-      price: t.price || 49,
+      price: t.price || 0,
       duration: t.duration || (t.testType === 'full_length' ? 120 : 60),
       totalQuestions: t.totalQuestions || 100,
       totalMarks: t.totalMarks || 100,
@@ -260,19 +350,26 @@ export default function ManageMockTest() {
       description: t.description || '',
       status: t.status || 'published'
     });
+    setAvailableTopics(subjObj?.topics || []);
     setTestModal(true);
   };
 
   const saveTest = async () => {
     if (!testForm.examination || !testForm.name.trim()) {
-      return Swal.fire('Error', 'Exam Category and Test Name are required', 'error');
+      return Swal.fire('Error', 'Exam Category and Test Title are required', 'error');
     }
     try {
+      const isFull = testForm.testType === 'full_length';
       const payload = {
         ...testForm,
+        subject: testForm.subjectId || undefined,
         title: testForm.name,
-        accessType: testForm.pricingType === 'free' ? 'Free' : 'Premium',
-        price: testForm.pricingType === 'free' ? 0 : (testForm.price || 49),
+        duration: isFull ? 120 : 60,
+        totalQuestions: isFull ? 100 : 50,
+        totalMarks: isFull ? 100 : 50,
+        accessType: 'Free',
+        price: 0,
+        pricingType: 'free',
         status: 'published'
       };
 
@@ -285,6 +382,7 @@ export default function ManageMockTest() {
       }
       setTestModal(false);
       setEditingTest(null);
+      notifyMockTestsUpdated();
       fetchAllData();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Action failed', 'error');
@@ -297,6 +395,7 @@ export default function ManageMockTest() {
     try {
       await api.delete(`/mocktests/${testId}`);
       Swal.fire('Deleted', 'Mock test deleted successfully', 'success');
+      notifyMockTestsUpdated();
       fetchAllData();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Delete failed', 'error');
@@ -374,7 +473,7 @@ export default function ManageMockTest() {
               display: 'flex', alignItems: 'center', gap: 6
             }}
           >
-            <RiFileTextLine /> All Mock Tests
+            <RiFileTextLine /> 📝 Mock Tests
           </button>
           <button
             onClick={() => setViewMode('categories')}
@@ -387,7 +486,7 @@ export default function ManageMockTest() {
               display: 'flex', alignItems: 'center', gap: 6
             }}
           >
-            <RiLayoutGridLine /> User Tab &amp; Categories
+            <RiPriceTag3Line /> 🏷 Mock Test Category Price
           </button>
         </div>
       </div>
@@ -468,9 +567,9 @@ export default function ManageMockTest() {
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
                   <th style={{ padding: '14px 18px' }}>Mock Test Title</th>
                   <th style={{ padding: '14px 18px' }}>Exam Category</th>
+                  <th style={{ padding: '14px 18px' }}>Subject</th>
+                  <th style={{ padding: '14px 18px' }}>Topic / Section</th>
                   <th style={{ padding: '14px 18px' }}>Paper Type</th>
-                  <th style={{ padding: '14px 18px' }}>Questions / Duration</th>
-                  <th style={{ padding: '14px 18px' }}>Access</th>
                   <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -482,9 +581,9 @@ export default function ManageMockTest() {
                 ) : (
                   filteredTests.map(t => {
                     const isFullLength = t.testType === 'full_length' || (t.totalMarks && t.totalMarks >= 100);
-                    const isFree = t.pricingType === 'free' || t.accessType === 'Free' || t.price === 0;
-                    const priceVal = t.price || 49;
                     const examName = t.examination?.name || 'Odisha Exam';
+                    const subjName = t.subjectName || t.subject?.name || 'General';
+                    const topicName = t.topicName || 'General';
                     const qCount = t.questions?.length || t.totalQuestions || 0;
 
                     return (
@@ -494,14 +593,16 @@ export default function ManageMockTest() {
                           <div style={{ fontWeight: 700, fontSize: 12, color: '#1957D6' }}>{examName}</div>
                         </td>
                         <td style={{ padding: '14px 18px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: isFullLength ? '#F3ECFE' : '#DCFCE7', color: isFullLength ? '#7C3AED' : '#16A34A' }}>
-                            {isFullLength ? 'FULL LENGTH (100 M)' : 'SECTIONAL (<100 M)'}
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0f172a' }}>{subjName}</div>
+                        </td>
+                        <td style={{ padding: '14px 18px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '3px 9px', borderRadius: 10 }}>
+                            {topicName}
                           </span>
                         </td>
-                        <td style={{ padding: '14px 18px' }}>{qCount} Qs • {t.duration || 120} Mins</td>
                         <td style={{ padding: '14px 18px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: isFree ? '#E8F8EE' : '#FEF1E4', color: isFree ? '#0F9D58' : '#EA7A1E' }}>
-                            {isFree ? 'FREE' : `₹${priceVal}`}
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: isFullLength ? '#F3ECFE' : '#DCFCE7', color: isFullLength ? '#7C3AED' : '#16A34A' }}>
+                            {isFullLength ? 'FULL LENGTH (100 M)' : 'SECTIONAL (<100 M)'}
                           </span>
                         </td>
                         <td style={{ padding: '14px 18px', textAlign: 'right' }}>
@@ -528,120 +629,268 @@ export default function ManageMockTest() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════════
-         VIEW 2: USER TAB & CATEGORIES / BANNER TEXT SETTINGS
+         VIEW 2: MOCK TEST CATEGORY PRICE & BANNER TEXT SETTINGS
       ════════════════════════════════════════════════════════════════════════ */}
       {viewMode === 'categories' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 24 }}>
           
           {/* Left Column: BANNER TEXT SETTINGS & STATS BADGES */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line,#e2e8f0)', borderRadius: 16, padding: 22 }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink)' }}>
-              <RiFontColor color="#2563eb" /> Frontend Banner Settings
-            </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: '#475569', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <RiFontColor color="#2563eb" /> Banner Text Settings
+              </h3>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Eyebrow Badge Text</label>
-              <input
-                value={config.bannerEyebrow}
-                onChange={e => setConfig(f => ({ ...f, bannerEyebrow: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-              />
+              {/* EYEBROW LABEL */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                  Eyebrow Label <span style={{ fontSize: 10, fontWeight: 500, color: '#94a3b8' }}>(Small text above heading)</span>
+                </label>
+                <input
+                  value={config.bannerEyebrow}
+                  onChange={e => setConfig(prev => ({ ...prev, bannerEyebrow: e.target.value }))}
+                  placeholder="e.g. Mock Test Series"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 14, outline: 'none' }}
+                />
+              </div>
+
+              {/* MAIN HEADING */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                  Main Heading *
+                </label>
+                <input
+                  value={config.bannerHeading}
+                  onChange={e => setConfig(prev => ({ ...prev, bannerHeading: e.target.value }))}
+                  placeholder="e.g. Full-Length & Sectional Mock Tests"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, outline: 'none' }}
+                />
+              </div>
+
+              {/* SUBTITLE / DESCRIPTION */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                  Subtitle / Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={config.bannerSubtitle}
+                  onChange={e => setConfig(prev => ({ ...prev, bannerSubtitle: e.target.value }))}
+                  placeholder="Attempt 100-mark Full Length Mock Papers or targeted Sectional Tests..."
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, outline: 'none', lineHeight: 1.5 }}
+                />
+              </div>
+
+              {/* STATS BADGES */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', margin: 0, textTransform: 'uppercase' }}>
+                    Stats Badges
+                  </label>
+                  <button
+                    onClick={addStatBadge}
+                    style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {config.bannerStats?.map((st, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        value={st.n}
+                        onChange={e => updateStatBadge(idx, 'n', e.target.value)}
+                        placeholder="100 Marks"
+                        style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 800, textAlign: 'center' }}
+                      />
+                      <input
+                        value={st.label}
+                        onChange={e => updateStatBadge(idx, 'label', e.target.value)}
+                        placeholder="Full Length"
+                        style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                      />
+                      <button
+                        onClick={() => removeStatBadge(idx)}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}
+                      >
+                        <RiDeleteBin2Line fontSize={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* LIVE BANNER PREVIEW CARD */}
+              <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: 14, padding: 20, color: '#fff' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#FDE68A', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                  {config.bannerEyebrow || 'Mock Test Series'}
+                </div>
+                <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                  {config.bannerHeading || 'Full-Length & Sectional Mock Tests'}
+                </h4>
+                <p style={{ margin: '0 0 16px', fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                  {config.bannerSubtitle}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {config.bannerStats?.map((st, idx) => (
+                    <div key={idx} style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', minWidth: 50 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: '#FFC93C' }}>{st.n}</div>
+                      <div style={{ fontSize: 9, color: '#cbd5e1', marginTop: 2 }}>{st.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={savingConfig}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px', borderRadius: 10, fontWeight: 800, fontSize: 14 }}
+                >
+                  {savingConfig ? 'Saving Settings...' : 'Save Banner Settings'}
+                </button>
+              </div>
             </div>
+          </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Main Banner Heading</label>
-              <input
-                value={config.bannerHeading}
-                onChange={e => setConfig(f => ({ ...f, bannerHeading: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Subtitle Description</label>
-              <textarea
-                rows={3}
-                value={config.bannerSubtitle}
-                onChange={e => setConfig(f => ({ ...f, bannerSubtitle: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-              />
-            </div>
-
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)' }}>Banner Stat Badges</label>
-                <button onClick={addStatBadge} style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#eff6ff', border: 'none', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>
-                  + Add Stat Badge
+          {/* Right Column: MOCK TEST CATEGORIES / EXAM CATEGORIES MANAGER */}
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RiLayoutGridLine /> MOCK TEST CATEGORIES &amp; PRICES
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                    Manage exam categories &amp; set category subscription prices for Mock Tests
+                  </p>
+                </div>
+                <button
+                  onClick={openCreateExam}
+                  className="btn btn-primary"
+                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <RiAddLine /> + Add Exam Category
                 </button>
               </div>
 
-              {config.bannerStats?.map((st, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <input
-                    value={st.n}
-                    onChange={e => updateStatBadge(i, 'n', e.target.value)}
-                    placeholder="Val (e.g. 100 Marks)"
-                    style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700 }}
-                  />
-                  <input
-                    value={st.label}
-                    onChange={e => updateStatBadge(i, 'label', e.target.value)}
-                    placeholder="Label (e.g. Full Length)"
-                    style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
-                  />
-                  <button onClick={() => removeStatBadge(i)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
-                    <RiDeleteBin2Line />
-                  </button>
-                </div>
-              ))}
+              {/* Exam Categories Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 12px', width: 70 }}>REORDER</th>
+                      <th style={{ padding: '10px 12px' }}>EXAM CATEGORY</th>
+                      <th style={{ padding: '10px 12px', width: 170 }}>CATEGORY PRICE (₹)</th>
+                      <th style={{ padding: '10px 12px' }}>STATUS</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exams.map((ex, idx) => (
+                      <tr
+                        key={ex._id || idx}
+                        draggable
+                        onDragStart={() => setDraggedExamIdx(idx)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          if (draggedExamIdx !== null && draggedExamIdx !== idx) {
+                            moveExam(draggedExamIdx, idx);
+                            setDraggedExamIdx(null);
+                          }
+                        }}
+                        style={{
+                          borderBottom: '1px solid #f1f5f9',
+                          background: draggedExamIdx === idx ? '#eff6ff' : 'transparent',
+                          opacity: draggedExamIdx === idx ? 0.5 : 1
+                        }}
+                      >
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' }} title="Drag to reorder">
+                            <RiDragMove2Line style={{ color: '#94a3b8' }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{idx + 1}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ fontWeight: 800, color: '#0f172a' }}>{ex.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{ex.description || 'Mock Test Category'}</div>
+                          {Array.isArray(ex.topics) && ex.topics.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                              {ex.topics.map((tName, tIdx) => (
+                                <span key={tIdx} style={{ fontSize: 10, fontWeight: 700, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 10 }}>
+                                  {tName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>₹</span>
+                            <input
+                              type="number"
+                              value={categoryPrices[ex._id] !== undefined ? categoryPrices[ex._id] : (ex.price ?? 499)}
+                              onChange={e => setCategoryPrices(prev => ({ ...prev, [ex._id]: e.target.value }))}
+                              style={{
+                                width: 80, padding: '5px 8px', borderRadius: 6,
+                                border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveExamPrice(ex._id, categoryPrices[ex._id] !== undefined ? categoryPrices[ex._id] : (ex.price ?? 499))}
+                              style={{
+                                padding: '5px 10px', borderRadius: 6, border: 'none',
+                                background: '#2563eb', color: '#fff', fontSize: 11, fontWeight: 800, cursor: 'pointer'
+                              }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20,
+                            background: ex.status === 'inactive' ? '#FEF1E4' : '#EAF1FD',
+                            color: ex.status === 'inactive' ? '#EA7A1E' : '#1957D6'
+                          }}>
+                            {ex.status === 'inactive' ? 'Inactive' : 'Active'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button
+                              onClick={() => moveExam(idx, idx - 1)}
+                              disabled={idx === 0}
+                              style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', opacity: idx === 0 ? 0.3 : 1 }}
+                              title="Move Up"
+                            >
+                              <RiArrowUpLine fontSize={13} />
+                            </button>
+                            <button
+                              onClick={() => moveExam(idx, idx + 1)}
+                              disabled={idx === exams.length - 1}
+                              style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', opacity: idx === exams.length - 1 ? 0.3 : 1 }}
+                              title="Move Down"
+                            >
+                              <RiArrowDownLine fontSize={13} />
+                            </button>
+                            <button onClick={() => openEditExam(ex)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }} title="Edit">
+                              <RiEditLine fontSize={14} color="#2563eb" />
+                            </button>
+                            <button onClick={() => deleteExam(ex._id)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }} title="Delete">
+                              <RiDeleteBinLine fontSize={14} color="#ef4444" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-
-            <button
-              onClick={handleSaveConfig}
-              disabled={savingConfig}
-              style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#2563eb', color: '#fff', fontWeight: 800, border: 'none', cursor: 'pointer' }}
-            >
-              {savingConfig ? 'Saving...' : 'Save Banner Settings'}
-            </button>
           </div>
-
-          {/* Right Column: EXAM CATEGORIES MANAGEMENT */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line,#e2e8f0)', borderRadius: 16, padding: 22 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink)' }}>
-                <RiShieldLine color="#2563eb" /> Exam Categories
-              </h3>
-              <button onClick={openCreateExam} style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#2563eb', border: 'none', padding: '7px 14px', borderRadius: 8, cursor: 'pointer' }}>
-                + Add Exam Category
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {exams.map((ex, idx) => (
-                <div
-                  key={ex._id}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#2563eb' }}>{ex.name}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openEditExam(ex)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
-                      <RiEditLine fontSize={13} color="#2563eb" />
-                    </button>
-                    <button onClick={() => deleteExam(ex._id)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
-                      <RiDeleteBinLine fontSize={13} color="#ef4444" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
         </div>
       )}
 
@@ -651,6 +900,7 @@ export default function ManageMockTest() {
           <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
             <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 800 }}>{editingTest ? 'Edit Mock Test' : 'Create Mock Test'}</h3>
             
+            {/* Exam Category */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Exam Category *</label>
               <select
@@ -663,89 +913,68 @@ export default function ManageMockTest() {
               </select>
             </div>
 
+            {/* Subject & Topic Dropdowns */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Paper Type *</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Subject *</label>
                 <select
-                  value={testForm.testType}
-                  onChange={e => {
-                    const val = e.target.value;
-                    const isFull = val === 'full_length';
-                    setTestForm(f => ({
-                      ...f,
-                      testType: val,
-                      totalQuestions: isFull ? 100 : 50,
-                      totalMarks: isFull ? 100 : 50,
-                      duration: isFull ? 120 : 60
-                    }));
-                  }}
+                  value={testForm.subjectId}
+                  onChange={e => handleSubjectChangeInModal(e.target.value)}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
                 >
-                  <option value="full_length">Full Length (100 Marks)</option>
-                  <option value="sectional">Sectional (&lt;100 Marks)</option>
+                  <option value="">-- Select Subject --</option>
+                  {allSubjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
               </div>
+
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Access *</label>
-                <select
-                  value={testForm.pricingType}
-                  onChange={e => setTestForm(f => ({ ...f, pricingType: e.target.value, accessType: e.target.value === 'free' ? 'Free' : 'Premium' }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-                >
-                  <option value="free">Free</option>
-                  <option value="paid">Paid / Premium</option>
-                </select>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Topic / Chapter *</label>
+                {availableTopics.length > 0 ? (
+                  <select
+                    value={testForm.topicName}
+                    onChange={e => setTestForm(f => ({ ...f, topicName: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                  >
+                    <option value="">-- Select Topic --</option>
+                    {availableTopics.map((top, idx) => (
+                      <option key={idx} value={typeof top === 'string' ? top : top.name}>
+                        {typeof top === 'string' ? top : top.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={testForm.topicName}
+                    onChange={e => setTestForm(f => ({ ...f, topicName: e.target.value }))}
+                    placeholder="e.g. Mathematics / General Studies"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                  />
+                )}
               </div>
             </div>
 
+            {/* Paper Type */}
             <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Paper Type *</label>
+              <select
+                value={testForm.testType}
+                onChange={e => setTestForm(f => ({ ...f, testType: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
+              >
+                <option value="full_length">Full Length (100 Marks)</option>
+                <option value="sectional">Sectional (&lt;100 Marks)</option>
+              </select>
+            </div>
+
+            {/* Test Title */}
+            <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Test Title *</label>
               <input
                 value={testForm.name}
                 onChange={e => setTestForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. OSSSC RI Full Length Mock Test 01"
+                placeholder="e.g. OSSSC RI Mathematics Sectional Test 01"
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
               />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Price (₹)</label>
-                <input
-                  type="number"
-                  disabled={testForm.pricingType === 'free'}
-                  value={testForm.pricingType === 'free' ? 0 : testForm.price}
-                  onChange={e => setTestForm(f => ({ ...f, price: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Duration (Mins)</label>
-                <input
-                  type="number"
-                  value={testForm.duration}
-                  onChange={e => setTestForm(f => ({ ...f, duration: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Total Qs</label>
-                <input
-                  type="number"
-                  value={testForm.totalQuestions}
-                  onChange={e => setTestForm(f => ({ ...f, totalQuestions: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Total Marks</label>
-                <input
-                  type="number"
-                  value={testForm.totalMarks}
-                  onChange={e => setTestForm(f => ({ ...f, totalMarks: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-                />
-              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -763,25 +992,101 @@ export default function ManageMockTest() {
       {/* ── EXAM CATEGORY MODAL ── */}
       {examModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 450, padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, padding: 24, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 800 }}>{editingExam ? 'Edit Exam Category' : 'Add Exam Category'}</h3>
+            
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Category Name *</label>
               <input
                 value={examForm.name}
                 onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. OSSSC RI/ARI/AMIN"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                placeholder="e.g. State PSC / SSSC (Odisha)"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
               />
             </div>
+
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Description</label>
               <input
                 value={examForm.description}
                 onChange={e => setExamForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Brief description"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                placeholder="Brief description for category"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
               />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Icon Type</label>
+                <select
+                  value={examForm.icon}
+                  onChange={e => setExamForm(f => ({ ...f, icon: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                >
+                  <option value="landmark">🏛 Landmark / State PSC</option>
+                  <option value="train">🚆 Train / SSC &amp; Railway</option>
+                  <option value="university">🏦 University / Banking</option>
+                  <option value="shield">🛡 Shield / Police &amp; Defence</option>
+                  <option value="clipboard">📋 Clipboard / General</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Category Price (₹)</label>
+                <input
+                  type="number"
+                  value={examForm.price}
+                  onChange={e => setExamForm(f => ({ ...f, price: Number(e.target.value) }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            {/* Exam Topic Sections Manager */}
+            <div style={{ marginBottom: 16, background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <label style={{ fontSize: 12, fontWeight: 800, color: '#1e293b', display: 'block', marginBottom: 6 }}>
+                Topic Sections <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}>(Managed sections under this category)</span>
+              </label>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <input
+                  value={topicInput}
+                  onChange={e => setTopicInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTopicToExamForm(); } }}
+                  placeholder="e.g. OPSC OAS, OSSSC RI, OSSC CGL..."
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                />
+                <button
+                  type="button"
+                  onClick={addTopicToExamForm}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                >
+                  + Add Section
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 100, overflowY: 'auto' }}>
+                {examForm.topics?.length === 0 ? (
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>No topic sections added yet.</span>
+                ) : (
+                  examForm.topics?.map((topName, tIdx) => (
+                    <span key={tIdx} style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '3px 10px', borderRadius: 14, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {topName}
+                      <button type="button" onClick={() => removeTopicFromExamForm(topName)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 900 }}>×</button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Status</label>
+              <select
+                value={examForm.status}
+                onChange={e => setExamForm(f => ({ ...f, status: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+              >
+                <option value="active">Active (Visible in User Panel)</option>
+                <option value="inactive">Inactive (Hidden)</option>
+              </select>
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>

@@ -5,6 +5,7 @@ const SubjectTest        = require('../models/SubjectTest');
 const SubjectTestQuestionMap = require('../models/SubjectTestQuestionMap');
 const SubjectTestInstruction = require('../models/SubjectTestInstruction');
 const SubjectTestConfig      = require('../models/SubjectTestConfig');
+const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
 
 /* ── Banner & Page Config ────────────────────────────────────────────────── */
 exports.getConfig = async (req, res, next) => {
@@ -78,7 +79,7 @@ exports.getSubjects = async (req, res, next) => {
 
 exports.getCategoriesDropdown = async (req, res, next) => {
   try {
-    const list = await SubjectTestSubject.find({ isActive: true }).sort('displayOrder createdAt');
+    const list = await SubjectTestSubject.find({ isActive: { $ne: false }, status: { $ne: 'inactive' } }).sort('displayOrder createdAt');
     res.json({ success: true, data: list });
   } catch (err) { next(err); }
 };
@@ -117,8 +118,24 @@ exports.reorderSubjects = async (req, res, next) => {
 
 exports.deleteSubject = async (req, res, next) => {
   try {
-    const doc = await SubjectTestSubject.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Subject Test Category deleted', data: doc });
+    const Subject = require('../models/Subject');
+    const targetId = req.params.id;
+
+    const stSub = await SubjectTestSubject.findById(targetId);
+    let subName = stSub?.name;
+    if (stSub) {
+      await stSub.deleteOne();
+    }
+
+    let mainSub = await Subject.findById(targetId);
+    if (!mainSub && subName) {
+      mainSub = await Subject.findOne({ name: { $regex: new RegExp(`^${subName.trim()}$`, 'i') } });
+    }
+    if (mainSub) {
+      await mainSub.deleteOne();
+    }
+
+    res.json({ success: true, message: 'Subject Test Category deleted from all tabs' });
   } catch (err) { next(err); }
 };
 
@@ -159,6 +176,61 @@ exports.deleteTopic = async (req, res, next) => {
 const mongoose = require('mongoose');
 const Subject = require('../models/Subject');
 
+const ensureTestQuestions = async (test) => {
+  if (!test || !test._id) return 0;
+  try {
+    let mappedCount = await SubjectTestQuestionMap.countDocuments({ testId: test._id });
+
+    if (mappedCount === 0) {
+      const orConditions = [];
+      if (test.topicId && mongoose.Types.ObjectId.isValid(test.topicId)) {
+        orConditions.push({ topicId: test.topicId });
+      }
+      if (test.subjectId) {
+        const sId = test.subjectId._id || test.subjectId;
+        if (mongoose.Types.ObjectId.isValid(sId)) {
+          orConditions.push({ subjectId: sId });
+        }
+      }
+      if (test.categoryId) {
+        const cId = test.categoryId._id || test.categoryId;
+        if (mongoose.Types.ObjectId.isValid(cId)) {
+          orConditions.push({ subjectId: cId });
+        }
+      }
+
+      let bankQs = [];
+      if (orConditions.length > 0) {
+        bankQs = await SubjectTestQuestion.find({ status: { $ne: 'archived' }, $or: orConditions }).limit(50);
+      }
+
+      if (bankQs.length > 0) {
+        for (let i = 0; i < bankQs.length; i++) {
+          await SubjectTestQuestionMap.create({
+            testId: test._id,
+            questionId: bankQs[i]._id,
+            order: i + 1
+          });
+        }
+        mappedCount = bankQs.length;
+      }
+    }
+
+    if (test.totalQuestions !== mappedCount) {
+      test.totalQuestions = mappedCount;
+      test.totalMarks = mappedCount * (test.positiveMarks || 1);
+      await SubjectTest.findByIdAndUpdate(test._id, {
+        totalQuestions: mappedCount,
+        totalMarks: mappedCount * (test.positiveMarks || 1)
+      });
+    }
+
+    return mappedCount;
+  } catch (err) {
+    return test.totalQuestions || 0;
+  }
+};
+
 exports.getTests = async (req, res, next) => {
   try {
     const { subjectId, topicId, status, accessType } = req.query;
@@ -184,6 +256,9 @@ exports.getTests = async (req, res, next) => {
       .populate('subjectId', 'name color icon status topics')
       .populate('topicId', 'name')
       .sort('-createdAt');
+
+    await Promise.all(list.map(t => ensureTestQuestions(t)));
+
     res.json({ success: true, data: list });
   } catch (err) { next(err); }
 };
@@ -268,10 +343,21 @@ exports.createTest = async (req, res, next) => {
       }
     }
 
+    // Auto-resolve matching SubjectTestSubject categoryId
+    const allCategories = await SubjectTestSubject.find({ isActive: true });
+    const isSubjectCategoryMatch = (sName, cName) => {
+      if (!sName || !cName) return false;
+      const s = String(sName).trim().toLowerCase();
+      const c = String(cName).trim().toLowerCase();
+      return s === c || (s.includes('math') && c.includes('math')) || (s.includes('comp') && c.includes('comp')) || (s.includes('gk') && c.includes('gk')) || (s.includes('eng') && c.includes('eng')) || (s.includes('odia') && c.includes('odia')) || (s.includes('reason') && c.includes('reason'));
+    };
+    const matchingCat = allCategories.find(c => isSubjectCategoryMatch(subjectDoc.name, c.name));
+
     const data = {
       ...req.body,
       status: req.body.status || 'published',
       subjectId: subjectDoc._id,
+      categoryId: matchingCat ? matchingCat._id : (req.body.categoryId || undefined),
       topicName: selectedTopic,
       createdBy: req.user?._id
     };
@@ -280,6 +366,52 @@ exports.createTest = async (req, res, next) => {
     }
 
     const doc = await SubjectTest.create(data);
+
+    // Auto-import matching questions from Question Bank by Subject and Topic
+    try {
+      const Question = require('../models/Question');
+      let matchingQs = [];
+
+      // 1. Try finding questions by subject AND topic name
+      if (subjectDoc._id && selectedTopic) {
+        matchingQs = await Question.find({
+          subject: subjectDoc._id,
+          $or: [
+            { topic: new RegExp(selectedTopic.trim(), 'i') },
+            { section: new RegExp(selectedTopic.trim(), 'i') }
+          ]
+        }).limit(50);
+      }
+
+      // 2. Fallback to all questions for this subject if no topic-specific questions found
+      if (matchingQs.length === 0 && subjectDoc._id) {
+        matchingQs = await Question.find({ subject: subjectDoc._id }).limit(50);
+      }
+
+      // 3. Fallback to SubjectTestQuestion model
+      if (matchingQs.length === 0 && subjectDoc._id) {
+        matchingQs = await SubjectTestQuestion.find({
+          subjectId: subjectDoc._id,
+          status: { $ne: 'archived' }
+        }).limit(50);
+      }
+
+      if (matchingQs.length > 0) {
+        const maps = matchingQs.map((q, idx) => ({
+          testId: doc._id,
+          questionId: q._id,
+          questionModel: 'Question',
+          order: idx + 1
+        }));
+        await SubjectTestQuestionMap.insertMany(maps);
+
+        doc.totalQuestions = matchingQs.length;
+        doc.totalMarks = matchingQs.length * (doc.positiveMarks || 1);
+        await doc.save();
+      }
+    } catch (importErr) {
+      console.error('Error auto-importing questions from bank:', importErr);
+    }
 
     // Create default instruction record
     await SubjectTestInstruction.create({
@@ -326,6 +458,19 @@ exports.updateTest = async (req, res, next) => {
 
       if (subjectDoc) {
         updateData.subjectId = subjectDoc._id;
+
+        const allCategories = await SubjectTestSubject.find({ isActive: true });
+        const isSubjectCategoryMatch = (sName, cName) => {
+          if (!sName || !cName) return false;
+          const s = String(sName).trim().toLowerCase();
+          const c = String(cName).trim().toLowerCase();
+          return s === c || (s.includes('math') && c.includes('math')) || (s.includes('comp') && c.includes('comp')) || (s.includes('gk') && c.includes('gk')) || (s.includes('eng') && c.includes('eng')) || (s.includes('odia') && c.includes('odia')) || (s.includes('reason') && c.includes('reason'));
+        };
+        const matchingCat = allCategories.find(c => isSubjectCategoryMatch(subjectDoc.name, c.name));
+        if (matchingCat) {
+          updateData.categoryId = matchingCat._id;
+        }
+
         const selectedTopic = topicName || (typeof topicId === 'string' ? topicId : null);
         if (selectedTopic) {
           updateData.topicName = selectedTopic;
@@ -553,5 +698,67 @@ exports.reorderTestQuestions = async (req, res, next) => {
     }
 
     res.json({ success: true, message: 'Question order updated' });
+  } catch (err) { next(err); }
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   CATEGORY PRICE MANAGEMENT
+══════════════════════════════════════════════════════════════════ */
+
+// GET /subjects/prices — admin: list all categories with their prices
+exports.getAdminCategoryPrices = async (req, res, next) => {
+  try {
+    const categories = await SubjectTestSubject.find().sort('displayOrder createdAt').lean();
+    res.json({ success: true, data: categories });
+  } catch (err) { next(err); }
+};
+
+// PATCH /subjects/:id/price — admin: set price for a category
+exports.updateCategoryPrice = async (req, res, next) => {
+  try {
+    const { price } = req.body;
+    if (price === undefined || price === null || isNaN(Number(price))) {
+      return res.status(400).json({ success: false, message: 'Valid price (number) is required' });
+    }
+    const doc = await SubjectTestSubject.findByIdAndUpdate(
+      req.params.id,
+      { price: Math.max(0, Number(price)) },
+      { new: true }
+    );
+    if (!doc) return res.status(404).json({ success: false, message: 'Category not found' });
+    res.json({ success: true, data: doc, message: `Price updated to ₹${doc.price}` });
+  } catch (err) { next(err); }
+};
+
+// GET /subjects/purchases/status — user: get purchased category IDs
+exports.getCategoryPurchaseStatus = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const purchases = await SubjectTestCategoryPurchase.find({ userId }).lean();
+    const purchasedCategoryIds = purchases.map(p => String(p.categoryId));
+    res.json({ success: true, data: purchasedCategoryIds });
+  } catch (err) { next(err); }
+};
+
+// POST /subjects/:id/purchase — user: purchase a category
+exports.purchaseCategory = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { id: categoryId } = req.params;
+    const { paymentId = 'manual', orderId = '', amount } = req.body;
+
+    const category = await SubjectTestSubject.findById(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const paid = amount !== undefined ? Number(amount) : category.price;
+
+    // Upsert purchase record (idempotent — safe to call multiple times)
+    await SubjectTestCategoryPurchase.findOneAndUpdate(
+      { userId, categoryId },
+      { userId, categoryId, amount: paid, paymentId, orderId, purchasedAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ success: true, message: `Access granted to all tests in "${category.name}"` });
   } catch (err) { next(err); }
 };

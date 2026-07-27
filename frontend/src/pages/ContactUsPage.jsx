@@ -30,13 +30,32 @@ const socials = [
 export default function ContactUsPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setSent(true);
-    setTimeout(() => setSent(false), 4000);
-    setForm({ name: '', email: '', phone: '', subject: '', message: '' });
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_URL}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+        setTimeout(() => setSent(false), 5000);
+        setForm({ name: '', email: '', phone: '', subject: '', message: '' });
+      } else {
+        alert(data.message || 'Failed to send message');
+      }
+    } catch {
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = {
@@ -51,7 +70,7 @@ export default function ContactUsPage() {
       {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, rgb(15, 23, 42), rgba(234, 122, 30, 0.133))', padding: '22px 0 18px' }}>
         <div className="wrap">
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap' }}>
+          <div className="contact-hero-wrap" style={{ display: 'flex', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
               <div className="eyebrow" style={{ color: '#FDE68A' }}>Contact Us</div>
               <h1 style={{ fontFamily: 'var(--disp)', fontSize: 'clamp(20px,2.8vw,30px)', color: '#fff', margin: '6px 0 8px' }}>
@@ -61,9 +80,9 @@ export default function ContactUsPage() {
                 Have questions? We're here to help you on your exam journey — Mon to Sat, 9 AM–7 PM.
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
+            <div className="contact-hero-badges" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
               {[{ icon: <FaPhoneAlt />, l: 'Call Support' }, { icon: <FaEnvelope />, l: 'Email Us' }, { icon: <FaClock />, l: 'Reply Time' }].map((s, i) => (
-                <div key={i} style={{ textAlign: 'center', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 16px', minWidth: 72 }}>
+                <div key={i} className="contact-badge-item" style={{ textAlign: 'center', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 16px', minWidth: 72 }}>
                   <div style={{ fontFamily: 'var(--disp)', fontSize: 18, fontWeight: 900, color: '#FFC93C', lineHeight: 1, display: 'flex', justifyContent: 'center' }}>{s.icon}</div>
                   <div style={{ fontSize: 10.5, color: '#CBD5E1', marginTop: 4, letterSpacing: 0.4 }}>{s.l}</div>
                 </div>
@@ -75,29 +94,29 @@ export default function ContactUsPage() {
 
       <div className="wrap" style={{ paddingTop: 40, paddingBottom: 56 }}>
         {/* Contact Info Cards */}
-        <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 48 }}>
+        <div className="contact-cards-grid">
           {contactInfo.map((info, i) => (
-            <div key={i} style={{
+            <div key={i} className="contact-card-item" style={{
               background: info.bg, border: `1.5px solid ${info.color}22`,
               borderRadius: 14, padding: '22px 20px', textAlign: 'center',
               transition: 'transform .18s', cursor: 'pointer',
-              width: '280px', flexGrow: 1, maxWidth: '340px', boxSizing: 'border-box'
+              boxSizing: 'border-box'
             }}
               onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
               onMouseLeave={e => e.currentTarget.style.transform = ''}
             >
-              <div style={{ fontSize: 26, color: info.color, marginBottom: 10, display: 'flex', justifyContent: 'center' }}>{info.icon}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: info.color, letterSpacing: 1, marginBottom: 6 }}>{info.label}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: info.color, marginBottom: 4 }}>{info.value}</div>
-              <div style={{ fontSize: 11.5, color: info.color, opacity: .7 }}>{info.sub}</div>
+              <div className="contact-card-icon" style={{ fontSize: 26, color: info.color, marginBottom: 10, display: 'flex', justifyContent: 'center' }}>{info.icon}</div>
+              <div className="contact-card-label" style={{ fontSize: 11, fontWeight: 700, color: info.color, letterSpacing: 1, marginBottom: 6 }}>{info.label}</div>
+              <div className="contact-card-val" style={{ fontSize: 14, fontWeight: 800, color: info.color, marginBottom: 4, wordBreak: 'break-word' }}>{info.value}</div>
+              <div className="contact-card-sub" style={{ fontSize: 11.5, color: info.color, opacity: .7 }}>{info.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Form + Socials */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32, alignItems: 'flex-start' }}>
+        <div className="contact-main-grid">
           {/* Contact Form */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 32 }}>
+          <div className="contact-form-card" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 32 }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Send Us a Message</h2>
             <p style={{ color: 'var(--muted)', fontSize: 13.5, marginBottom: 24 }}>Fill in the form and we'll respond within 24 hours.</p>
 
@@ -112,7 +131,7 @@ export default function ContactUsPage() {
             )}
 
             <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="contact-form-row">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Full Name *</label>
                   <input style={inputStyle} name="name" value={form.name} onChange={handleChange} placeholder="Your name" required
@@ -161,13 +180,14 @@ export default function ContactUsPage() {
               }}
                 onMouseEnter={e => e.currentTarget.style.background = '#1342A8'}
                 onMouseLeave={e => e.currentTarget.style.background = '#1957D6'}
-              >Send Message →</button>
+                disabled={submitting}
+              >{submitting ? 'Sending Message...' : 'Send Message →'}</button>
             </form>
           </div>
 
           {/* Socials + Hours */}
-          <div>
-            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, marginBottom: 20 }}>
+          <div className="contact-sidebar">
+            <div className="contact-sidebar-card" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 28, marginBottom: 20 }}>
               <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 18 }}>Follow Us</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {socials.map((s, i) => (
@@ -190,7 +210,7 @@ export default function ContactUsPage() {
               </div>
             </div>
 
-            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 28 }}>
+            <div className="contact-sidebar-card" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 28 }}>
               <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>Support Hours</h3>
               {[
                 { day: 'Monday – Friday', time: '9:00 AM – 7:00 PM' },

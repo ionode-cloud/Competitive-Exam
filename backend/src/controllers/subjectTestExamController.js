@@ -7,30 +7,145 @@ const SubjectTestInstruction = require('../models/SubjectTestInstruction');
 const SubjectTestAttempt = require('../models/SubjectTestAttempt');
 const UserSubscription  = require('../models/UserSubscription');
 
+const mongoose = require('mongoose');
+
+const isSubjectCategoryMatch = (sName, cName) => {
+  if (!sName || !cName) return false;
+  const s = String(sName).trim().toLowerCase();
+  const c = String(cName).trim().toLowerCase();
+  if (s === c) return true;
+  if (s.includes('math') && c.includes('math')) return true;
+  if ((s.includes('gk') || s.includes('general knowledge')) && (c.includes('gk') || c.includes('general knowledge'))) return true;
+  if (s.includes('odia') && c.includes('odia')) return true;
+  if (s.includes('eng') && c.includes('eng')) return true;
+  if (s.includes('comp') && c.includes('comp')) return true;
+  if (s.includes('reason') && c.includes('reason')) return true;
+  return false;
+};
+
+// Helper: Ensure test.totalQuestions & SubjectTestQuestionMap are synced with Question Bank
+const ensureTestQuestions = async (test) => {
+  if (!test || !test._id) return 0;
+  try {
+    let mappedCount = await SubjectTestQuestionMap.countDocuments({ testId: test._id });
+    if (mappedCount > 0) {
+      if (test.totalQuestions !== mappedCount) {
+        await SubjectTest.findByIdAndUpdate(test._id, {
+          totalQuestions: mappedCount,
+          totalMarks: mappedCount * (test.positiveMarks || 1)
+        });
+      }
+      return mappedCount;
+    }
+
+    const Question = require('../models/Question');
+    const Subject   = require('../models/Subject');
+    const sId       = test.subjectId?._id || test.subjectId;
+    const topicName = test.topicName || '';
+
+    // --- 1. Try main Question Bank (Question model) by subject + topic ---
+    let bankQs = [];
+    if (sId && mongoose.Types.ObjectId.isValid(sId)) {
+      const qFilter = { subject: sId };
+      if (topicName) {
+        qFilter.$or = [
+          { topic: new RegExp(topicName.trim(), 'i') },
+          { section: new RegExp(topicName.trim(), 'i') }
+        ];
+      }
+      bankQs = await Question.find(qFilter).limit(50);
+      // Fallback: all questions for the subject if no topic match
+      if (bankQs.length === 0) {
+        bankQs = await Question.find({ subject: sId }).limit(50);
+      }
+    }
+
+    // --- 2. Fallback: try SubjectTestQuestion model ---
+    if (bankQs.length === 0) {
+      const orConditions = [];
+      if (test.topicId && mongoose.Types.ObjectId.isValid(test.topicId)) {
+        orConditions.push({ topicId: test.topicId });
+      }
+      if (sId && mongoose.Types.ObjectId.isValid(sId)) {
+        orConditions.push({ subjectId: sId });
+      }
+      if (orConditions.length > 0) {
+        const stQs = await SubjectTestQuestion.find({ status: { $ne: 'archived' }, $or: orConditions }).limit(50);
+        if (stQs.length > 0) {
+          // Map with default model tag for SubjectTestQuestion
+          for (let i = 0; i < stQs.length; i++) {
+            try {
+              await SubjectTestQuestionMap.create({
+                testId: test._id,
+                questionId: stQs[i]._id,
+                questionModel: 'SubjectTestQuestion',
+                order: i + 1
+              });
+            } catch (dupErr) { /* skip duplicates */ }
+          }
+          mappedCount = stQs.length;
+        }
+      }
+    } else {
+      // Insert Question Bank questions with model tag
+      for (let i = 0; i < bankQs.length; i++) {
+        try {
+          await SubjectTestQuestionMap.create({
+            testId: test._id,
+            questionId: bankQs[i]._id,
+            questionModel: 'Question',
+            order: i + 1
+          });
+        } catch (dupErr) { /* skip duplicates */ }
+      }
+      mappedCount = bankQs.length;
+    }
+
+    if (mappedCount > 0) {
+      await SubjectTest.findByIdAndUpdate(test._id, {
+        totalQuestions: mappedCount,
+        totalMarks: mappedCount * (test.positiveMarks || 1)
+      });
+    }
+
+    return mappedCount;
+  } catch (err) {
+    console.error('ensureTestQuestions error:', err);
+    return test.totalQuestions || 0;
+  }
+};
+
 /* ── Public 2-Level Tree (Categories -> Topics -> Tests) ─────────────────────── */
 exports.getPublicSubjectTree = async (req, res, next) => {
   try {
-    const categories = await SubjectTestSubject.find({ isActive: true }).sort('displayOrder createdAt');
+    const categories = await SubjectTestSubject.find({ isActive: { $ne: false }, status: { $ne: 'inactive' } }).sort('displayOrder createdAt');
 
     const tree = await Promise.all(
       categories.map(async (cat) => {
         // Fetch all published tests
         const allPublished = await SubjectTest.find({ status: 'published' })
+          .populate('categoryId', 'name color icon')
           .populate('subjectId', 'name color icon')
-          .sort('-createdAt');
+          .sort('createdAt');   // sort ascending so first created = first test
 
-        // Filter tests belonging to this Subject Test Category
+        // Filter tests belonging to this Subject Category
         const catTests = allPublished.filter(t => {
-          if (t.categoryId && String(t.categoryId) === String(cat._id)) return true;
+          if (t.subjectId?.name && isSubjectCategoryMatch(t.subjectId.name, cat.name)) return true;
+          const tCatId = t.categoryId ? String(t.categoryId._id || t.categoryId) : null;
+          if (tCatId && tCatId === String(cat._id)) return true;
           if (t.subjectId && String(t.subjectId._id || t.subjectId) === String(cat._id)) return true;
-          if (t.subjectId?.name && t.subjectId.name.toLowerCase() === cat.name.toLowerCase()) return true;
           return false;
         });
+
+        // Sync question counts for all matching tests
+        await Promise.all(catTests.map(t => ensureTestQuestions(t)));
+
+        // The FIRST test in this category is always free (index 0 after ascending sort)
+        const firstFreeTestId = catTests.length > 0 ? String(catTests[0]._id) : null;
 
         // Group tests under topics
         const topicMap = new Map();
 
-        // Initialize predefined category topics if available
         if (Array.isArray(cat.topics)) {
           cat.topics.forEach(tName => {
             const nameStr = typeof tName === 'string' ? tName : tName.name;
@@ -40,9 +155,8 @@ exports.getPublicSubjectTree = async (req, res, next) => {
 
         catTests.forEach(t => {
           const tName = t.topicName || 'General Practice';
-          if (!topicMap.has(tName)) {
-            topicMap.set(tName, []);
-          }
+          if (!topicMap.has(tName)) topicMap.set(tName, []);
+          const isFreeTest = String(t._id) === firstFreeTestId;
           topicMap.get(tName).push({
             _id: t._id,
             title: t.title,
@@ -52,7 +166,9 @@ exports.getPublicSubjectTree = async (req, res, next) => {
             positiveMarks: t.positiveMarks,
             negativeMarks: t.negativeMarks,
             diff: t.difficulty,
-            free: t.accessType === 'Free',
+            free: isFreeTest,                                      // strictly 1st test in category is free
+            isFreeTest,                                      // explicit flag for UI
+            categoryId: cat._id,                            // for purchase lookups on client
             accessType: t.accessType,
             price: t.price || 49,
             status: t.status,
@@ -73,6 +189,8 @@ exports.getPublicSubjectTree = async (req, res, next) => {
           bg: cat.bg,
           icon: cat.icon,
           desc: cat.description,
+          categoryPrice: cat.price || 0,    // category subscription price
+          firstFreeTestId,
           topics: topicsArray
         };
       })
@@ -90,6 +208,8 @@ exports.getTestInstructions = async (req, res, next) => {
       .populate('topicId', 'name');
 
     if (!test) return res.status(404).json({ success: false, message: 'Test not found' });
+
+    await ensureTestQuestions(test);
 
     let instruction = await SubjectTestInstruction.findOne({ testId: test._id });
     if (!instruction) {
@@ -161,10 +281,88 @@ exports.startExamAttempt = async (req, res, next) => {
       }
     }
 
-    // 2. Fetch mapped questions
-    const maps = await SubjectTestQuestionMap.find({ testId })
-      .populate('questionId')
-      .sort('order');
+    // 2. Category-Based Access Gate (if not preview)
+    if (!isPreview) {
+      const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
+
+      // Resolve the category for this test
+      const categoryId = test.categoryId || null;
+      let category = null;
+      if (categoryId) {
+        category = await SubjectTestSubject.findById(categoryId).lean();
+      }
+      if (!category && test.subjectId) {
+        // Try matching by subject name
+        const subjectDoc = await require('../models/Subject').findById(test.subjectId).lean();
+        if (subjectDoc) {
+          category = await SubjectTestSubject.findOne({
+            name: new RegExp(`^${subjectDoc.name.trim()}$`, 'i')
+          }).lean();
+        }
+      }
+
+      if (category && Number(category.price) > 0) {
+        // Determine if this is the first (free) test in its category
+        const firstTest = await SubjectTest.findOne({
+          status: 'published',
+          $or: [
+            { categoryId: category._id },
+            { subjectId: test.subjectId }
+          ]
+        }).sort('createdAt').lean();
+
+        const isFirstFreeTest = firstTest && String(firstTest._id) === String(test._id);
+
+        if (!isFirstFreeTest) {
+          // Check if user has purchased this category
+          const purchase = await SubjectTestCategoryPurchase.findOne({ userId, categoryId: category._id });
+          if (!purchase) {
+            return res.status(403).json({
+              success: false,
+              requiresCategoryPurchase: true,
+              categoryId: category._id,
+              categoryName: category.name,
+              categoryPrice: category.price,
+              message: `Purchase "${category.name}" category access (₹${category.price}) to attempt this test.`
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Fetch mapped questions — always search both collections (questionModel tag may be wrong on legacy records)
+    const fetchAndPopulateMaps = async (tId) => {
+      const rawMaps = await SubjectTestQuestionMap.find({ testId: tId }).sort('order');
+      if (rawMaps.length === 0) return [];
+
+      const Question = require('../models/Question');
+      const allIds = rawMaps.map(m => m.questionId);
+
+      // Search BOTH collections for every ID — whichever has the doc wins
+      const [bankDocs, stDocs] = await Promise.all([
+        Question.find({ _id: { $in: allIds } }),
+        SubjectTestQuestion.find({ _id: { $in: allIds } })
+      ]);
+
+      const docMap = new Map();
+      // SubjectTestQuestion first (lower priority), then Question overwrites if found in both
+      [...stDocs, ...bankDocs].forEach(d => docMap.set(d._id.toString(), d));
+
+      return rawMaps.map(m => ({
+        ...m.toObject(),
+        questionId: docMap.get(m.questionId.toString()) || null
+      }));
+    };
+
+    let maps = await fetchAndPopulateMaps(testId);
+
+    if (maps.length === 0) {
+      await ensureTestQuestions(test);
+      maps = await fetchAndPopulateMaps(testId);
+    }
+
+    // Filter out maps where questionId was deleted (null)
+    maps = maps.filter(m => m.questionId != null);
 
     if (maps.length === 0) {
       return res.status(400).json({ success: false, message: 'This test has no questions assigned yet' });
@@ -202,9 +400,18 @@ exports.startExamAttempt = async (req, res, next) => {
       isPreview: !!isPreview,
     });
 
-    // 4. Prepare Exam-Safe Questions List (NO correctAnswer, NO explanation)
+    // 4. Normalize and prepare Exam-Safe Questions List (NO correctAnswer, NO explanation)
+    // Options may come from either SubjectTestQuestion (uses o.id) or Question (uses o.label)
+    const normalizeOptions = (rawOpts) => {
+      if (!Array.isArray(rawOpts)) return [];
+      return rawOpts.map(o => {
+        const optId = o.id || o.label || '';   // SubjectTestQuestion: o.id  |  Question: o.label
+        return { id: optId, text: o.text || '', image: o.image || '' };
+      });
+    };
+
     const examQuestions = questions.map((q, idx) => {
-      let opts = q.options;
+      let opts = normalizeOptions(q.options);
       if (test.randomizeOptions) {
         opts = [...opts].sort(() => Math.random() - 0.5);
       }
@@ -213,10 +420,10 @@ exports.startExamAttempt = async (req, res, next) => {
         index: idx + 1,
         questionText: q.questionText,
         questionImage: q.questionImage,
-        questionType: q.questionType,
-        options: opts.map(o => ({ id: o.id, text: o.text, image: o.image })),
-        marks: q.defaultMarks || test.positiveMarks || 1,
-        negativeMarks: q.defaultNegativeMarks || test.negativeMarks || 0.25,
+        questionType: q.questionType || 'single_correct',
+        options: opts,
+        marks: q.defaultMarks || q.marks || test.positiveMarks || 1,
+        negativeMarks: q.defaultNegativeMarks || q.negativeMarks || test.negativeMarks || 0.25,
       };
     });
 
@@ -242,10 +449,7 @@ exports.startExamAttempt = async (req, res, next) => {
 exports.getExamAttempt = async (req, res, next) => {
   try {
     const { attemptId } = req.params;
-    const attempt = await SubjectTestAttempt.findById(attemptId).populate({
-      path: 'questionOrder',
-      select: '-correctAnswer -explanation'
-    });
+    const attempt = await SubjectTestAttempt.findById(attemptId);
 
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
     if (attempt.userId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
@@ -260,16 +464,49 @@ exports.getExamAttempt = async (req, res, next) => {
 
     const test = await SubjectTest.findById(attempt.testId);
 
-    const examQuestions = attempt.questionOrder.map((q, idx) => ({
-      _id: q._id,
-      index: idx + 1,
-      questionText: q.questionText,
-      questionImage: q.questionImage,
-      questionType: q.questionType,
-      options: q.options,
-      marks: q.defaultMarks || test?.positiveMarks || 1,
-      negativeMarks: q.defaultNegativeMarks || test?.negativeMarks || 0.25,
-    }));
+    // Fetch questions — always search both collections (questionModel tag unreliable on legacy records)
+    const Question = require('../models/Question');
+    const rawMaps = await SubjectTestQuestionMap.find({ testId: attempt.testId }).sort('order');
+    const allIds = rawMaps.map(m => m.questionId);
+    const [bankDocs, stDocs] = await Promise.all([
+      Question.find({ _id: { $in: allIds } }),
+      SubjectTestQuestion.find({ _id: { $in: allIds } })
+    ]);
+    const docMapG = new Map();
+    [...stDocs, ...bankDocs].forEach(d => docMapG.set(d._id.toString(), d));
+    const maps = rawMaps.map(m => ({ ...m.toObject(), questionId: docMapG.get(m.questionId.toString()) || null }));
+
+
+    const normalizeOptions = (rawOpts) => {
+      if (!Array.isArray(rawOpts)) return [];
+      return rawOpts.map(o => {
+        const optId = o.id || o.label || '';
+        return { id: optId, text: o.text || '', image: o.image || '' };
+      });
+    };
+
+    // Preserve questionOrder from attempt if available, else use map order
+    const qOrderIds = (attempt.questionOrder || []).map(id => String(id));
+    let orderedMaps = qOrderIds.length > 0
+      ? qOrderIds.map(id => maps.find(m => m.questionId && String(m.questionId._id) === id)).filter(Boolean)
+      : maps;
+    if (orderedMaps.length === 0) orderedMaps = maps;
+
+
+    const examQuestions = orderedMaps.map((m, idx) => {
+      const q = m.questionId;
+      if (!q) return null;
+      return {
+        _id: q._id,
+        index: idx + 1,
+        questionText: q.questionText,
+        questionImage: q.questionImage,
+        questionType: q.questionType || 'single_correct',
+        options: normalizeOptions(q.options),
+        marks: q.defaultMarks || q.marks || test?.positiveMarks || 1,
+        negativeMarks: q.defaultNegativeMarks || q.negativeMarks || test?.negativeMarks || 0.25,
+      };
+    }).filter(Boolean);
 
     res.json({
       success: true,
@@ -332,8 +569,25 @@ exports.submitAttemptInternal = async (attempt, res) => {
     }
 
     const test = await SubjectTest.findById(attempt.testId);
-    const questions = await SubjectTestQuestion.find({ _id: { $in: attempt.questionOrder } });
-    const questionMap = new Map(questions.map(q => [q._id.toString(), q]));
+
+    // Fetch questions from SubjectTestQuestionMap to support both Question and SubjectTestQuestion models
+    const Question = require('../models/Question');
+    const maps = await SubjectTestQuestionMap.find({ testId: attempt.testId }).populate('questionId');
+    const questionMap = new Map();
+    maps.forEach(m => {
+      if (m.questionId) questionMap.set(m.questionId._id.toString(), m.questionId);
+    });
+    // Also fallback: try fetching by IDs from both collections for any unmapped
+    const attemptQIds = (attempt.questionOrder || []).map(id => id.toString());
+    const alreadyMapped = new Set(questionMap.keys());
+    const unmappedIds = attemptQIds.filter(id => !alreadyMapped.has(id));
+    if (unmappedIds.length > 0) {
+      const [stQs, bankQs] = await Promise.all([
+        SubjectTestQuestion.find({ _id: { $in: unmappedIds } }),
+        Question.find({ _id: { $in: unmappedIds } })
+      ]);
+      [...stQs, ...bankQs].forEach(q => questionMap.set(q._id.toString(), q));
+    }
 
     let correctCount = 0;
     let incorrectCount = 0;
@@ -346,8 +600,8 @@ exports.submitAttemptInternal = async (attempt, res) => {
       const q = questionMap.get(qStr);
       const userAns = attempt.answers.get(qStr);
 
-      const posMark = q?.defaultMarks || test?.positiveMarks || 1;
-      const negMark = q?.defaultNegativeMarks || test?.negativeMarks || 0.25;
+      const posMark = q?.defaultMarks || q?.marks || test?.positiveMarks || 1;
+      const negMark = q?.defaultNegativeMarks || q?.negativeMarks || test?.negativeMarks || 0.25;
 
       if (!userAns) {
         skippedCount++;

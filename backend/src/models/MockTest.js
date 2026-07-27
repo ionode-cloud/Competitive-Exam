@@ -11,6 +11,9 @@ const questionItemSchema = new mongoose.Schema({
 const mockTestSchema = new mongoose.Schema({
   name: { type: String, required: [true, 'Mock test name is required'], trim: true },
   examination: { type: mongoose.Schema.Types.ObjectId, ref: 'Examination', required: true },
+  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+  subjectName: { type: String },
+  topicName: { type: String },
   examPaper: { type: String, trim: true }, // RI, ARI, AMIN, PEO
   testType: {
     type: String,

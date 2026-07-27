@@ -57,8 +57,8 @@ export default function SubjectTestResultPage() {
   };
 
   return (
-    <div style={{ minHeight: '90vh', background: '#f8fafc', padding: '32px 16px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ minHeight: '90vh', background: '#f8fafc', padding: '24px 16px' }}>
+      <div style={{ width: '100%', maxWidth: '100%', margin: '0 auto' }}>
 
         {/* ── Top Result Header Banner ── */}
         <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: 20, padding: 32, color: '#fff', marginBottom: 24, boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}>
@@ -122,7 +122,7 @@ export default function SubjectTestResultPage() {
 
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 14 }}>{q.questionText}</div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 8, marginBottom: 14 }}>
                     {q.options?.map(opt => {
                       const isUserChoice = q.userAnswer === opt.id;
                       const isCorrectChoice = q.correctAnswer === opt.id;

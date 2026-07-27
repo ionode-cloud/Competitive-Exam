@@ -4,7 +4,8 @@ import {
   RiBookLine, RiUserLine, RiShieldUserLine, RiShoppingCartLine, RiMoneyDollarCircleLine,
   RiBarChartLine, RiBellLine, RiLogoutBoxLine,
   RiMenuLine, RiShieldLine, RiGraduationCapLine,
-  RiArrowRightSLine, RiFolderSettingsLine, RiFileList2Line, RiVipCrownLine, RiBookmarkLine
+  RiArrowRightSLine, RiFolderSettingsLine, RiFileList2Line, RiVipCrownLine, RiBookmarkLine,
+  RiMailLine
 } from 'react-icons/ri';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/admin/students', label: 'Students', icon: RiUserLine },
   { to: '/admin/orders', label: 'Orders', icon: RiShoppingCartLine },
   { to: '/admin/payments', label: 'Payments', icon: RiMoneyDollarCircleLine },
+  { to: '/admin/contacts', label: 'Contact Messages', icon: RiMailLine },
   { to: '/admin/reports', label: 'Reports', icon: RiBarChartLine },
   { to: '/admin/notifications', label: 'Notifications', icon: RiBellLine },
   { to: '/admin/credentials', label: 'Admin Credentials', icon: RiShieldUserLine }

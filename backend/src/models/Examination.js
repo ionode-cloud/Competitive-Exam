@@ -14,6 +14,7 @@ const examinationSchema = new mongoose.Schema({
   price: { type: Number, default: 0, min: 0 },
   isFree: { type: Boolean, default: false },
   status: { type: String, enum: ['active', 'inactive', 'draft'], default: 'active' },
+  topics: [{ type: String }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   tags: [{ type: String }],
 }, { timestamps: true });

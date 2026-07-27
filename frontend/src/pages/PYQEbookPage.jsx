@@ -5,8 +5,9 @@ import {
   FaLaptopCode, FaBookOpen, FaFont, FaGlobe, FaCalculator, FaPuzzlePiece,
   FaFileAlt, FaFlask, FaSearch, FaBook, FaCalendarAlt, FaFire, FaStar,
   FaRegDotCircle, FaBolt, FaLock, FaTimes, FaEye, FaDownload,
-  FaMobileAlt, FaQrcode, FaCreditCard, FaUniversity
+  FaMobileAlt, FaQrcode, FaCreditCard, FaUniversity, FaExternalLinkAlt
 } from 'react-icons/fa';
+import PdfViewerModal from '../components/PdfViewerModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -105,18 +106,12 @@ export default function PYQEbookPage() {
   }));
 
   const filtered = booksToRender.filter(book => {
-    const matchesSearch = !search || (
+    return !search || (
       (book.category || '').toLowerCase().includes(search.toLowerCase()) ||
       (book.subjectName || '').toLowerCase().includes(search.toLowerCase()) ||
       (book.title || '').toLowerCase().includes(search.toLowerCase()) ||
       (book.description || '').toLowerCase().includes(search.toLowerCase())
     );
-    const matchesCategory = selectedCat === 'All' ||
-      book.category.toLowerCase().includes(selectedCat.toLowerCase()) ||
-      selectedCat.toLowerCase().includes(book.category.toLowerCase()) ||
-      book.subjectName.toLowerCase().includes(selectedCat.toLowerCase());
-
-    return matchesSearch && matchesCategory;
   });
 
   const checkUnlocked = (book) => {
@@ -299,40 +294,44 @@ export default function PYQEbookPage() {
       {/* ── E-Books Grid ────────────────────────────────────────────────── */}
       <div className="wrap" style={{ paddingTop: 24, paddingBottom: 48 }}>
 
-        {/* Category Filter Pills */}
-        {categories.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 16, marginBottom: 12 }}>
+        {/* ── Filter Bar & All Cards Button ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
-              onClick={() => { setSelectedCat('All'); setSearch(''); }}
+              onClick={() => setSearch('')}
               style={{
-                padding: '7px 16px', borderRadius: 20, border: '1px solid var(--line, #e2e8f0)', cursor: 'pointer',
-                fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
-                background: selectedCat === 'All' && !search ? '#0F172A' : '#fff',
-                color: selectedCat === 'All' && !search ? '#fff' : '#475569',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 20px', borderRadius: 20, border: 'none',
+                background: !search ? '#0F172A' : '#e2e8f0',
+                color: !search ? '#fff' : '#475569',
+                fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                boxShadow: !search ? '0 2px 8px rgba(15,23,42,0.25)' : 'none',
+                transition: 'all 0.2s'
               }}
             >
-              All E-Books
+              📚 All E-Books
             </button>
-            {categories.map(cat => {
-              const isActive = (selectedCat || '').toLowerCase().includes((cat.title || '').toLowerCase()) ||
-                (cat.title || '').toLowerCase().includes((selectedCat || '').toLowerCase());
-              return (
-                <button
-                  key={cat._id}
-                  onClick={() => { setSelectedCat(cat.title); setSearch(cat.title); }}
-                  style={{
-                    padding: '7px 16px', borderRadius: 20, border: '1px solid var(--line, #e2e8f0)', cursor: 'pointer',
-                    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
-                    background: isActive ? '#0F172A' : '#fff',
-                    color: isActive ? '#fff' : '#475569',
-                  }}
-                >
-                  {cat.title}
-                </button>
-              );
-            })}
+
+            {search && (
+              <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+                Showing results for: <strong style={{ color: '#0F172A' }}>"{search}"</strong>
+              </span>
+            )}
           </div>
-        )}
+
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{
+                background: '#fff', border: '1px solid #cbd5e1', borderRadius: 20,
+                padding: '6px 14px', fontSize: 12, fontWeight: 800, color: '#ef4444',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+              }}
+            >
+              ✕ Show All Cards
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
@@ -677,33 +676,9 @@ export default function PYQEbookPage() {
         </div>
       )}
 
-      {/* ── PDF Full-Screen Viewer (MaterialsPage Layout) ────────────────── */}
+      {/* ── PDF Full-Screen Viewer ────────────────────────── */}
       {activePdf && (
-        <div style={{ position: 'fixed', inset: 0, background: '#2a2e33', zIndex: 100000, display: 'flex', flexDirection: 'column' }}>
-          <div style={{
-            height: 44, background: '#1e293b', color: '#f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 18px', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-            zIndex: 10, borderBottom: '1px solid #334155',
-          }}>
-            <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: 0.3, color: '#f8fafc', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <FaFileAlt /> {activePdf.title}
-            </span>
-            <button
-              onClick={() => setActivePdf(null)}
-              style={{ background: '#DC2626', color: '#fff', border: 'none', padding: '5px 14px', borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              <FaTimes /> Close PDF View
-            </button>
-          </div>
-          <div style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', background: '#323639' }}>
-            <iframe
-              src={activePdf.pdfUrl || ''}
-              title={activePdf.title}
-              style={{ width: '100%', height: '100%', border: 'none', background: '#323639' }}
-            />
-          </div>
-        </div>
+        <PdfViewerModal pdf={activePdf} onClose={() => setActivePdf(null)} />
       )}
 
     </div>

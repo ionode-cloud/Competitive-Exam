@@ -1,5 +1,5 @@
 // MockTestPage.jsx — Full-Length (100 Marks) & Sectional (< 100 Marks) Mock Tests
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   FaLandmark,
@@ -16,209 +16,111 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
-const mockTestCategories = [
-  {
-    category: 'State PSC / SSSC (Odisha)',
-    icon: <FaLandmark />,
-    color: '#7C3AED',
-    bg: '#F3ECFE',
-    topics: [
-      { name: 'OPSC OAS', tests: [
-        { title: 'OPSC OAS Prelims Paper-I (GS)', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: true },
-        { title: 'OPSC OAS GS Paper-II (CSAT)', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Hard', free: false },
-        { title: 'OPSC OAS History & Polity Sectional Test', type: 'sectional', marks: 50, qs: 50, mins: 45, diff: 'Medium', free: true },
-        { title: 'OPSC OAS Odisha Geography Sectional', type: 'sectional', marks: 30, qs: 30, mins: 30, diff: 'Easy', free: true },
-      ]},
-      { name: 'OSSSC RI', tests: [
-        { title: 'OSSSC RI Full Length Mock Test 1', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: true },
-        { title: 'OSSSC RI Full Length Mock Test 2', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Hard', free: false },
-        { title: 'OSSSC RI Mathematics Sectional Test', type: 'sectional', marks: 50, qs: 50, mins: 45, diff: 'Medium', free: true },
-        { title: 'OSSSC RI Odia & English Sectional', type: 'sectional', marks: 40, qs: 40, mins: 35, diff: 'Easy', free: false },
-      ]},
-      { name: 'OSSC CGL', tests: [
-        { title: 'OSSC CGL Prelims Full Test 1', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: true },
-        { title: 'OSSC CGL Prelims Full Test 2', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Hard', free: false },
-        { title: 'OSSC CGL Reasoning Ability Sectional', type: 'sectional', marks: 35, qs: 35, mins: 30, diff: 'Medium', free: true },
-        { title: 'OSSC CGL Computer Awareness Sectional', type: 'sectional', marks: 25, qs: 25, mins: 20, diff: 'Easy', free: true },
-      ]},
-      { name: 'OSSSC ARI & Amin', tests: [
-        { title: 'OSSSC ARI & Amin Model Paper 2026', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Easy', free: true },
-        { title: 'OSSSC ARI General Knowledge Sectional', type: 'sectional', marks: 40, qs: 40, mins: 35, diff: 'Medium', free: true },
-        { title: 'OSSSC Amin Arithmetic Sectional', type: 'sectional', marks: 30, qs: 30, mins: 25, diff: 'Easy', free: false },
-      ]},
-      { name: 'OSSSC JE', tests: [
-        { title: 'OSSSC JE Technical Full Mock', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: false },
-        { title: 'OSSSC JE Engineering Mathematics Sectional', type: 'sectional', marks: 50, qs: 50, mins: 45, diff: 'Hard', free: true },
-      ]},
-      { name: 'OPSC ASO', tests: [
-        { title: 'OPSC ASO Full Mock Paper', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Hard', free: false },
-        { title: 'OPSC ASO Essay & Drafting Sectional', type: 'sectional', marks: 50, qs: 50, mins: 60, diff: 'Hard', free: true },
-      ]},
-    ]
-  },
-  {
-    category: 'SSC & Railway',
-    icon: <FaTrain />,
-    color: '#0F9D58',
-    bg: '#E8F8EE',
-    topics: [
-      { name: 'SSC CGL', tests: [
-        { title: 'SSC CGL Tier-1 Complete Mock Test', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Medium', free: true },
-        { title: 'SSC CGL Tier-1 Mock Test 2', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Hard', free: false },
-        { title: 'SSC CGL Quant Sectional Test', type: 'sectional', marks: 25, qs: 25, mins: 20, diff: 'Hard', free: true },
-        { title: 'SSC CGL English Sectional Test', type: 'sectional', marks: 25, qs: 25, mins: 15, diff: 'Medium', free: true },
-      ]},
-      { name: 'SSC CHSL', tests: [
-        { title: 'SSC CHSL 10+2 Full Length Exam', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Easy', free: false },
-        { title: 'SSC CHSL General Intelligence Sectional', type: 'sectional', marks: 25, qs: 25, mins: 15, diff: 'Easy', free: true },
-      ]},
-      { name: 'RRB NTPC', tests: [
-        { title: 'RRB NTPC CBT-1 Full Paper', type: 'full_length', marks: 100, qs: 100, mins: 90, diff: 'Medium', free: true },
-        { title: 'RRB NTPC General Awareness Sectional', type: 'sectional', marks: 40, qs: 40, mins: 30, diff: 'Medium', free: true },
-        { title: 'RRB NTPC Mathematics Sectional', type: 'sectional', marks: 30, qs: 30, mins: 25, diff: 'Hard', free: false },
-      ]},
-      { name: 'SSC MTS', tests: [
-        { title: 'SSC MTS Full Revision Paper', type: 'full_length', marks: 100, qs: 100, mins: 90, diff: 'Easy', free: false },
-        { title: 'SSC MTS Numerical Ability Sectional', type: 'sectional', marks: 20, qs: 20, mins: 20, diff: 'Easy', free: true },
-      ]},
-      { name: 'SSC GD Constable', tests: [
-        { title: 'SSC GD Constable Full Mock', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Easy', free: true },
-        { title: 'SSC GD General Knowledge Sectional', type: 'sectional', marks: 20, qs: 20, mins: 15, diff: 'Easy', free: true },
-      ]},
-      { name: 'RRB Group D', tests: [
-        { title: 'RRB Group D Full Length Mock', type: 'full_length', marks: 100, qs: 100, mins: 90, diff: 'Medium', free: false },
-        { title: 'RRB Group D General Science Sectional', type: 'sectional', marks: 25, qs: 25, mins: 20, diff: 'Medium', free: true },
-      ]},
-    ]
-  },
-  {
-    category: 'Bank & Insurance',
-    icon: <FaUniversity />,
-    color: '#1957D6',
-    bg: '#EAF1FD',
-    topics: [
-      { name: 'IBPS PO', tests: [
-        { title: 'IBPS PO Prelims Complete Mock', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Hard', free: true },
-        { title: 'IBPS PO Reasoning Ability Sectional', type: 'sectional', marks: 35, qs: 35, mins: 20, diff: 'Hard', free: true },
-        { title: 'IBPS PO Quantitative Aptitude Sectional', type: 'sectional', marks: 35, qs: 35, mins: 20, diff: 'Hard', free: false },
-      ]},
-      { name: 'SBI Clerk', tests: [
-        { title: 'SBI Clerk Prelims Complete Paper', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Medium', free: false },
-        { title: 'SBI Clerk English Language Sectional', type: 'sectional', marks: 30, qs: 30, mins: 20, diff: 'Medium', free: true },
-      ]},
-      { name: 'RBI Grade B', tests: [
-        { title: 'RBI Grade B Phase-1 Full Mock', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Hard', free: false },
-        { title: 'RBI Grade B General Awareness Sectional', type: 'sectional', marks: 80, qs: 80, mins: 45, diff: 'Hard', free: true },
-      ]},
-      { name: 'LIC AAO', tests: [
-        { title: 'LIC AAO Generalist Full Mock Test', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Medium', free: true },
-        { title: 'LIC AAO Insurance & Financial Sectional', type: 'sectional', marks: 30, qs: 30, mins: 20, diff: 'Medium', free: true },
-      ]},
-      { name: 'IBPS Clerk', tests: [
-        { title: 'IBPS Clerk Prelims Full Paper', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Easy', free: true },
-        { title: 'IBPS Clerk Numerical Ability Sectional', type: 'sectional', marks: 35, qs: 35, mins: 20, diff: 'Easy', free: true },
-      ]},
-      { name: 'SBI PO', tests: [
-        { title: 'SBI PO Prelims Full Mock', type: 'full_length', marks: 100, qs: 100, mins: 60, diff: 'Hard', free: false },
-        { title: 'SBI PO High-Level Data Interpretation Sectional', type: 'sectional', marks: 35, qs: 35, mins: 20, diff: 'Hard', free: true },
-      ]},
-    ]
-  },
-  {
-    category: 'Police & Defence',
-    icon: <FaShieldAlt />,
-    color: '#B4232F',
-    bg: '#FCEBEA',
-    topics: [
-      { name: 'Odisha Police SI', tests: [
-        { title: 'Odisha Police SI GS + Language Full Paper', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: true },
-        { title: 'Odisha Police SI General Studies Sectional', type: 'sectional', marks: 50, qs: 50, mins: 45, diff: 'Medium', free: true },
-      ]},
-      { name: 'Odisha Police Constable', tests: [
-        { title: 'Odisha Police Constable Full Test 1', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Easy', free: false },
-        { title: 'Odisha Police Constable Odia Grammar Sectional', type: 'sectional', marks: 25, qs: 25, mins: 20, diff: 'Easy', free: true },
-      ]},
-      { name: 'NDA', tests: [
-        { title: 'NDA Mathematics Full Length Paper', type: 'full_length', marks: 100, qs: 100, mins: 150, diff: 'Hard', free: false },
-        { title: 'NDA General Ability Sectional Test', type: 'sectional', marks: 50, qs: 50, mins: 60, diff: 'Medium', free: true },
-      ]},
-      { name: 'CDS', tests: [
-        { title: 'CDS GK & English Full Mock', type: 'full_length', marks: 100, qs: 100, mins: 120, diff: 'Medium', free: true },
-        { title: 'CDS Elementary Mathematics Sectional', type: 'sectional', marks: 50, qs: 50, mins: 60, diff: 'Hard', free: false },
-      ]},
-      { name: 'CAPF', tests: [
-        { title: 'CAPF Paper 1 Full Length Mock', type: 'full_length', marks: 100, qs: 100, mins: 150, diff: 'Hard', free: false },
-        { title: 'CAPF General Science & Aptitude Sectional', type: 'sectional', marks: 50, qs: 50, mins: 45, diff: 'Hard', free: true },
-      ]},
-    ]
-  },
-];
-
 const diffColors = { Easy: '#0F9D58', Medium: '#EA7A1E', Hard: '#B4232F' };
 
 export default function MockTestPage() {
   const [searchParams] = useSearchParams();
 
-  const [categoriesList, setCategoriesList] = useState(mockTestCategories);
+  const [categoriesList, setCategoriesList] = useState([]);
   const [activeCategory, setActiveCategory] = useState(0);
-  const [activeTopic, setActiveTopic] = useState(null);
+  const [activeTopic, setActiveTopic]       = useState(null);
   const [testTypeFilter, setTestTypeFilter] = useState('all'); // 'all' | 'full_length' | 'sectional'
 
-  useEffect(() => {
+  // Fetch live mock tests tree directly from Admin Panel / MongoDB
+  const fetchLiveMockTests = useCallback(() => {
     fetch(`${API_URL}/mocktests/public/tree`)
       .then(res => res.json())
       .then(json => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const formattedLive = json.data.map(catItem => {
-            // Transform live structure into topics/tests structure for page display
+        if (json.success && Array.isArray(json.data)) {
+          const colorList = ['#7C3AED', '#0F9D58', '#1957D6', '#B4232F', '#D97706', '#0369A1'];
+          const bgList    = ['#F3ECFE', '#E8F8EE', '#EAF1FD', '#FCEBEA', '#FFFBEB', '#E0F2FE'];
+
+          const formattedLive = json.data.map((catItem, idx) => {
             const rawTests = catItem.tests || [];
-            const isFullList = rawTests.filter(t => t.type === 'full_length' || t.marks >= 100);
-            const isSectList = rawTests.filter(t => t.type === 'sectional' || t.marks < 100);
+            
+            // Group tests by topicName if available
+            const topicsMap = new Map();
+            rawTests.forEach(t => {
+              const topName = t.topicName || t.topic || `${catItem.category || catItem.name} Official Papers`;
+              if (!topicsMap.has(topName)) {
+                topicsMap.set(topName, []);
+              }
+              topicsMap.get(topName).push(t);
+            });
 
             const topics = [];
-            if (rawTests.length > 0) {
-              topics.push({ name: `${catItem.category || catItem.name} Official Papers`, tests: rawTests });
+            topicsMap.forEach((tList, tName) => {
+              topics.push({ name: tName, tests: tList });
+            });
+
+            if (topics.length === 0) {
+              topics.push({ name: `${catItem.category || catItem.name} General`, tests: [] });
             }
+
+            const iconMap = {
+              landmark: <FaLandmark />,
+              train: <FaTrain />,
+              university: <FaUniversity />,
+              shield: <FaShieldAlt />,
+              clipboard: <FaClipboardList />
+            };
+
             return {
               _id: catItem._id,
               category: catItem.category || catItem.name,
-              icon: <FaLandmark />,
-              color: catItem.color || '#7C3AED',
-              bg: catItem.bg || '#F3ECFE',
-              topics: topics.length > 0 ? topics : [{ name: `${catItem.category || catItem.name} General`, tests: [] }]
+              icon: iconMap[catItem.icon] || <FaLandmark />,
+              color: catItem.color || colorList[idx % colorList.length],
+              bg: catItem.bg || bgList[idx % bgList.length],
+              topics: topics
             };
           });
 
-          // Merge live categories with fallback categories
-          const merged = [...formattedLive];
-          mockTestCategories.forEach(staticCat => {
-            if (!merged.some(m => m.category?.toLowerCase() === staticCat.category?.toLowerCase())) {
-              merged.push(staticCat);
-            }
-          });
-          setCategoriesList(merged);
+          setCategoriesList(formattedLive);
         }
       })
-      .catch(() => { /* fallback */ });
+      .catch(() => { /* silent */ });
   }, []);
 
+  useEffect(() => {
+    fetchLiveMockTests();
+
+    // Auto-polling every 3 seconds for real-time synchronization
+    const timer = setInterval(fetchLiveMockTests, 3000);
+
+    const handleSync = () => fetchLiveMockTests();
+    window.addEventListener('mocktests-updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('mocktests-updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [fetchLiveMockTests]);
+
   const rawCat = parseInt(searchParams.get('cat') ?? '', 10);
-  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), categoriesList.length - 1);
+  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), Math.max(categoriesList.length - 1, 0));
 
   useEffect(() => {
     setActiveCategory(urlCat);
     setActiveTopic(null);
   }, [urlCat]);
 
-  const cat = categoriesList[activeCategory] || categoriesList[0] || mockTestCategories[0];
-  const topic = activeTopic !== null ? cat.topics[activeTopic] : null;
+  const cat = categoriesList[activeCategory] || categoriesList[0] || {
+    category: 'Mock Tests',
+    icon: <FaLandmark />,
+    color: '#7C3AED',
+    bg: '#F3ECFE',
+    topics: []
+  };
+  const topic = activeTopic !== null && cat.topics ? cat.topics[activeTopic] : null;
 
   const handleCategoryChange = (i) => {
     setActiveCategory(i);
     setActiveTopic(null);
   };
 
-  // Filter tests based on type filter (Full-length vs Sectional)
+  // Filter tests based on paper type filter (Full-length vs Sectional)
   const getFilteredTests = (testsList) => {
     if (!Array.isArray(testsList)) return [];
     if (testTypeFilter === 'full_length') {
@@ -246,7 +148,7 @@ export default function MockTestPage() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
-              {[{ n: '4', l: 'Categories' }, { n: '100 Marks', l: 'Full Length' }, { n: '<100 Marks', l: 'Sectionals' }].map((s, i) => (
+              {[{ n: `${categoriesList.length}`, l: 'Categories' }, { n: '100 Marks', l: 'Full Length' }, { n: '<100 Marks', l: 'Sectionals' }].map((s, i) => (
                 <div key={i} style={{ textAlign: 'center', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 16px', minWidth: 72 }}>
                   <div style={{ fontFamily: 'var(--disp)', fontSize: 18, fontWeight: 900, color: '#FFC93C', lineHeight: 1 }}>{s.n}</div>
                   <div style={{ fontSize: 10.5, color: '#CBD5E1', marginTop: 4, letterSpacing: 0.4 }}>{s.l}</div>
@@ -264,7 +166,7 @@ export default function MockTestPage() {
           <div className="responsive-sidebar">
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, marginBottom: 10 }}>CATEGORIES</div>
             {categoriesList.map((c, i) => (
-              <button key={i} onClick={() => handleCategoryChange(i)} style={{
+              <button key={c._id || i} onClick={() => handleCategoryChange(i)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                 padding: '11px 14px', borderRadius: 10, border: 'none',
                 background: activeCategory === i ? c.bg : 'transparent',
@@ -301,7 +203,7 @@ export default function MockTestPage() {
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 20, fontWeight: 900, color: cat.color }}>
-                  {topic ? getFilteredTests(topic.tests).length : cat.topics.length}
+                  {topic ? getFilteredTests(topic.tests).length : (cat.topics?.length || 0)}
                 </div>
                 <div style={{ fontSize: 11, color: cat.color, opacity: .7 }}>{topic ? 'Tests' : 'Exams'}</div>
               </div>
@@ -359,7 +261,7 @@ export default function MockTestPage() {
             {topic && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13 }}>
                 <button onClick={() => setActiveTopic(null)} style={{
-                  background: cat.bg, border: `1px solid ${cat.color}44`,
+                  background: cat.bg, border: `1.5px solid ${cat.color}44`,
                   borderRadius: 8, cursor: 'pointer',
                   color: cat.color, fontWeight: 700, fontSize: 13, padding: '5px 12px',
                   display: 'flex', alignItems: 'center', gap: 6,
@@ -374,7 +276,7 @@ export default function MockTestPage() {
             {/* Exams Grid */}
             {!topic && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10 }}>
-                {cat.topics.map((t, j) => {
+                {cat.topics?.map((t, j) => {
                   const testsCount = getFilteredTests(t.tests).length;
                   return (
                     <button key={j} onClick={() => setActiveTopic(j)} style={{
@@ -412,7 +314,7 @@ export default function MockTestPage() {
                   </div>
                 ) : (
                   getFilteredTests(topic.tests).map((test, j) => (
-                    <div key={j} className="responsive-test-card" style={{ borderLeft: `4px solid ${test.marks === 100 ? '#7C3AED' : cat.color}` }}>
+                    <div key={test._id || j} className="responsive-test-card" style={{ borderLeft: `4px solid ${test.marks === 100 ? '#7C3AED' : cat.color}` }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                           {test.free && (
@@ -427,7 +329,7 @@ export default function MockTestPage() {
                           }}>
                             {test.marks === 100 ? '🏆 FULL LENGTH • 100 MARKS' : `⚡ SECTIONAL • ${test.marks} MARKS`}
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: diffColors[test.diff], background: diffColors[test.diff] + '18', padding: '2px 8px', borderRadius: 20 }}>{test.diff}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: diffColors[test.diff] || '#0F9D58', background: (diffColors[test.diff] || '#0F9D58') + '18', padding: '2px 8px', borderRadius: 20 }}>{test.diff}</span>
                         </div>
                         <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>{test.title}</h3>
                         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>

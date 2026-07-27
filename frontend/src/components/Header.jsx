@@ -109,13 +109,7 @@ const TABS = [
     label: 'PYQ Ebook',     
     to: '/pyq-ebook',     
     arrow: true,
-    categories: [
-      { label: 'Computer PYQs',     icon: <FaLaptopCode />, desc: 'Previous computer science papers' },
-      { label: 'English PYQs',      icon: <FaBookOpen />, desc: 'Solved English grammar papers' },
-      { label: 'Odia PYQs',          icon: <FaFont />, desc: 'Previous Odia grammar sheets' },
-      { label: 'Math PYQs',          icon: <FaCalculator />, desc: 'Aptitude tests with solutions' },
-      { label: 'GK PYQs',            icon: <FaGlobe />, desc: 'Solved general knowledge capsules' }
-    ]
+    categories: []
   },
   { 
     label: 'Material Page', 
@@ -164,6 +158,23 @@ function MegaNav() {
   const [dynamicSubjectTestCategories, setDynamicSubjectTestCategories] = useState(null);
   const tabRefs = useRef([]);
 
+  const fetchPyqEbookCategories = useCallback(() => {
+    fetch(`${API_URL}/pyq-ebooks?publicOnly=true`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && Array.isArray(json.data)) {
+          const items = json.data.map(item => ({
+            label: item.title,
+            desc: item.description || `Previous year ${item.title} papers & solutions`,
+            icon: ICON_NAME_MAP[item.icon] || CAT_ICON_MAP[item.title] || <FaBookOpen />,
+            to: item.link || `/pyq-ebook?q=${encodeURIComponent(item.title)}`,
+          }));
+          setDynamicEbookCategories(items);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch(`${API_URL}/material-categories/public`)
       .then(res => res.json())
@@ -180,35 +191,35 @@ function MegaNav() {
       })
       .catch(() => {});
 
+    // 1. Fetch PYQ Ebook categories directly from Admin Panel PYQ Categories
+    fetchPyqEbookCategories();
+
+    // 2. Fetch Subject Test Categories
     fetch(`${API_URL}/subject-tests/categories/public`)
       .then(res => res.json())
       .then(json => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           const activeList = json.data.filter(item => item.isActive !== false && item.status !== 'inactive');
-          
-          // 1. PYQ Ebook Dropdown items
-          const pyqItems = activeList
-            .filter(item => item.showInPyqEbook !== false)
-            .map(item => ({
-              label: item.name.toLowerCase().includes('pyq') ? item.name : `${item.name} PYQs`,
-              desc: item.description || `Previous year ${item.name} question papers & solutions`,
-              icon: ICON_NAME_MAP[item.icon] || CAT_ICON_MAP[item.name] || <FaBookOpen />,
-              to: `/pyq-ebook?q=${encodeURIComponent(item.name)}`,
-            }));
-          if (pyqItems.length > 0) setDynamicEbookCategories(pyqItems);
-
-          // 2. Subject Test Dropdown items
-          const subjectTestItems = activeList.map((item, idx) => ({
+          const subjectTestItems = activeList.map((item) => ({
             label: item.name,
             desc: item.description || 'Subject practice & mock tests',
             icon: ICON_NAME_MAP[item.icon] || CAT_ICON_MAP[item.name] || <FaBookOpen />,
-            to: `/subject-test?sub=${idx}`,
+            to: `/subject-test?catId=${item._id}`,
           }));
-          if (subjectTestItems.length > 0) setDynamicSubjectTestCategories(subjectTestItems);
+          setDynamicSubjectTestCategories(subjectTestItems);
         }
       })
       .catch(() => {});
-  }, []);
+
+    // Real-time synchronization event listener & interval
+    window.addEventListener('pyqCategoriesUpdated', fetchPyqEbookCategories);
+    const interval = setInterval(fetchPyqEbookCategories, 4000);
+
+    return () => {
+      window.removeEventListener('pyqCategoriesUpdated', fetchPyqEbookCategories);
+      clearInterval(interval);
+    };
+  }, [fetchPyqEbookCategories]);
 
   // Dynamic TABS with fetched Material Page & PYQ Ebook dropdown items
   const navTabs = TABS.map(tab => {
@@ -425,13 +436,12 @@ export default function Header() {
         const loggedUser = await authLogin(authForm.email, authForm.password);
         setAuthSuccess('Logged in successfully!');
         const adminRoles = ['admin', 'superadmin', 'content_manager', 'question_creator', 'support'];
-        if (adminRoles.includes(loggedUser.role)) {
-          setTimeout(() => {
-            setShowAuthModal(false);
-            setAuthSuccess('');
-            setAuthForm({ name: '', email: '', phone: '', password: '', terms: false });
-            navigate('/admin/dashboard');
-          }, 400);
+        if (adminRoles.includes(loggedUser?.role)) {
+          setShowAuthModal(false);
+          setAuthSuccess('');
+          setAuthForm({ name: '', email: '', phone: '', password: '', terms: false });
+          navigate('/admin/dashboard', { replace: true });
+          return;
         } else {
           setTimeout(() => {
             setShowAuthModal(false);
@@ -514,34 +524,36 @@ export default function Header() {
                       {user.email || 'user@prephub.in'}
                     </div>
 
-                    <Link to="/profile?tab=profile" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                      <FaUser style={{ color: 'var(--primary)' }} /> My Profile
-                    </Link>
-                    <Link to="/profile?tab=exams" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                      <FaClipboardList style={{ color: '#3B82F6' }} /> Exam Attend
-                    </Link>
-                    <Link to="/profile?tab=rank" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                      <FaTrophy style={{ color: '#F59E0B' }} /> Rank
-                    </Link>
-                    <Link to="/profile?tab=scoreboard" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                      <FaChartBar style={{ color: '#10B981' }} /> Score Board
-                    </Link>
-                    <Link to="/profile?tab=purchase" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                      <FaCreditCard style={{ color: '#7C3AED' }} /> Purchases &amp; Orders
-                    </Link>
-
-                    {['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user.role) && (
+                    {['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user?.role) ? (
                       <Link
                         to="/admin/dashboard"
                         onClick={() => setShowDropdown(false)}
                         style={{
-                          padding: '10px 14px', fontSize: '13px', color: '#2563eb', fontWeight: 800,
+                          padding: '12px 14px', fontSize: '13px', color: '#2563eb', fontWeight: 800,
                           textDecoration: 'none', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8,
                           background: '#eff6ff', textAlign: 'left'
                         }}
                       >
-                        <FaShieldAlt style={{ color: '#2563eb' }} /> Admin Panel
+                        <FaShieldAlt style={{ color: '#2563eb' }} /> Admin Dashboard
                       </Link>
+                    ) : (
+                      <>
+                        <Link to="/profile?tab=profile" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <FaUser style={{ color: 'var(--primary)' }} /> My Profile
+                        </Link>
+                        <Link to="/profile?tab=exams" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <FaClipboardList style={{ color: '#3B82F6' }} /> Exam Attend
+                        </Link>
+                        <Link to="/profile?tab=rank" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <FaTrophy style={{ color: '#F59E0B' }} /> Rank
+                        </Link>
+                        <Link to="/profile?tab=scoreboard" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <FaChartBar style={{ color: '#10B981' }} /> Score Board
+                        </Link>
+                        <Link to="/profile?tab=purchase" onClick={() => setShowDropdown(false)} style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <FaCreditCard style={{ color: '#7C3AED' }} /> Purchases &amp; Orders
+                        </Link>
+                      </>
                     )}
 
                     <button onClick={handleLogout} style={{

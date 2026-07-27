@@ -30,7 +30,13 @@ router.get('/subjects', protect, adminOnly, adminCtrl.getSubjects);
 router.post('/subjects', protect, adminOnly, adminCtrl.createSubject);
 router.put('/subjects/reorder', protect, adminOnly, adminCtrl.reorderSubjects);
 router.put('/subjects/:id', protect, adminOnly, adminCtrl.updateSubject);
+router.put('/subjects/:id/price', protect, adminOnly, adminCtrl.updateCategoryPrice);
+router.patch('/subjects/:id/price', protect, adminOnly, adminCtrl.updateCategoryPrice);
 router.delete('/subjects/:id', protect, adminOnly, adminCtrl.deleteSubject);
+
+// Purchases & Student Access
+router.get('/purchases/status', protect, adminCtrl.getCategoryPurchaseStatus);
+router.post('/subjects/:id/purchase', protect, adminCtrl.purchaseCategory);
 
 // Topics
 router.get('/topics', protect, adminOnly, adminCtrl.getTopics);

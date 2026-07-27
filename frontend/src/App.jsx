@@ -36,6 +36,7 @@ import Notifications    from './admin/pages/Notifications';
 import Subscription     from './admin/pages/Subscription';
 import SubscriptionsManager from './admin/pages/SubscriptionsManager';
 import SubjectTestsManager  from './admin/pages/SubjectTestsManager';
+import ContactMessages     from './admin/pages/ContactMessages';
 
 // Student Exam Engine
 import ExamInstructionPage   from './pages/ExamInstructionPage';
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="subscription"   element={<Subscription />} />
               <Route path="subscriptions"  element={<SubscriptionsManager />} />
               <Route path="subject-tests"  element={<SubjectTestsManager />} />
+              <Route path="contacts"       element={<ContactMessages />} />
             </Route>
 
             {/* User-facing pages */}

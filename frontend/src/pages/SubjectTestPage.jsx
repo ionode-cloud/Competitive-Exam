@@ -46,37 +46,41 @@ export default function SubjectTestPage() {
     bannerStats: [],
   });
 
-  // Unlocked Tests State (stored in localStorage)
-  const [unlockedIds, setUnlockedIds] = useState(() => {
-    try {
-      const stored = localStorage.getItem('unlockedSubjectTestIds');
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
+  // Purchased Categories & Modal State
+  const [purchasedCatIds, setPurchasedCatIds] = useState([]);
   const [processingId, setProcessingId] = useState(null);
+  const [paymentModalCat, setPaymentModalCat] = useState(null);
 
-  const handleRazorpayCheckout = async (test) => {
-    const amount = test.price || 49;
-    setProcessingId(test._id);
+  const handleCategoryCheckout = async (category) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please log in to purchase category access');
+      navigate('/login');
+      return;
+    }
+    const catId = category._id;
+    const amount = category.categoryPrice || 500;
+    setProcessingId(catId);
 
     try {
-      // 1. Create Razorpay Order via backend API
       const res = await fetch(`${API_URL}/payments/razorpay/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({
           amount,
-          itemName: `Subject Test: ${test.title}`,
+          itemName: `Subject Category Access: ${category.name}`,
         }),
       }).then(r => r.json());
 
       if (!res.success) {
-        alert(res.message || 'Failed to initialize Razorpay payment');
+        alert(res.message || 'Failed to initialize payment');
         setProcessingId(null);
         return;
       }
 
-      // 2. Load Razorpay Checkout SDK if not loaded
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -87,34 +91,31 @@ export default function SubjectTestPage() {
         });
       }
 
-      // 3. Open official Razorpay Payment Modal
       const options = {
         key: res.keyId || 'rzp_test_placeholder',
         amount: res.amount,
         currency: res.currency || 'INR',
         name: 'Competitive Exam Platform',
-        description: `Unlock Test: ${test.title}`,
+        description: `Category Access: ${category.name}`,
         order_id: res.orderId,
         handler: async function (response) {
           try {
-            await fetch(`${API_URL}/payments/razorpay/verify`, {
+            await fetch(`${API_URL}/subject-tests/subjects/${catId}/purchase`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
               body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
+                paymentId: response.razorpay_payment_id || 'manual',
+                orderId: response.razorpay_order_id,
                 amount,
-                isMock: res.isMock,
               }),
             });
           } catch { /* proceed */ }
 
-          // Mark test as unlocked
-          const updated = [...unlockedIds, test._id];
-          setUnlockedIds(updated);
-          localStorage.setItem('unlockedSubjectTestIds', JSON.stringify(updated));
-          alert(`🎉 Payment Successful! Test "${test.title}" is now unlocked. Click "Attempt Now →" to start your test.`);
+          setPurchasedCatIds(prev => [...prev, String(catId)]);
+          alert(`🎉 Payment Successful! All Subject Tests under "${category.name}" are now unlocked!`);
           setProcessingId(null);
         },
         modal: {
@@ -143,87 +144,86 @@ export default function SubjectTestPage() {
       })
       .catch(() => {});
 
-    // Fetch both subject test categories and public tree to build complete live subjects & topics view
-    Promise.all([
-      fetch(`${API_URL}/subject-tests/categories/public`).then(r => r.json()).catch(() => null),
-      fetch(`${API_URL}/subject-tests/public/tree`).then(r => r.json()).catch(() => null)
-    ]).then(([resSubjs, resTree]) => {
-      const adminSubjs = resSubjs?.success && Array.isArray(resSubjs.data) ? resSubjs.data : [];
-      const treeSubjs  = resTree?.success && Array.isArray(resTree.data) ? resTree.data : [];
-
-      const subjectMap = new Map();
-
-      adminSubjs.forEach(sub => {
-        const topicsList = (sub.topics || []).map(tName => ({
-          _id: tName,
-          name: typeof tName === 'string' ? tName : tName.name || 'Topic',
-          tests: []
-        }));
-
-        subjectMap.set(sub.name, {
-          _id: sub._id,
-          name: sub.name,
-          color: sub.color || '#1957D6',
-          bg: (sub.color || '#1957D6') + '18',
-          icon: getIconComponent(sub.icon),
-          desc: sub.description || 'Subject practice & mock tests',
-          topics: topicsList
-        });
-      });
-
-      treeSubjs.forEach(treeSub => {
-        let existing = subjectMap.get(treeSub.name);
-        if (!existing) {
-          existing = {
-            _id: treeSub._id,
-            name: treeSub.name,
-            color: treeSub.color || '#1957D6',
-            bg: treeSub.bg || '#EAF1FD',
-            icon: getIconComponent(treeSub.icon),
-            desc: treeSub.desc || treeSub.description || 'Subject practice tests',
-            topics: []
-          };
-          subjectMap.set(treeSub.name, existing);
-        }
-
-        const topicMap = new Map();
-        existing.topics.forEach(t => topicMap.set(t.name, t));
-
-        (treeSub.topics || []).forEach(t => {
-          if (topicMap.has(t.name)) {
-            const current = topicMap.get(t.name);
-            current._id = t._id || current._id;
-            current.tests = t.tests || [];
-          } else {
-            const newTopic = {
-              _id: t._id,
-              name: t.name,
-              tests: t.tests || []
-            };
-            topicMap.set(t.name, newTopic);
-            existing.topics.push(newTopic);
+    // Fetch user purchased categories
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_URL}/subject-tests/purchases/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j.success && Array.isArray(j.data)) {
+            setPurchasedCatIds(j.data);
           }
-        });
-      });
+        })
+        .catch(() => {});
+    }
 
-      const result = Array.from(subjectMap.values());
-      setSubjectList(result);
-    })
-    .catch(() => {})
-    .finally(() => setLoading(false));
+    // Fetch live categories & tests tree directly from backend
+    fetch(`${API_URL}/subject-tests/public/tree`)
+      .then(r => r.json())
+      .then(resTree => {
+        if (resTree?.success && Array.isArray(resTree.data)) {
+          const formatted = resTree.data.map(cat => ({
+            _id: cat._id,
+            name: cat.name,
+            color: cat.color || '#1957D6',
+            bg: cat.bg || (cat.color ? cat.color + '18' : '#EAF1FD'),
+            icon: getIconComponent(cat.icon),
+            desc: cat.desc || cat.description || 'Subject practice & mock tests',
+            categoryPrice: cat.categoryPrice || 0,
+            firstFreeTestId: cat.firstFreeTestId,
+            topics: (cat.topics || []).map(t => ({
+              _id: t._id || t.name,
+              name: typeof t.name === 'string' ? t.name : 'Topic',
+              tests: t.tests || []
+            }))
+          }));
+          setSubjectList(formatted);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const rawSub = parseInt(searchParams.get('sub') ?? '', 10);
-  const urlSub = isNaN(rawSub) ? 0 : Math.min(Math.max(rawSub, 0), Math.max(0, subjectList.length - 1));
-
-  const [activeSubject, setActiveSubject] = useState(urlSub);
+  const [activeSubject, setActiveSubject] = useState(0);
   const [activeTopic, setActiveTopic] = useState(null);
 
-  // Re-sync whenever the ?sub= param value changes
+  const rawSubParam = searchParams.get('sub') ?? searchParams.get('cat') ?? searchParams.get('catId') ?? '';
+
+  // Re-sync active subject index whenever URL param or subjectList changes
   useEffect(() => {
-    setActiveSubject(urlSub);
+    if (!subjectList.length) return;
+
+    if (rawSubParam) {
+      // 1. Try matching by category _id
+      const idIdx = subjectList.findIndex(s => String(s._id) === rawSubParam);
+      if (idIdx !== -1) {
+        setActiveSubject(idIdx);
+        setActiveTopic(null);
+        return;
+      }
+
+      // 2. Try matching by category name
+      const nameIdx = subjectList.findIndex(s => s.name.toLowerCase() === rawSubParam.toLowerCase());
+      if (nameIdx !== -1) {
+        setActiveSubject(nameIdx);
+        setActiveTopic(null);
+        return;
+      }
+
+      // 3. Try parsing as numeric index
+      const num = parseInt(rawSubParam, 10);
+      if (!isNaN(num) && num >= 0 && num < subjectList.length) {
+        setActiveSubject(num);
+        setActiveTopic(null);
+        return;
+      }
+    }
+
+    setActiveSubject(0);
     setActiveTopic(null);
-  }, [urlSub]);
+  }, [rawSubParam, subjectList]);
 
   const sub = subjectList[activeSubject] || subjectList[0];
   const topic = activeTopic !== null && sub?.topics ? sub.topics[activeTopic] : null;
@@ -302,22 +302,59 @@ export default function SubjectTestPage() {
               {/* Subject Header */}
               <div className="subject-header-responsive" style={{
                 background: sub.bg, border: `1.5px solid ${sub.color}33`,
-                borderRadius: 14, marginBottom: 16,
+                borderRadius: 14, marginBottom: 16, padding: '16px 20px',
+                display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap'
               }}>
                 <div style={{
                   width: 50, height: 50, borderRadius: 12,
                   background: '#fff', color: sub.color,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
                 }}>{sub.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 800, color: sub.color }}>{sub.name}</h2>
-                  <p style={{ margin: 0, fontSize: 12.5, color: sub.color, opacity: .75 }}>
+
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: sub.color }}>{sub.name}</h2>
+                    {purchasedCatIds.some(id => String(id) === String(sub._id)) ? (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <FaUnlock fontSize={10} /> Category Unlocked
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20 }}>
+                        🎁 1st Test FREE
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: '0 0 6px', fontSize: 12.5, color: sub.color, opacity: .85 }}>
                     {topic ? `${topic.name}` : sub.desc}
                   </p>
+                  <div style={{ fontSize: 11.5, color: 'var(--text)', opacity: .9, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#0F9D58', fontWeight: 800 }}>• 1st Test is 100% Free for everyone.</span>
+                    {!purchasedCatIds.some(id => String(id) === String(sub._id)) && (
+                      <span style={{ color: '#EA7A1E', fontWeight: 700 }}>For remaining tests, unlock category pass (₹{sub.categoryPrice || 500}).</span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: sub.color }}>{topic ? topic.tests.length : (sub.topics?.length || 0)}</div>
-                  <div style={{ fontSize: 11, color: sub.color, opacity: .7 }}>{topic ? 'Tests' : 'Topics'}</div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto', flexShrink: 0 }}>
+                  {!purchasedCatIds.some(id => String(id) === String(sub._id)) && (
+                    <button
+                      onClick={() => setPaymentModalCat(sub)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800,
+                        color: '#fff', background: 'linear-gradient(135deg, #1957D6, #7C3AED)', border: 'none',
+                        padding: '8px 16px', borderRadius: 9, cursor: 'pointer',
+                        whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+                      }}
+                    >
+                      <FaLock fontSize={11} /> Unlock Category (₹{sub.categoryPrice || 500})
+                    </button>
+                  )}
+
+                  <div style={{ textAlign: 'right', minWidth: 44 }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: sub.color, lineHeight: 1 }}>{topic ? topic.tests.length : (sub.topics?.length || 0)}</div>
+                    <div style={{ fontSize: 11, color: sub.color, opacity: .7, marginTop: 2 }}>{topic ? 'Tests' : 'Topics'}</div>
+                  </div>
                 </div>
               </div>
 
@@ -367,22 +404,24 @@ export default function SubjectTestPage() {
                     </div>
                   ) : (
                     topic.tests.map((test, j) => {
-                      const isUnlocked = test.free || unlockedIds.includes(test._id);
-                      const priceVal   = test.price || 49;
+                      const isFirstFree = test.isFreeTest || test.free || String(test._id) === String(sub.firstFreeTestId);
+                      const isCatPurchased = purchasedCatIds.some(id => String(id) === String(sub._id) || String(id) === String(test.categoryId));
+                      const isUnlocked = isFirstFree || isCatPurchased;
+                      const catPriceVal = sub.categoryPrice || test.price || 500;
 
                       return (
                         <div key={j} className="responsive-test-card" style={{ borderLeft: `4px solid ${sub.color}` }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                              {test.free ? (
-                                <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20 }}>FREE</span>
-                              ) : isUnlocked ? (
+                              {isFirstFree ? (
+                                <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20 }}>FREE (1st Test)</span>
+                              ) : isCatPurchased ? (
                                 <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                   <FaUnlock fontSize={10} /> UNLOCKED
                                 </span>
                               ) : (
                                 <span style={{ fontSize: 10, fontWeight: 800, color: '#EA7A1E', background: '#FEF1E4', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                  <FaLock fontSize={10} /> ₹{priceVal}
+                                  <FaLock fontSize={10} /> Category ₹{catPriceVal}
                                 </span>
                               )}
                               <span style={{ fontSize: 10, fontWeight: 700, color: diffColors[test.diff] || '#0F9D58', background: (diffColors[test.diff] || '#0F9D58') + '18', padding: '2px 8px', borderRadius: 20 }}>{test.diff}</span>
@@ -401,12 +440,12 @@ export default function SubjectTestPage() {
                               padding: '9px 20px', borderRadius: 9, cursor: 'pointer',
                               whiteSpace: 'nowrap', flexShrink: 0
                             }}>
-                              {test.free ? 'Start Free →' : 'Attempt Now →'}
+                              {isFirstFree ? 'Start Free →' : 'Attempt Now →'}
                             </button>
                           ) : (
                             <button
-                              disabled={processingId === test._id}
-                              onClick={() => handleRazorpayCheckout(test)}
+                              disabled={processingId === sub._id || processingId === test._id}
+                              onClick={() => setPaymentModalCat(sub)}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800,
                                 color: '#fff', background: 'linear-gradient(135deg, #1957D6, #7C3AED)', border: 'none',
@@ -414,7 +453,7 @@ export default function SubjectTestPage() {
                                 whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
                               }}
                             >
-                              <FaLock fontSize={12} /> {processingId === test._id ? 'Processing...' : `Unlock Now ₹${priceVal}`}
+                              <FaLock fontSize={12} /> {processingId === sub._id ? 'Processing...' : `Unlock Category ₹${catPriceVal}`}
                             </button>
                           )}
                         </div>
@@ -427,6 +466,95 @@ export default function SubjectTestPage() {
           </div>
         )}
       </div>
+
+      {/* ── CATEGORY ACCESS PAYMENT MODAL ── */}
+      {paymentModalCat && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.75)',
+          backdropFilter: 'blur(4px)', zIndex: 4000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, width: '100%', maxWidth: 460,
+            padding: '28px 24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+            border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 14, background: paymentModalCat.bg || '#EAF1FD',
+                color: paymentModalCat.color || '#1957D6', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 24, flexShrink: 0
+              }}>
+                {paymentModalCat.icon}
+              </div>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#EA7A1E', background: '#FEF1E4', padding: '2px 8px', borderRadius: 12 }}>
+                  CATEGORY ACCESS PASS
+                </span>
+                <h3 style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                  {paymentModalCat.name} Pass
+                </h3>
+              </div>
+            </div>
+
+            <p style={{ margin: '0 0 20px', fontSize: 13.5, color: '#64748b', lineHeight: 1.5 }}>
+              Unlock unlimited access to all practice and mock tests under <strong>{paymentModalCat.name}</strong> category.
+            </p>
+
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 }}>
+                Category Pass Benefits:
+              </div>
+              <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#334155', fontWeight: 600 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#0F9D58', fontWeight: 900 }}>✓</span> Unlimited attempts on all tests in {paymentModalCat.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#0F9D58', fontWeight: 900 }}>✓</span> Instant access to new upcoming tests added in this category
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#0F9D58', fontWeight: 900 }}>✓</span> Detailed analytics &amp; score leaderboard reports
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, padding: '0 4px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#64748b' }}>Category Price:</span>
+              <span style={{ fontSize: 24, fontWeight: 900, color: '#0f172a' }}>
+                ₹{paymentModalCat.categoryPrice || 500}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setPaymentModalCat(null)}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, border: '1px solid #cbd5e1',
+                  background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13.5, cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={processingId === paymentModalCat._id}
+                onClick={() => {
+                  const catToPay = paymentModalCat;
+                  setPaymentModalCat(null);
+                  handleCategoryCheckout(catToPay);
+                }}
+                style={{
+                  flex: 1.5, padding: '11px', borderRadius: 10, border: 'none',
+                  background: 'linear-gradient(135deg, #1957D6, #7C3AED)', color: '#fff',
+                  fontWeight: 800, fontSize: 13.5, cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)'
+                }}
+              >
+                {processingId === paymentModalCat._id ? 'Processing...' : `Pay ₹${paymentModalCat.categoryPrice || 500} & Unlock`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

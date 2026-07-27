@@ -6,8 +6,9 @@ import {
   FaLaptopCode, FaCalculator, FaPuzzlePiece, FaFileAlt,
   FaEye, FaLock, FaFolderOpen, FaClock,
   FaMobileAlt, FaQrcode, FaCreditCard, FaUniversity,
-  FaTimes, FaSpinner
+  FaTimes, FaSpinner, FaExternalLinkAlt
 } from 'react-icons/fa';
+import PdfViewerModal from '../components/PdfViewerModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -670,31 +671,7 @@ export default function MaterialsPage() {
 
       {/* ── PDF Full-Screen Viewer ────────────────────────── */}
       {activePdf && (
-        <div style={{ position: 'fixed', inset: 0, background: '#2a2e33', zIndex: 100000, display: 'flex', flexDirection: 'column' }}>
-          <div style={{
-            height: 44, background: '#1e293b', color: '#f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 18px', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-            zIndex: 10, borderBottom: '1px solid #334155',
-          }}>
-            <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: 0.3, color: '#f8fafc', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <FaFileAlt /> {activePdf.title}
-            </span>
-            <button
-              onClick={() => setActivePdf(null)}
-              style={{ background: '#DC2626', color: '#fff', border: 'none', padding: '5px 14px', borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              <FaTimes /> Close PDF View
-            </button>
-          </div>
-          <div style={{ flex: 1, width: '100%', height: 'calc(100% - 44px)', background: '#323639' }}>
-            <iframe
-              src={pdfSource}
-              title={activePdf.title}
-              style={{ width: '100%', height: '100%', border: 'none', background: '#323639' }}
-            />
-          </div>
-        </div>
+        <PdfViewerModal pdf={activePdf} onClose={() => setActivePdf(null)} />
       )}
 
       {/* Spinner keyframe */}

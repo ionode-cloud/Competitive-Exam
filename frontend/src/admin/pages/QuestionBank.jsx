@@ -54,12 +54,19 @@ export default function QuestionBank() {
   // Dynamic Array of Question Blocks
   const [questionBlocks, setQuestionBlocks] = useState([createEmptyQuestionBlock()]);
 
-  // Fetch subjects list for Cards Grid
+  // Store all subjects for dropdowns vs cards grid
+  const [allSubjects, setAllSubjects] = useState([]);
+
+  // Fetch subjects list for Cards Grid (Only show subjects that have questions added)
   const fetchSubjects = useCallback(async () => {
     try {
       const res = await api.get('/subjects', { params: { limit: 100 } });
       if (res.data.success) {
-        setSubjects(res.data.data);
+        const fullList = res.data.data || [];
+        setAllSubjects(fullList);
+        // Only show cards for subjects that have at least 1 question created
+        const cardSubjects = fullList.filter(s => (s.questionCount || 0) > 0);
+        setSubjects(cardSubjects);
       }
     } catch {
       toast.error('Failed to load subjects');
@@ -233,6 +240,31 @@ export default function QuestionBank() {
     } catch (err) { toast.error(err.response?.data?.message || 'Delete failed'); }
   };
 
+  const handleDeleteSubjectCard = async (s, e) => {
+    if (e) e.stopPropagation();
+    const result = await Swal.fire({
+      title: `Delete Subject "${s.name}"?`,
+      text: 'Are you sure you want to delete this subject card from Question Bank?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'Yes, Delete'
+    });
+    if (!result.isConfirmed) return;
+    try {
+      try {
+        await api.delete(`/subjects/${s._id}`);
+      } catch {
+        await api.delete(`/subject-tests/subjects/${s._id}`);
+      }
+      toast.success(`Subject "${s.name}" deleted successfully`);
+      setSubjects(prev => prev.filter(item => item._id !== s._id));
+      fetchSubjects();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete subject');
+    }
+  };
+
   const handleDuplicate = async (id) => {
     try { await api.post(`/questions/${id}/duplicate`); toast.success('Duplicated!'); fetchQuestions(); fetchSubjects(); }
     catch { toast.error('Duplicate failed'); }
@@ -329,6 +361,16 @@ export default function QuestionBank() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Top-Right Delete Button Icon */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteSubjectCard(s, e)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                    title="Delete Subject"
+                  >
+                    <RiDeleteBin2Line className="w-5 h-5" />
+                  </button>
                 </div>
 
                 <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">
@@ -357,15 +399,26 @@ export default function QuestionBank() {
                 <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
                   Manage Questions <RiArrowRightSLine className="w-4 h-4" />
                 </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openCreate(s);
-                  }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1"
-                >
-                  <RiAddLine className="w-3.5 h-3.5" /> + Add
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openCreate(s);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1"
+                  >
+                    <RiAddLine className="w-3.5 h-3.5" /> + Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteSubjectCard(s, e)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-50 hover:bg-red-600 hover:text-white text-red-600 dark:bg-red-900/30 dark:hover:bg-red-600 dark:text-red-300 transition-colors flex items-center gap-1"
+                    title="Delete Subject"
+                  >
+                    <RiDeleteBin2Line className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -469,7 +522,8 @@ export default function QuestionBank() {
   /* ══════════════════════════════════════════════════════════════════════════
      VIEW MODE 3: FULL PAGE QUESTION FORM (CREATE / EDIT)
   ══════════════════════════════════════════════════════════════════════════ */
-  const selectedSubjectObjInForm = subjects.find(s => s._id === topMeta.subject);
+  const allSubjList = allSubjects.length > 0 ? allSubjects : subjects;
+  const selectedSubjectObjInForm = allSubjList.find(s => String(s._id) === String(topMeta.subject));
   const availableTopicsInForm = selectedSubjectObjInForm?.topics || [];
 
   return (
@@ -534,7 +588,7 @@ export default function QuestionBank() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="admin-label text-xs font-bold">Subject *</label>
               <select
@@ -544,7 +598,7 @@ export default function QuestionBank() {
                 required
               >
                 <option value="">Select Subject</option>
-                {subjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                {(allSubjects.length > 0 ? allSubjects : subjects).map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
             </div>
 
@@ -568,18 +622,6 @@ export default function QuestionBank() {
                   placeholder="e.g. Percentage"
                 />
               )}
-            </div>
-
-            <div>
-              <label className="admin-label text-xs font-bold">Section *</label>
-              <input
-                type="text"
-                value={topMeta.section}
-                onChange={e => setTopMeta(m => ({ ...m, section: e.target.value }))}
-                className="admin-input"
-                placeholder="e.g. Reasoning, Math"
-                required
-              />
             </div>
 
             <div>

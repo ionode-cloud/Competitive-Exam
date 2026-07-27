@@ -33,6 +33,13 @@ export default function UserProfilePage() {
   const [activeTab, setActiveTab] = useState(activeTabParam);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
 
+  // Redirect admin users directly to admin dashboard
+  useEffect(() => {
+    if (user && ['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user.role)) {
+      navigate('/admin/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   // Sync tab with URL search param
   useEffect(() => {
     setActiveTab(searchParams.get('tab') || 'profile');
@@ -41,15 +48,13 @@ export default function UserProfilePage() {
   const handleTabChange = (tabKey) => {
     setActiveTab(tabKey);
     setSearchParams({ tab: tabKey });
-  };
-
-  // Student profile form data initialized with registered user object
+  };  // Student profile form data initialized with registered user object
   const [profileForm, setProfileForm] = useState({
-    name: user?.name || 'Student User',
-    email: user?.email || 'student@prephub.in',
-    phone: user?.phone || '+91 98765 43210',
-    targetExam: user?.targetExam || 'OSSSC RI & OPSC OAS 2026',
-    state: 'Odisha',
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    targetExam: user?.targetExam || '',
+    state: user?.state || 'Odisha',
   });
   const [savedMsg, setSavedMsg] = useState('');
 
@@ -66,6 +71,20 @@ export default function UserProfilePage() {
     }
   }, [user]);
 
+  // Check if user has an active paid subscription
+  const hasSubscription = Boolean(
+    user?.isPremium ||
+    user?.isSubscribed ||
+    user?.subscription?.name ||
+    (user?.purchases && user.purchases.some(p => p.status === 'ACTIVE'))
+  );
+
+  // Dynamic user data arrays (no hardcoded/dummy records)
+  const attendedExams = user?.attendedExams || [];
+  const scoreBoardData = user?.scoreBoardData || [];
+  const purchases = user?.purchases || [];
+  const leaderboardTop = user?.rank ? (user?.leaderboard || []) : [];
+
   // Password modification state & visibility toggles
   const [pwdForm, setPwdForm] = useState({
     oldPassword: '',
@@ -77,35 +96,6 @@ export default function UserProfilePage() {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [pwdMsg, setPwdMsg] = useState('');
   const [pwdErr, setPwdErr] = useState('');
-
-  const attendedExams = [
-    { id: 'EXT-101', name: 'OSSSC RI Full Length Mock Test 1', category: 'State PSC / SSSC', date: '22 Jul 2026', marks: '88 / 100', accuracy: '92%', timeSpent: '104 mins', rank: '#12', status: 'Completed' },
-    { id: 'EXT-102', name: 'OPSC OAS Prelims Paper-I (GS)', category: 'State PSC / SSSC', date: '18 Jul 2026', marks: '76 / 100', accuracy: '84%', timeSpent: '118 mins', rank: '#28', status: 'Completed' },
-    { id: 'EXT-103', name: 'SSC CGL Tier-1 Complete Mock', category: 'SSC & Railway', date: '12 Jul 2026', marks: '82 / 100', accuracy: '89%', timeSpent: '54 mins', rank: '#15', status: 'Completed' },
-    { id: 'EXT-104', name: 'IBPS PO Prelims Complete Mock', category: 'Bank & Insurance', date: '05 Jul 2026', marks: '68 / 100', accuracy: '78%', timeSpent: '58 mins', rank: '#42', status: 'Completed' },
-    { id: 'EXT-105', name: 'Odisha Police SI GS Sectional', category: 'Police & Defence', date: '28 Jun 2026', marks: '44 / 50', accuracy: '95%', timeSpent: '38 mins', rank: '#08', status: 'Completed' },
-  ];
-
-  const scoreBoardData = [
-    { title: 'OSSSC RI Full Length Mock Test 1', category: 'State PSC / SSSC', date: '22 Jul 2026', time: '104 mins', score: 88, maxMarks: 100, correct: 88, wrong: 8, unattempted: 4, percentile: '98.5%' },
-    { title: 'OPSC OAS Prelims Paper-I (GS)', category: 'State PSC / SSSC', date: '18 Jul 2026', time: '118 mins', score: 76, maxMarks: 100, correct: 76, wrong: 16, unattempted: 8, percentile: '94.2%' },
-    { title: 'SSC CGL Tier-1 Complete Mock', category: 'SSC & Railway', date: '12 Jul 2026', time: '54 mins', score: 82, maxMarks: 100, correct: 82, wrong: 12, unattempted: 6, percentile: '96.8%' },
-    { title: 'IBPS PO Prelims Complete Mock', category: 'Bank & Insurance', date: '05 Jul 2026', time: '58 mins', score: 68, maxMarks: 100, correct: 68, wrong: 20, unattempted: 12, percentile: '89.4%' },
-    { title: 'Odisha Police SI GS Sectional', category: 'Police & Defence', date: '28 Jun 2026', time: '38 mins', score: 44, maxMarks: 50, correct: 44, wrong: 4, unattempted: 2, percentile: '95.0%' },
-  ];
-
-  const purchases = [
-    { id: 'ORD-9821', item: 'Pro Package (1 Year Access)', type: 'Subscription', price: '₹749', date: '15 Jul 2026', status: 'ACTIVE' },
-    { id: 'ORD-8412', item: 'OSSSC RI Special Test Series', type: 'Mock Series', price: '₹299', date: '02 Jun 2026', status: 'COMPLETED' },
-    { id: 'ORD-7201', item: 'Computer Knowledge PYQ E-Book', type: 'E-Book', price: '₹199', date: '10 May 2026', status: 'COMPLETED' },
-  ];
-
-  const leaderboardTop = [
-    { rank: 1, name: 'Priyanka Das', score: 98, exam: 'OSSSC RI Mock 1', avatar: 'PD', badge: '🥇 Rank 1' },
-    { rank: 2, name: 'Subham Mohanty', score: 96, exam: 'OSSSC RI Mock 1', avatar: 'SM', badge: '🥈 Rank 2' },
-    { rank: 3, name: 'Ayush Kumar Jena', score: 94, exam: 'OSSSC RI Mock 1', avatar: 'AJ', badge: '🥉 Rank 3' },
-    { rank: 12, name: user?.name || 'You', score: 88, exam: 'OSSSC RI Mock 1', avatar: 'YOU', badge: '⭐ Your Rank' },
-  ];
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
@@ -161,40 +151,72 @@ export default function UserProfilePage() {
               {(user?.name || 'Student').substring(0, 2).toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: '220px', textAlign: 'left' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255, 201, 60, 0.15)', color: '#FFC93C', fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                <FaCrown /> Premium Student Member
-              </div>
+              {hasSubscription ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255, 201, 60, 0.15)', color: '#FFC93C', fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  <FaCrown /> Premium Student Member
+                </div>
+              ) : (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(148, 163, 184, 0.15)', color: '#CBD5E1', fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  <FaUser /> Student Member
+                </div>
+              )}
               <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: '6px 0 2px' }}>
                 {user?.name || 'Student User'}
               </h1>
               <p style={{ fontSize: '13px', color: '#94A3B8', margin: 0 }}>
-                {user?.email || 'student@prephub.in'} • Target: {profileForm.targetExam}
+                {user?.email || ''} {profileForm.targetExam ? `• Target: ${profileForm.targetExam}` : ''}
               </p>
             </div>
-            <div style={{
-              background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
-              border: '1.5px solid #F59E0B', borderRadius: '14px', padding: '12px 18px',
-              textAlign: 'left', boxShadow: '0 4px 16px rgba(245, 158, 11, 0.2)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <FaStar style={{ color: '#F59E0B' }} /> Active Subscription
+
+            {hasSubscription ? (
+              <div style={{
+                background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+                border: '1.5px solid #F59E0B', borderRadius: '14px', padding: '12px 18px',
+                textAlign: 'left', boxShadow: '0 4px 16px rgba(245, 158, 11, 0.2)'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <FaStar style={{ color: '#F59E0B' }} /> Active Subscription
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#78350F', marginTop: '3px' }}>
+                  {user?.subscription?.name || 'Pro Package — Unlimited Access'}
+                </div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#92400E', marginTop: '3px' }}>
+                  {user?.subscription?.validUntil ? `Valid until: ${user.subscription.validUntil}` : 'Active Membership'}
+                </div>
               </div>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: '#78350F', marginTop: '3px' }}>
-                Pro Package — Unlimited Access
+            ) : (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '14px', padding: '12px 18px',
+                textAlign: 'left'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  Subscription Plan
+                </div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#FFFFFF', marginTop: '3px' }}>
+                  Free Plan (No Active Subscription)
+                </div>
+                <button
+                  onClick={() => navigate('/subscription')}
+                  style={{
+                    marginTop: '8px', padding: '6px 14px', background: '#FFC93C', color: '#0F172A',
+                    border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: 800, cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                >
+                  Upgrade to Pro →
+                </button>
               </div>
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#92400E', marginTop: '3px' }}>
-                Valid until: 15 July 2027 (357 days remaining)
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Quick Stat Counter Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginTop: '24px' }}>
             {[
-              { label: 'Exams Attended', val: '5 Tests', icon: <FaClipboardList />, color: '#3B82F6' },
-              { label: 'Overall Rank', val: '#14 / 1,250', icon: <FaTrophy />, color: '#F59E0B' },
-              { label: 'Avg Score Rate', val: '84.6%', icon: <FaChartBar />, color: '#10B981' },
-              { label: 'Active Plan', val: 'Pro Package', icon: <FaCreditCard />, color: '#7C3AED' },
+              { label: 'Exams Attended', val: `${attendedExams.length} Tests`, icon: <FaClipboardList />, color: '#3B82F6' },
+              { label: 'Overall Rank', val: user?.rank ? `#${user.rank}` : '—', icon: <FaTrophy />, color: '#F59E0B' },
+              { label: 'Avg Score Rate', val: user?.avgScore ? `${user.avgScore}%` : '—', icon: <FaChartBar />, color: '#10B981' },
+              { label: 'Active Plan', val: hasSubscription ? (user?.subscription?.name || 'Pro Package') : 'Free Plan', icon: <FaCreditCard />, color: '#7C3AED' },
             ].map((st, i) => (
               <div key={i} style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '12px 16px', textAlign: 'left' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: st.color, fontSize: '12px', fontWeight: 800 }}>
@@ -258,6 +280,7 @@ export default function UserProfilePage() {
                     type="text"
                     value={profileForm.name}
                     onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                    placeholder="Enter your full name"
                     style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--line)', background: '#F8FAFC', fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -267,6 +290,7 @@ export default function UserProfilePage() {
                     type="email"
                     value={profileForm.email}
                     readOnly
+                    placeholder="you@example.com"
                     style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--line)', background: '#F1F5F9', fontSize: '13.5px', fontWeight: 600, color: 'var(--muted)', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -276,6 +300,7 @@ export default function UserProfilePage() {
                     type="text"
                     value={profileForm.phone}
                     onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    placeholder="+91 XXXXX XXXXX"
                     style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--line)', background: '#F8FAFC', fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -285,6 +310,7 @@ export default function UserProfilePage() {
                     type="text"
                     value={profileForm.targetExam}
                     onChange={e => setProfileForm({ ...profileForm, targetExam: e.target.value })}
+                    placeholder="e.g. OSSSC RI, OPSC OAS, SSC CGL..."
                     style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--line)', background: '#F8FAFC', fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -396,8 +422,6 @@ export default function UserProfilePage() {
                   </button>
                 </form>
               </div>
-
-
             </div>
           </div>
         )}
@@ -419,104 +443,109 @@ export default function UserProfilePage() {
               </button>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Test Name</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Category</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Score</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Accuracy</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Rank</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attendedExams.map((ex, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ex.name}</td>
-                      <td style={{ padding: '14px', color: 'var(--muted)' }}>{ex.category}</td>
-                      <td style={{ padding: '14px', color: 'var(--muted)' }}>{ex.date}</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#10B981' }}>{ex.marks}</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ex.accuracy}</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: '#7C3AED' }}>{ex.rank}</td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
-                        <button onClick={() => handleTabChange('scoreboard')} style={{ padding: '5px 12px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', cursor: 'pointer' }}>
-                          View Results
-                        </button>
-                      </td>
+            {attendedExams.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Test Name</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Category</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Score</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Accuracy</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Rank</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {attendedExams.map((ex, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ex.name}</td>
+                        <td style={{ padding: '14px', color: 'var(--muted)' }}>{ex.category}</td>
+                        <td style={{ padding: '14px', color: 'var(--muted)' }}>{ex.date}</td>
+                        <td style={{ padding: '14px', fontWeight: 800, color: '#10B981' }}>{ex.marks}</td>
+                        <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ex.accuracy}</td>
+                        <td style={{ padding: '14px', fontWeight: 800, color: '#7C3AED' }}>{ex.rank}</td>
+                        <td style={{ padding: '14px', textAlign: 'right' }}>
+                          <button onClick={() => handleTabChange('scoreboard')} style={{ padding: '5px 12px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', cursor: 'pointer' }}>
+                            View Results
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+                <FaClipboardList style={{ fontSize: 42, color: 'var(--line)', marginBottom: 12 }} />
+                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>No Exam Attempts Yet</h4>
+                <p style={{ fontSize: 13, margin: '0 0 16px' }}>You haven't attempted any mock tests or subject exams yet. Take your first test to track your performance!</p>
+                <button onClick={() => navigate('/mock-test')} style={{ padding: '9px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                  Attempt a Mock Test →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* TAB 3: MY RANK */}
         {activeTab === 'rank' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', textAlign: 'left' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#F59E0B', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                <FaTrophy /> Student Leaderboard &amp; Ranking
-              </div>
-              <h3 style={{ fontSize: '20px', fontWeight: 850, margin: '6px 0 4px', color: 'var(--ink)' }}>
-                Your Rank: #14 (Top 2%)
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 20px' }}>
-                Based on overall accuracy, test completion rate, and speed across all OSSSC &amp; OPSC mock tests.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {leaderboardTop.map((lb, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 16px', borderRadius: '12px',
-                    background: lb.rank === 12 ? '#FEF3C7' : '#F8FAFC',
-                    border: lb.rank === 12 ? '1.5px solid #F59E0B' : '1px solid var(--line)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: '36px', height: '36px', borderRadius: '50%',
-                        background: lb.rank === 12 ? '#F59E0B' : '#0F172A', color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800
-                      }}>
-                        {lb.avatar}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{lb.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{lb.badge} • {lb.exam}</div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '16px', fontWeight: 900, color: '#10B981' }}>
-                      {lb.score} / 100
-                    </div>
+          <div>
+            {leaderboardTop.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#F59E0B', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    <FaTrophy /> Student Leaderboard &amp; Ranking
                   </div>
-                ))}
-              </div>
-            </div>
+                  <h3 style={{ fontSize: '20px', fontWeight: 850, margin: '6px 0 4px', color: 'var(--ink)' }}>
+                    Your Rank: #{user?.rank || '—'}
+                  </h3>
+                  <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 20px' }}>
+                    Based on overall accuracy, test completion rate, and speed across all mock tests.
+                  </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', textAlign: 'left' }}>
-                <h4 style={{ fontSize: '16px', fontWeight: 850, margin: '0 0 12px', color: 'var(--ink)' }}>
-                  Category-Wise Performance Rank
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[
-                    { cat: 'State PSC / SSSC (Odisha)', rank: '#4', pct: '98.8%' },
-                    { cat: 'SSC & Railway', rank: '#15', pct: '95.2%' },
-                    { cat: 'Bank & Insurance', rank: '#42', pct: '89.4%' },
-                    { cat: 'Police & Defence', rank: '#8', pct: '96.5%' },
-                  ].map((r, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{r.cat}</span>
-                      <span style={{ fontSize: '13px', fontWeight: 900, color: 'var(--primary)' }}>{r.rank} ({r.pct})</span>
-                    </div>
-                  ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {leaderboardTop.map((lb, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '12px 16px', borderRadius: '12px',
+                        background: lb.isCurrentUser ? '#FEF3C7' : '#F8FAFC',
+                        border: lb.isCurrentUser ? '1.5px solid #F59E0B' : '1px solid var(--line)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '50%',
+                            background: lb.isCurrentUser ? '#F59E0B' : '#0F172A', color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800
+                          }}>
+                            {lb.avatar || 'ST'}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{lb.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{lb.badge} • {lb.exam}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#10B981' }}>
+                          {lb.score} / 100
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '40px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+                <FaTrophy style={{ fontSize: 44, color: '#F59E0B', marginBottom: 12, opacity: 0.7 }} />
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>No Leaderboard Rank Yet</h3>
+                <p style={{ fontSize: 13, margin: '0 0 20px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto' }}>
+                  Attempt mock tests to earn scores, compete with candidates across Odisha, and get your real-time leaderboard ranking!
+                </p>
+                <button onClick={() => navigate('/mock-test')} style={{ padding: '10px 20px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                  Start a Test &amp; Earn Rank →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -534,68 +563,79 @@ export default function UserProfilePage() {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Exam Title</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date &amp; Time</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Total Score</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaCheckCircle style={{ color: '#10B981', marginRight: 4 }} /> Correct</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaTimes style={{ color: '#EF4444', marginRight: 4 }} /> Wrong</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaMinusCircle style={{ color: '#64748B', marginRight: 4 }} /> Skipped</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Percentile</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Detailed Report</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoreBoardData.map((sb, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '14px' }}>
-                        <div style={{ fontWeight: 800, color: 'var(--ink)', fontSize: '13.5px' }}>{sb.title}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{sb.category || 'Odisha Exams'}</div>
-                      </td>
-                      <td style={{ padding: '14px', color: 'var(--muted)' }}>
-                        <div>{sb.date}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted-2)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <FaClock /> {sb.time}
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: 900, color: '#10B981' }}>
-                          {sb.score} / {sb.maxMarks}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ background: '#E8F8EE', color: '#0F9D58', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
-                          {sb.correct}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ background: '#FCEBEA', color: '#B4232F', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
-                          {sb.wrong}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ background: '#F1F5F9', color: '#64748B', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
-                          {sb.unattempted}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ background: '#F3ECFE', color: '#7C3AED', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
-                          {sb.percentile}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
-                        <button onClick={() => alert(`Showing full answer key & solutions for ${sb.title}`)} style={{ padding: '6px 14px', background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s' }}>
-                          View Report
-                        </button>
-                      </td>
+            {scoreBoardData.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Exam Title</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date &amp; Time</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Total Score</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaCheckCircle style={{ color: '#10B981', marginRight: 4 }} /> Correct</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaTimes style={{ color: '#EF4444', marginRight: 4 }} /> Wrong</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}><FaMinusCircle style={{ color: '#64748B', marginRight: 4 }} /> Skipped</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Percentile</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Detailed Report</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {scoreBoardData.map((sb, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '14px' }}>
+                          <div style={{ fontWeight: 800, color: 'var(--ink)', fontSize: '13.5px' }}>{sb.title}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{sb.category || 'Odisha Exams'}</div>
+                        </td>
+                        <td style={{ padding: '14px', color: 'var(--muted)' }}>
+                          <div>{sb.date}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted-2)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <FaClock /> {sb.time}
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 900, color: '#10B981' }}>
+                            {sb.score} / {sb.maxMarks}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ background: '#E8F8EE', color: '#0F9D58', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
+                            {sb.correct}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ background: '#FCEBEA', color: '#B4232F', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
+                            {sb.wrong}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ background: '#F1F5F9', color: '#64748B', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
+                            {sb.unattempted}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ background: '#F3ECFE', color: '#7C3AED', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', fontSize: '12px' }}>
+                            {sb.percentile}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px', textAlign: 'right' }}>
+                          <button onClick={() => alert(`Showing full answer key & solutions for ${sb.title}`)} style={{ padding: '6px 14px', background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s' }}>
+                            View Report
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+                <FaChartBar style={{ fontSize: 42, color: 'var(--line)', marginBottom: 12 }} />
+                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>No Test Scores Available</h4>
+                <p style={{ fontSize: 13, margin: '0 0 16px' }}>Your detailed score reports, accuracy rates, and percentile analysis will appear here once you complete a test.</p>
+                <button onClick={() => navigate('/subject-test')} style={{ padding: '9px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                  Take Subject Test →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -616,42 +656,53 @@ export default function UserProfilePage() {
               </button>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Order ID</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Item Name</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Type</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Amount</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Status</th>
-                    <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Receipt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {purchases.map((pc, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '14px', fontWeight: 800, color: 'var(--primary)' }}>{pc.id}</td>
-                      <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{pc.item}</td>
-                      <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.type}</td>
-                      <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.date}</td>
-                      <td style={{ padding: '14px', fontWeight: 800, color: 'var(--ink)' }}>{pc.price}</td>
-                      <td style={{ padding: '14px' }}>
-                        <span style={{ fontSize: '10.5px', fontWeight: 800, color: pc.status === 'ACTIVE' ? '#10B981' : '#3B82F6', background: pc.status === 'ACTIVE' ? '#E8F8EE' : '#EAF1FD', padding: '2px 8px', borderRadius: '12px' }}>
-                          {pc.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
-                        <button onClick={() => setSelectedReceipt(pc)} style={{ padding: '6px 14px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--primary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <FaFileAlt /> View Receipt
-                        </button>
-                      </td>
+            {purchases.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Order ID</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Item Name</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Type</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Amount</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Status</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Receipt</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {purchases.map((pc, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '14px', fontWeight: 800, color: 'var(--primary)' }}>{pc.id}</td>
+                        <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{pc.item}</td>
+                        <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.type}</td>
+                        <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.date}</td>
+                        <td style={{ padding: '14px', fontWeight: 800, color: 'var(--ink)' }}>{pc.price}</td>
+                        <td style={{ padding: '14px' }}>
+                          <span style={{ fontSize: '10.5px', fontWeight: 800, color: pc.status === 'ACTIVE' ? '#10B981' : '#3B82F6', background: pc.status === 'ACTIVE' ? '#E8F8EE' : '#EAF1FD', padding: '2px 8px', borderRadius: '12px' }}>
+                            {pc.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px', textAlign: 'right' }}>
+                          <button onClick={() => setSelectedReceipt(pc)} style={{ padding: '6px 14px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--primary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <FaFileAlt /> View Receipt
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+                <FaCreditCard style={{ fontSize: 42, color: 'var(--line)', marginBottom: 12 }} />
+                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>No Purchase History</h4>
+                <p style={{ fontSize: 13, margin: '0 0 16px' }}>You have not purchased any test series packages or premium PDF materials yet.</p>
+                <button onClick={() => navigate('/subscription')} style={{ padding: '9px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                  View Subscription Plans →
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
