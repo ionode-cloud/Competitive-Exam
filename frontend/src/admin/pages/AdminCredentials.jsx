@@ -286,7 +286,7 @@ export default function AdminCredentials() {
             <input
               {...register('name', { required: 'Admin name is required' })}
               className="admin-input"
-              placeholder="e.g. Mukesh Kumar"
+              placeholder="e.g. john"
             />
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
           </div>

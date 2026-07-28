@@ -4,6 +4,7 @@ const ctrl = require('../controllers/paymentController');
 const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/rbac');
 
+router.get('/my-purchases', protect, ctrl.getMyPurchases);
 router.get('/', protect, adminOnly, ctrl.getOrders);
 router.get('/:id', protect, adminOnly, ctrl.getOrder);
 router.patch('/:id/refund', protect, adminOnly, ctrl.refundOrder);

@@ -79,10 +79,50 @@ export default function UserProfilePage() {
     (user?.purchases && user.purchases.some(p => p.status === 'ACTIVE'))
   );
 
-  // Dynamic user data arrays (no hardcoded/dummy records)
-  const attendedExams = user?.attendedExams || [];
-  const scoreBoardData = user?.scoreBoardData || [];
-  const purchases = user?.purchases || [];
+  // Dynamic user data state (live loaded from Backend MongoDB APIs)
+  const [attendedExams, setAttendedExams] = useState(user?.attendedExams || []);
+  const [scoreBoardData, setScoreBoardData] = useState(user?.scoreBoardData || []);
+  const [purchases, setPurchases] = useState(user?.purchases || []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
+
+    // Fetch live attended exams history
+    fetch(`${API_BASE}/subject-tests/user/my-attempts`, { headers })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data) && j.data.length > 0) {
+          setAttendedExams(j.data);
+          setScoreBoardData(j.data.map(d => ({
+            title: d.name,
+            category: d.category,
+            date: d.date,
+            time: d.time,
+            score: d.score,
+            maxMarks: d.maxMarks || 100,
+            correct: d.correct,
+            wrong: d.wrong,
+            unattempted: d.unattempted,
+            percentile: d.percentile,
+            attemptId: d.attemptId
+          })));
+        }
+      })
+      .catch(() => {});
+
+    // Fetch live student purchase & subscription bills
+    fetch(`${API_BASE}/orders/my-purchases`, { headers })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data) && j.data.length > 0) {
+          setPurchases(j.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const leaderboardTop = user?.rank ? (user?.leaderboard || []) : [];
 
   // Password modification state & visibility toggles
@@ -467,8 +507,17 @@ export default function UserProfilePage() {
                         <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{ex.accuracy}</td>
                         <td style={{ padding: '14px', fontWeight: 800, color: '#7C3AED' }}>{ex.rank}</td>
                         <td style={{ padding: '14px', textAlign: 'right' }}>
-                          <button onClick={() => handleTabChange('scoreboard')} style={{ padding: '5px 12px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', cursor: 'pointer' }}>
-                            View Results
+                          <button
+                            onClick={() => {
+                              if (ex.attemptId) {
+                                navigate(`/subject-test/result/${ex.attemptId}`);
+                              } else {
+                                handleTabChange('scoreboard');
+                              }
+                            }}
+                            style={{ padding: '6px 14px', background: 'var(--primary)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 800, color: '#fff', cursor: 'pointer' }}
+                          >
+                            View Result &amp; Solutions →
                           </button>
                         </td>
                       </tr>
@@ -617,8 +666,17 @@ export default function UserProfilePage() {
                           </span>
                         </td>
                         <td style={{ padding: '14px', textAlign: 'right' }}>
-                          <button onClick={() => alert(`Showing full answer key & solutions for ${sb.title}`)} style={{ padding: '6px 14px', background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s' }}>
-                            View Report
+                          <button
+                            onClick={() => {
+                              if (sb.attemptId) {
+                                navigate(`/subject-test/result/${sb.attemptId}`);
+                              } else {
+                                alert(`Showing score report for ${sb.title}`);
+                              }
+                            }}
+                            style={{ padding: '6px 14px', background: 'var(--primary)', border: 'none', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.15s' }}
+                          >
+                            View Report &amp; Solutions →
                           </button>
                         </td>
                       </tr>
@@ -648,7 +706,7 @@ export default function UserProfilePage() {
                   Purchases &amp; Transactions History
                 </h3>
                 <p style={{ fontSize: '12.5px', color: 'var(--muted)', margin: '4px 0 0' }}>
-                  Manage active plans, test series subscriptions, and download payment receipts.
+                  Manage active plans, test series subscriptions, and download payment receipts with expiry dates.
                 </p>
               </div>
               <button onClick={() => navigate('/subscription')} style={{ padding: '8px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '12.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -664,10 +722,11 @@ export default function UserProfilePage() {
                       <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Order ID</th>
                       <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Item Name</th>
                       <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Type</th>
-                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Date</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Purchase Date</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Expire Date</th>
                       <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Amount</th>
                       <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)' }}>Status</th>
-                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Receipt</th>
+                      <th style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--muted)', textAlign: 'right' }}>Bill &amp; Receipt</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -677,6 +736,7 @@ export default function UserProfilePage() {
                         <td style={{ padding: '14px', fontWeight: 700, color: 'var(--ink)' }}>{pc.item}</td>
                         <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.type}</td>
                         <td style={{ padding: '14px', color: 'var(--muted)' }}>{pc.date}</td>
+                        <td style={{ padding: '14px', fontWeight: 700, color: '#dc2626' }}>{pc.expireDate || '1 Year Validity'}</td>
                         <td style={{ padding: '14px', fontWeight: 800, color: 'var(--ink)' }}>{pc.price}</td>
                         <td style={{ padding: '14px' }}>
                           <span style={{ fontSize: '10.5px', fontWeight: 800, color: pc.status === 'ACTIVE' ? '#10B981' : '#3B82F6', background: pc.status === 'ACTIVE' ? '#E8F8EE' : '#EAF1FD', padding: '2px 8px', borderRadius: '12px' }}>
@@ -685,7 +745,7 @@ export default function UserProfilePage() {
                         </td>
                         <td style={{ padding: '14px', textAlign: 'right' }}>
                           <button onClick={() => setSelectedReceipt(pc)} style={{ padding: '6px 14px', background: '#F1F5F9', border: '1px solid var(--line)', borderRadius: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--primary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <FaFileAlt /> View Receipt
+                            <FaFileAlt /> View Bill
                           </button>
                         </td>
                       </tr>
@@ -763,6 +823,10 @@ export default function UserProfilePage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--muted)', paddingTop: '8px' }}>
                   <span>Category Type: {selectedReceipt.type}</span>
                   <span>GST (18% Included): Yes</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#dc2626', fontWeight: 800, paddingTop: '6px' }}>
+                  <span>Expire Date:</span>
+                  <span>{selectedReceipt.expireDate || '1 Year Validity'}</span>
                 </div>
               </div>
 

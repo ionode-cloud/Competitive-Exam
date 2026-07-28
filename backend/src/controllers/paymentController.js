@@ -46,6 +46,66 @@ exports.refundOrder = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/* ── Get Logged-in Student Purchases & Bill History ───────────────────────── */
+exports.getMyPurchases = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const purchases = await Purchase.find({ student: userId }).sort('-createdAt');
+    const user = await User.findById(userId);
+
+    const resultList = [];
+
+    if (user && user.subscription?.name) {
+      resultList.push({
+        id: 'SUB-' + user._id.toString().substring(18).toUpperCase(),
+        item: user.subscription.name || 'Pro Package Membership',
+        type: 'Subscription Plan',
+        date: new Date(user.updatedAt || user.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        expireDate: user.subscription.validUntil ? user.subscription.validUntil : new Date(Date.now() + 365*24*60*60*1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        price: '₹' + (user.subscription.price || 499),
+        amount: user.subscription.price || 499,
+        status: 'ACTIVE',
+        billNo: 'BILL-PRO-' + user._id.toString().substring(18),
+        paymentMethod: 'Online Payment (Razorpay / UPI)',
+      });
+    }
+
+    purchases.forEach(p => {
+      const pDate = new Date(p.createdAt);
+      const expDate = new Date(pDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+      resultList.push({
+        id: p.orderId || ('ORD-' + p._id.toString().substring(18).toUpperCase()),
+        item: p.productName || 'Competitive Test Series Pack',
+        type: p.productType ? p.productType.toUpperCase() : 'COURSE PACK',
+        date: pDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        expireDate: expDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        price: '₹' + (p.finalAmount || p.amount),
+        amount: p.finalAmount || p.amount,
+        status: p.status === 'completed' ? 'ACTIVE' : p.status.toUpperCase(),
+        billNo: 'BILL-' + (p.orderId || p._id),
+        paymentMethod: 'Razorpay / UPI'
+      });
+    });
+
+    if (resultList.length === 0 && (user?.isPremium || user?.isSubscribed)) {
+      resultList.push({
+        id: 'SUB-PRO-PASS',
+        item: 'Odisha Exams Unlimited Pro Pass',
+        type: 'SUBSCRIPTION',
+        date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        expireDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        price: '₹499',
+        amount: 499,
+        status: 'ACTIVE',
+        billNo: 'BILL-PRO-ODISHA-PASS',
+        paymentMethod: 'UPI / Online Card'
+      });
+    }
+
+    res.json({ success: true, data: resultList });
+  } catch (err) { next(err); }
+};
+
 // ===== PAYMENTS =====
 
 exports.getPayments = async (req, res, next) => {

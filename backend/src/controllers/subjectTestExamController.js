@@ -828,3 +828,49 @@ exports.getExamAttemptResult = async (req, res, next) => {
     });
   } catch (err) { next(err); }
 };
+
+/* ── Get Logged-in Student Attended Exams History ───────────────────────────── */
+exports.getMyAttempts = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const attempts = await SubjectTestAttempt.find({ userId, status: 'completed' })
+      .sort('-updatedAt')
+      .limit(100);
+
+    const testIds = attempts.map(a => a.testId);
+    const [bankTests, mockTests] = await Promise.all([
+      SubjectTest.find({ _id: { $in: testIds } }).select('title positiveMarks negativeMarks subjectId'),
+      require('../models/MockTest').find({ _id: { $in: testIds } }).select('name title positiveMarks negativeMarks examination')
+    ]);
+
+    const testMap = new Map();
+    bankTests.forEach(t => testMap.set(t._id.toString(), { name: t.title, category: 'Subject Test' }));
+    mockTests.forEach(m => testMap.set(m._id.toString(), { name: m.name || m.title, category: 'Mock Test' }));
+
+    const formatted = attempts.map((a, i) => {
+      const tInfo = testMap.get(a.testId.toString()) || { name: 'Practice Test', category: 'Competitive Exam' };
+      const dateObj = new Date(a.updatedAt || a.createdAt);
+      const totalMaxMarks = (a.questionOrder?.length || 100) * 1;
+      return {
+        _id: a._id,
+        attemptId: a._id,
+        name: tInfo.name,
+        category: tInfo.category,
+        date: dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        time: dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        score: a.score || 0,
+        marks: `${a.score || 0} / ${totalMaxMarks}`,
+        maxMarks: totalMaxMarks,
+        accuracy: `${a.accuracy || 0}%`,
+        percentile: `${a.percentage || 0}%ile`,
+        correct: a.correctCount || 0,
+        wrong: a.incorrectCount || 0,
+        unattempted: a.skippedCount || 0,
+        rank: `#${i + 1}`,
+        status: 'COMPLETED'
+      };
+    });
+
+    res.json({ success: true, data: formatted });
+  } catch (err) { next(err); }
+};

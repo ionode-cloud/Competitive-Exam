@@ -12,6 +12,7 @@ router.get('/public/tree', examCtrl.getPublicSubjectTree);
 router.get('/tests/:testId/instructions', examCtrl.getTestInstructions);
 
 /* ── PROTECTED STUDENT EXAM ENDPOINTS ───────────────────────────────────────── */
+router.get('/user/my-attempts', protect, examCtrl.getMyAttempts);
 router.post('/tests/:testId/start', protect, examCtrl.startExamAttempt);
 router.get('/attempts/:attemptId', protect, examCtrl.getExamAttempt);
 router.post('/attempts/:attemptId/answer', protect, examCtrl.saveAnswer);
