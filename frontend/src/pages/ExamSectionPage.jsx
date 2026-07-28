@@ -1,5 +1,5 @@
-// ExamSectionPage.jsx — Browse all exam categories
-import { useState, useEffect } from 'react';
+// ExamSectionPage.jsx — Browse all exam categories & live mock tests
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   FaUniversity,
@@ -8,68 +8,35 @@ import {
   FaShieldAlt,
   FaChalkboardTeacher,
   FaBalanceScale,
+  FaClipboardList,
   FaFire,
   FaStar,
   FaBolt,
   FaRegDotCircle
 } from 'react-icons/fa';
 
-const examCategories = [
-  {
-    icon: <FaUniversity />, label: 'Bank & Insurance', color: '#1957D6', bg: '#EAF1FD',
-    exams: [
-      { name: 'IBPS PO', sub: 'Probationary Officer', tag: 'Hot' },
-      { name: 'SBI Clerk', sub: 'Junior Associate', tag: 'Popular' },
-      { name: 'RBI Grade B', sub: 'Officer Grade B', tag: 'New' },
-      { name: 'LIC AAO', sub: 'Assistant Admin Officer', tag: 'Demand' },
-    ]
-  },
-  {
-    icon: <FaTrain />, label: 'SSC & Railway', color: '#0F9D58', bg: '#E8F8EE',
-    exams: [
-      { name: 'SSC CGL', sub: 'Combined Graduate Level', tag: 'Hot' },
-      { name: 'SSC CHSL', sub: 'Combined Higher Secondary', tag: 'Popular' },
-      { name: 'RRB NTPC', sub: 'Non-Technical Popular Categories', tag: 'Demand' },
-      { name: 'RRB Group D', sub: 'Group D Posts', tag: 'New' },
-    ]
-  },
-  {
-    icon: <FaLandmark />, label: 'State PSC / SSSC', color: '#7C3AED', bg: '#F3ECFE',
-    exams: [
-      { name: 'OPSC OAS', sub: 'Odisha Administrative Service', tag: 'Hot' },
-      { name: 'OSSSC RI', sub: 'Revenue Inspector', tag: 'Popular' },
-      { name: 'OSSC CGL', sub: 'Combined Graduate Level', tag: 'Demand' },
-      { name: 'OSSSC ARI', sub: 'Assistant Revenue Inspector', tag: 'New' },
-    ]
-  },
-  {
-    icon: <FaShieldAlt />, label: 'Police & Defence', color: '#B4232F', bg: '#FCEBEA',
-    exams: [
-      { name: 'Odisha Police SI', sub: 'Sub-Inspector', tag: 'Hot' },
-      { name: 'Odisha Police Constable', sub: 'Constable Posts', tag: 'Demand' },
-      { name: 'NDA', sub: 'National Defence Academy', tag: 'Popular' },
-      { name: 'CDS', sub: 'Combined Defence Services', tag: 'New' },
-    ]
-  },
-  {
-    icon: <FaChalkboardTeacher />, label: 'Teaching', color: '#EA7A1E', bg: '#FEF1E4',
-    exams: [
-      { name: 'OTET', sub: 'Odisha Teacher Eligibility Test', tag: 'Hot' },
-      { name: 'CTET', sub: 'Central Teacher Eligibility Test', tag: 'Popular' },
-      { name: 'KVS PGT', sub: 'Post Graduate Teacher', tag: 'Demand' },
-      { name: 'DSSSB TGT', sub: 'Trained Graduate Teacher', tag: 'New' },
-    ]
-  },
-  {
-    icon: <FaBalanceScale />, label: 'Regulatory Bodies', color: '#0891B2', bg: '#E0F7FA',
-    exams: [
-      { name: 'SEBI Grade A', sub: 'Securities & Exchange Board', tag: 'Hot' },
-      { name: 'NABARD Grade A', sub: 'National Bank for Agriculture', tag: 'Popular' },
-      { name: 'IRDAI', sub: 'Insurance Regulatory Development', tag: 'Demand' },
-      { name: 'SIDBI', sub: 'Small Industries Dev Bank', tag: 'New' },
-    ]
-  },
+import { getSocket } from '../utils/socket';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
+
+const defaultCategories = [
+  { icon: <FaLandmark />, label: 'State PSC / SSSC (Odisha)', color: '#7C3AED', bg: '#F3ECFE', exams: [] },
+  { icon: <FaTrain />, label: 'SSC & Railway', color: '#0F9D58', bg: '#E8F8EE', exams: [] },
+  { icon: <FaUniversity />, label: 'Bank & Insurance', color: '#1957D6', bg: '#EAF1FD', exams: [] },
+  { icon: <FaShieldAlt />, label: 'Police & Defence', color: '#B4232F', bg: '#FCEBEA', exams: [] },
+  { icon: <FaChalkboardTeacher />, label: 'Teaching', color: '#EA7A1E', bg: '#FEF1E4', exams: [] },
+  { icon: <FaBalanceScale />, label: 'Regulatory Bodies', color: '#0891B2', bg: '#E0F7FA', exams: [] },
 ];
+
+const iconMap = {
+  landmark: <FaLandmark />,
+  train: <FaTrain />,
+  university: <FaUniversity />,
+  shield: <FaShieldAlt />,
+  clipboard: <FaClipboardList />,
+  scale: <FaBalanceScale />,
+  teacher: <FaChalkboardTeacher />
+};
 
 const tagDetails = {
   'Hot': { color: '#B4232F', icon: <FaFire /> },
@@ -82,18 +49,107 @@ export default function ExamSectionPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Derive a primitive number — reliable useEffect comparison
+  const [categories, setCategories] = useState(defaultCategories);
+  const [bannerConfig, setBannerConfig] = useState({
+    bannerEyebrow: 'Exam Section',
+    bannerHeading: 'Browse All Competitive Exams',
+    bannerSubtitle: 'Find your target exam category and get structured preparation resources — tests, PDFs & live classes.',
+    bannerStats: [
+      { n: '50+', label: 'Exams Covered' },
+      { n: '6', label: 'Categories' },
+      { n: '10K+', label: 'Students' }
+    ]
+  });
+
   const rawCat = parseInt(searchParams.get('cat') ?? '', 10);
-  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), examCategories.length - 1);
+  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), categories.length - 1);
 
   const [active, setActive] = useState(urlCat);
 
-  // Re-sync when ?cat= param changes
   useEffect(() => {
     setActive(urlCat);
   }, [urlCat]);
 
-  const cat = examCategories[active];
+  // Fetch dynamic banner config
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/odisha-exams/config`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setBannerConfig({
+          bannerEyebrow: json.data.bannerEyebrow || 'Exam Section',
+          bannerHeading: json.data.bannerHeading || 'Browse All Competitive Exams',
+          bannerSubtitle: json.data.bannerSubtitle || 'Find your target exam category and get structured preparation resources — tests, PDFs & live classes.',
+          bannerStats: json.data.bannerStats?.length ? json.data.bannerStats : [
+            { n: '50+', label: 'Exams Covered' },
+            { n: '6', label: 'Categories' },
+            { n: '10K+', label: 'Students' }
+          ]
+        });
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  // Fetch dynamic exam tree & tests ONLY from Manage MockTest
+  const fetchExamTree = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/mocktests/public/tree`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        const mapped = json.data.map(cat => {
+          // Extract ONLY real tests created in Admin Panel Manage MockTest
+          const testItems = (cat.tests || []).map((t, idx) => ({
+            id: t._id,
+            name: t.title || t.name,
+            sub: `${t.type === 'full_length' ? 'Full Length (100 Marks)' : 'Sectional Test'} • ${t.qs || 100} Qs • ${t.mins || 60} Mins`,
+            tag: idx % 4 === 0 ? 'Hot' : (idx % 4 === 1 ? 'Popular' : (idx % 4 === 2 ? 'Demand' : 'New'))
+          }));
+
+          return {
+            _id: cat._id,
+            icon: iconMap[cat.icon] || <FaLandmark />,
+            label: cat.name,
+            color: cat.color || '#7C3AED',
+            bg: cat.bg || '#F3ECFE',
+            exams: testItems
+          };
+        });
+
+        setCategories(mapped);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    fetchConfig();
+    fetchExamTree();
+
+    const socket = getSocket();
+    const handleUpdate = () => {
+      fetchConfig();
+      fetchExamTree();
+    };
+
+    socket.on('exams_updated', handleUpdate);
+    socket.on('mocktests_updated', handleUpdate);
+
+    const timer = setInterval(handleUpdate, 5000);
+
+    window.addEventListener('examsection-updated', handleUpdate);
+    window.addEventListener('mocktests-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      clearInterval(timer);
+      socket.off('exams_updated', handleUpdate);
+      socket.off('mocktests_updated', handleUpdate);
+      window.removeEventListener('examsection-updated', handleUpdate);
+      window.removeEventListener('mocktests-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [fetchConfig, fetchExamTree]);
+
+  const cat = categories[active] || categories[0] || defaultCategories[0];
 
   return (
     <div style={{ minHeight: '80vh', background: 'var(--bg)' }}>
@@ -102,19 +158,19 @@ export default function ExamSectionPage() {
         <div className="wrap">
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
-              <div className="eyebrow" style={{ color: '#FDE68A' }}>Exam Section</div>
+              <div className="eyebrow" style={{ color: '#FDE68A' }}>{bannerConfig.bannerEyebrow}</div>
               <h1 style={{ fontFamily: 'var(--disp)', fontSize: 'clamp(20px,2.8vw,30px)', color: '#fff', margin: '6px 0 8px' }}>
-                Browse All Competitive Exams
+                {bannerConfig.bannerHeading}
               </h1>
               <p style={{ color: '#94A3B8', fontSize: 13.5, maxWidth: '52ch', lineHeight: 1.6, margin: 0 }}>
-                Find your target exam category and get structured preparation resources — tests, PDFs &amp; live classes.
+                {bannerConfig.bannerSubtitle}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
-              {[{ n: '50+', l: 'Exams Covered' }, { n: '6', l: 'Categories' }, { n: '10K+', l: 'Students' }].map((s, i) => (
+              {bannerConfig.bannerStats?.map((s, i) => (
                 <div key={i} style={{ textAlign: 'center', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 16px', minWidth: 72 }}>
                   <div style={{ fontFamily: 'var(--disp)', fontSize: 20, fontWeight: 900, color: '#FFC93C', lineHeight: 1 }}>{s.n}</div>
-                  <div style={{ fontSize: 10.5, color: '#CBD5E1', marginTop: 4, letterSpacing: 0.4 }}>{s.l}</div>
+                  <div style={{ fontSize: 10.5, color: '#CBD5E1', marginTop: 4, letterSpacing: 0.4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -125,16 +181,16 @@ export default function ExamSectionPage() {
       <div className="wrap" style={{ paddingTop: 36, paddingBottom: 48 }}>
         {/* Category Pills */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 32 }}>
-          {examCategories.map((catItem, i) => (
+          {categories.map((catItem, i) => (
             <button
               key={i}
               onClick={() => setActive(i)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
                 padding: '9px 18px', borderRadius: 30, border: '2px solid',
-                borderColor: active === i ? examCategories[i].color : 'var(--line)',
-                background: active === i ? examCategories[i].bg : 'var(--card)',
-                color: active === i ? examCategories[i].color : 'var(--text)',
+                borderColor: active === i ? catItem.color : 'var(--line)',
+                background: active === i ? catItem.bg : 'var(--card)',
+                color: active === i ? catItem.color : 'var(--text)',
                 fontWeight: 700, fontSize: 13, cursor: 'pointer',
                 transition: 'all .18s',
               }}
@@ -157,48 +213,55 @@ export default function ExamSectionPage() {
             }}>{cat.icon}</div>
             <div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{cat.label}</h2>
-              <span style={{ fontSize: 13, color: 'var(--muted)' }}>{cat.exams.length} exams available</span>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>{cat.exams.length} tests available</span>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-            {cat.exams.map((exam, j) => {
-              const tagInfo = tagDetails[exam.tag] || { color: '#1957D6', icon: null };
-              return (
-                <div
-                  key={j}
-                  onClick={() => navigate('/subject-test')}
-                  style={{
-                    background: 'var(--bg)', border: '1px solid var(--line)',
-                    borderRadius: 12, padding: '18px 20px',
-                    transition: 'all .18s', cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--sh-2)'; e.currentTarget.style.borderColor = cat.color + '55'; }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = 'var(--line)'; }}
-                >
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 700, color: tagInfo.color,
-                    background: tagInfo.color + '18',
-                    padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8
-                  }}>
-                    {tagInfo.icon} {exam.tag}
-                  </span>
-                  <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: cat.color }}>{exam.name}</h3>
-                  <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--muted)' }}>{exam.sub}</p>
-                  <Link
-                    to="/subject-test"
-                    onClick={(e) => { e.stopPropagation(); }}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            {!cat.exams || cat.exams.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', padding: 32, textAlign: 'center', color: 'var(--muted)', background: 'var(--bg)', borderRadius: 12, border: '1px dashed var(--line)' }}>
+                No mock tests available under <strong>{cat.label}</strong> yet. Tests created in Admin Panel → Manage MockTest will appear here.
+              </div>
+            ) : (
+              cat.exams.map((exam, j) => {
+                const tagInfo = tagDetails[exam.tag] || { color: '#1957D6', icon: null };
+                const navTarget = `/mock-test?catId=${cat._id || ''}&cat=${active}`;
+                return (
+                  <div
+                    key={j}
+                    onClick={() => navigate(navTarget)}
                     style={{
-                      display: 'inline-block', fontSize: 12, fontWeight: 700,
-                      color: '#fff', background: cat.color,
-                      padding: '6px 14px', borderRadius: 8, textDecoration: 'none'
+                      background: 'var(--bg)', border: '1px solid var(--line)',
+                      borderRadius: 12, padding: '18px 20px',
+                      transition: 'all .18s', cursor: 'pointer',
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--sh-2)'; e.currentTarget.style.borderColor = cat.color + '55'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = 'var(--line)'; }}
                   >
-                    Explore Exam →
-                  </Link>
-                </div>
-              );
-            })}
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 700, color: tagInfo.color,
+                      background: tagInfo.color + '18',
+                      padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8
+                    }}>
+                      {tagInfo.icon} {exam.tag}
+                    </span>
+                    <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: cat.color }}>{exam.name}</h3>
+                    <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--muted)' }}>{exam.sub}</p>
+                    <Link
+                      to={navTarget}
+                      onClick={(e) => { e.stopPropagation(); }}
+                      style={{
+                        display: 'inline-block', fontSize: 12, fontWeight: 700,
+                        color: '#fff', background: cat.color,
+                        padding: '6px 14px', borderRadius: 8, textDecoration: 'none'
+                      }}
+                    >
+                      Explore Exam →
+                    </Link>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

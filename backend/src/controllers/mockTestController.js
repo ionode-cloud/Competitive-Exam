@@ -2,6 +2,7 @@ const MockTest = require('../models/MockTest');
 const Question = require('../models/Question');
 const Examination = require('../models/Examination');
 const { paginate, paginateResponse } = require('../utils/pagination');
+const { emitEvent } = require('../utils/socket');
 
 // @desc    Get all mock tests
 // @route   GET /api/mocktests
@@ -71,6 +72,7 @@ exports.createMockTest = async (req, res, next) => {
 
     // Increment exam mock test count
     await Examination.findByIdAndUpdate(mt.examination, { $inc: { mockTestsCount: 1 } });
+    emitEvent('mocktests_updated', { action: 'create', data: mt });
 
     res.status(201).json({ success: true, data: mt });
   } catch (err) {
@@ -87,6 +89,8 @@ exports.updateMockTest = async (req, res, next) => {
     }).populate('examination', 'name');
 
     if (!mt) return res.status(404).json({ success: false, message: 'Mock test not found' });
+    emitEvent('mocktests_updated', { action: 'update', data: mt });
+
     res.json({ success: true, data: mt });
   } catch (err) {
     next(err);
@@ -102,6 +106,7 @@ exports.deleteMockTest = async (req, res, next) => {
 
     await Examination.findByIdAndUpdate(mt.examination, { $inc: { mockTestsCount: -1 } });
     await mt.deleteOne();
+    emitEvent('mocktests_updated', { action: 'delete', id: req.params.id });
 
     res.json({ success: true, message: 'Mock test deleted' });
   } catch (err) {

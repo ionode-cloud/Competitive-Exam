@@ -1,7 +1,26 @@
-const OdishaExam = require('../models/OdishaExam');
-const Examination = require('../models/Examination');
-const MockTest = require('../models/MockTest');
-const { paginate, paginateResponse } = require('../utils/pagination');
+const OdishaExamConfig = require('../models/OdishaExamConfig');
+
+exports.getConfig = async (req, res, next) => {
+  try {
+    let cfg = await OdishaExamConfig.findOne();
+    if (!cfg) cfg = await OdishaExamConfig.create({});
+    res.json({ success: true, data: cfg });
+  } catch (err) { next(err); }
+};
+
+exports.updateConfig = async (req, res, next) => {
+  try {
+    let cfg = await OdishaExamConfig.findOne();
+    if (!cfg) cfg = new OdishaExamConfig();
+    const { bannerEyebrow, bannerHeading, bannerSubtitle, bannerStats } = req.body;
+    if (bannerEyebrow !== undefined) cfg.bannerEyebrow = bannerEyebrow;
+    if (bannerHeading !== undefined) cfg.bannerHeading = bannerHeading;
+    if (bannerSubtitle !== undefined) cfg.bannerSubtitle = bannerSubtitle;
+    if (Array.isArray(bannerStats)) cfg.bannerStats = bannerStats;
+    await cfg.save();
+    res.json({ success: true, data: cfg, message: 'Banner settings saved successfully' });
+  } catch (err) { next(err); }
+};
 
 exports.getOdishaExams = async (req, res, next) => {
   try {

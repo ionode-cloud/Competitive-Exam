@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+// SubjectTestExamPage.jsx — CBT Exam Interface & Submit Confirmation Modal
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaClock, FaInfoCircle, FaCheck, FaTimes, FaBookmark, FaChevronLeft, FaChevronRight, FaUserAlt } from 'react-icons/fa';
+import { FaClock, FaInfoCircle, FaBookmark, FaUserAlt, FaTimes } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -73,10 +74,14 @@ export default function SubjectTestExamPage() {
     return () => clearInterval(timer);
   }, [remainingSec, attemptData]);
 
-  // Format seconds -> MM:SS
+  // Format seconds -> HH:MM:SS or MM:SS
   const formatTimer = (sec) => {
-    const m = Math.floor(sec / 60);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
     const s = sec % 60;
+    if (h > 0) {
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -122,7 +127,6 @@ export default function SubjectTestExamPage() {
     setQuestionStates(prev => ({ ...prev, [qId]: newState }));
     saveAnswerToBackend(qId, currentOpt || null, newState);
 
-    // Auto-advance to next question
     if (currentIdx < attemptData.questions.length - 1) {
       setCurrentIdx(currentIdx + 1);
     }
@@ -148,27 +152,28 @@ export default function SubjectTestExamPage() {
     const qId = q._id;
     const currentOpt = answers[qId];
 
-    let currentState = questionStates[qId];
-    if (!currentState || currentState === 'NOT_VISITED') {
-      currentState = currentOpt ? 'ANSWERED' : 'NOT_ANSWERED';
-      setQuestionStates(prev => ({ ...prev, [qId]: currentState }));
-      saveAnswerToBackend(qId, currentOpt || null, currentState);
+    if (!questionStates[qId] || questionStates[qId] === 'NOT_VISITED') {
+      const newState = currentOpt ? 'ANSWERED' : 'NOT_ANSWERED';
+      setQuestionStates(prev => ({ ...prev, [qId]: newState }));
+      saveAnswerToBackend(qId, currentOpt || null, newState);
     }
 
     if (currentIdx < attemptData.questions.length - 1) {
       setCurrentIdx(currentIdx + 1);
-    } else {
-      setShowSubmitModal(true);
     }
   };
 
   const handleFinalSubmit = async () => {
+    if (submitting) return;
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subject-tests/attempts/${attemptId}/submit`, {
         method: 'POST',
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
       }).then(r => r.json());
 
       if (res.success) {
@@ -187,7 +192,7 @@ export default function SubjectTestExamPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff' }}>
         <div style={{ textAlign: 'center' }}>
-          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}></div>
+          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}></div>
           <p style={{ fontSize: 14, fontWeight: 700 }}>Connecting to CBT Exam Server…</p>
         </div>
       </div>
@@ -200,15 +205,19 @@ export default function SubjectTestExamPage() {
   // Calculate palette status stats
   let answeredCnt = 0;
   let notAnsweredCnt = 0;
-  let markedCnt = 0;
+  let markedOnlyCnt = 0;
+  let answeredMarkedCnt = 0;
   let notVisitedCnt = 0;
 
   Object.values(questionStates).forEach(st => {
     if (st === 'ANSWERED') answeredCnt++;
     else if (st === 'NOT_ANSWERED') notAnsweredCnt++;
-    else if (st === 'MARKED' || st === 'ANSWERED_MARKED') markedCnt++;
+    else if (st === 'MARKED') markedOnlyCnt++;
+    else if (st === 'ANSWERED_MARKED') answeredMarkedCnt++;
     else notVisitedCnt++;
   });
+
+  const markedTotalCnt = markedOnlyCnt + answeredMarkedCnt;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
@@ -222,9 +231,8 @@ export default function SubjectTestExamPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          {/* Timer */}
           <div style={{ background: remainingSec < 300 ? '#7f1d1d' : '#0f172a', color: remainingSec < 300 ? '#fca5a5' : '#38bdf8', padding: '6px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 16 }}>
-            <FaClock /> {formatTimer(remainingSec)}
+            <FaClock /> Time Left: {formatTimer(remainingSec)}
           </div>
           <button onClick={() => setShowInstructionsModal(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
             <FaInfoCircle /> View Instructions
@@ -241,7 +249,7 @@ export default function SubjectTestExamPage() {
           {/* Question Top Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 18px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16, fontWeight: 900, color: '#1e293b' }}>Question {currentIdx + 1}</span>
+              <span style={{ fontSize: 16, fontWeight: 900, color: '#1e293b' }}>Q: {currentIdx + 1} / {totalQs}</span>
               <span style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 6 }}>Language: {attemptData.selectedLanguage.toUpperCase()}</span>
             </div>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#0F9D58' }}>
@@ -261,11 +269,12 @@ export default function SubjectTestExamPage() {
 
             {/* Option Cards */}
             <div style={{ display: 'grid', gap: 12 }}>
-              {currentQ.options?.map(opt => {
+              {currentQ.options?.map((opt, oIdx) => {
                 const isSelected = answers[currentQ._id] === opt.id;
+                const optionLetter = String.fromCharCode(65 + oIdx);
                 return (
                   <div
-                    key={opt.id}
+                    key={opt.id || oIdx}
                     onClick={() => handleSelectOption(opt.id)}
                     style={{
                       border: `2px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
@@ -275,8 +284,8 @@ export default function SubjectTestExamPage() {
                       boxShadow: isSelected ? '0 4px 12px rgba(37,99,235,0.12)' : 'none'
                     }}
                   >
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', border: `2px solid ${isSelected ? '#2563eb' : '#94a3b8'}`, background: isSelected ? '#2563eb' : '#fff', color: isSelected ? '#fff' : '#475569', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {opt.id}
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', border: `2px solid ${isSelected ? '#2563eb' : '#94a3b8'}`, background: isSelected ? '#2563eb' : '#fff', color: isSelected ? '#fff' : '#475569', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {optionLetter}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: isSelected ? 800 : 500, color: isSelected ? '#1e293b' : '#334155' }}>
                       {opt.text}
@@ -334,7 +343,7 @@ export default function SubjectTestExamPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16, fontSize: 11, fontWeight: 700 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 4, background: '#0F9D58' }}></span> Answered ({answeredCnt})</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 4, background: '#DC2626' }}></span> Not Answered ({notAnsweredCnt})</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 4, background: '#7C3AED' }}></span> Marked ({markedCnt})</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 4, background: '#7C3AED' }}></span> Marked ({markedTotalCnt})</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: 4, background: '#E2E8F0', border: '1px solid #cbd5e1' }}></span> Not Visited ({notVisitedCnt})</div>
           </div>
 
@@ -374,26 +383,112 @@ export default function SubjectTestExamPage() {
         </div>
       </div>
 
-      {/* ── Submit Confirmation Modal ── */}
+      {/* ── Submit Confirmation Popup Modal (Exact Spec from Screenshot) ── */}
       {showSubmitModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 440, padding: 24, textAlign: 'center' }}>
-            <div style={{ fontSize: 44, marginBottom: 10 }}>📝</div>
-            <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Submit Examination?</h3>
-            <p style={{ color: '#64748b', fontSize: 13.5, margin: '0 0 20px' }}>Are you sure you want to finish and submit your test?</p>
-
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, textAlign: 'left', fontSize: 13 }}>
-              <div>Total Questions: <strong>{totalQs}</strong></div>
-              <div>Answered: <strong style={{ color: '#0F9D58' }}>{answeredCnt}</strong></div>
-              <div>Not Answered: <strong style={{ color: '#DC2626' }}>{notAnsweredCnt}</strong></div>
-              <div>Marked for Review: <strong style={{ color: '#7C3AED' }}>{markedCnt}</strong></div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+            
+            {/* Modal Blue Bar Header */}
+            <div style={{ background: '#1e1b4b', color: '#fff', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5 }}>Test Summary</h3>
+              <button onClick={() => setShowSubmitModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18 }}>
+                <FaTimes />
+              </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowSubmitModal(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 700 }}>Resume Exam</button>
-              <button onClick={handleFinalSubmit} disabled={submitting} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: '#0F9D58', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>
-                {submitting ? 'Submitting…' : 'Confirm & Submit →'}
-              </button>
+            <div style={{ padding: 20 }}>
+              {/* Top Summary Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#16a34a' }}>{answeredCnt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', marginTop: 2 }}>Answered</div>
+                </div>
+                <div style={{ background: '#f3ecfe', border: '1px solid #ddd6fe', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#7c3aed' }}>{answeredMarkedCnt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#6d28d9', marginTop: 2 }}>Answered &amp; Marked</div>
+                </div>
+                <div style={{ background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#ea580c' }}>{notAnsweredCnt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', marginTop: 2 }}>Not Answered</div>
+                </div>
+                <div style={{ background: '#faf5ff', border: '1px solid #f3e8ff', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#9333ea' }}>{markedOnlyCnt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#7e22ce', marginTop: 2 }}>Marked Review</div>
+                </div>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#64748b' }}>{notVisitedCnt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#475569', marginTop: 2 }}>Not Visited</div>
+                </div>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#2563eb' }}>{formatTimer(remainingSec)}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', marginTop: 2 }}>Time Remaining</div>
+                </div>
+              </div>
+
+              {/* Section-Wise Summary Table */}
+              <div style={{ overflowX: 'auto', marginBottom: 20 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'center' }}>
+                  <thead>
+                    <tr style={{ background: '#1e1b4b', color: '#fff', fontSize: 11 }}>
+                      <th style={{ padding: '8px' }}>SL.No</th>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Section Name</th>
+                      <th style={{ padding: '8px' }}>Total Questions</th>
+                      <th style={{ padding: '8px' }}>Answered</th>
+                      <th style={{ padding: '8px' }}>Answered &amp; Review</th>
+                      <th style={{ padding: '8px' }}>Not Answered</th>
+                      <th style={{ padding: '8px' }}>Marked Review</th>
+                      <th style={{ padding: '8px' }}>Not Visited</th>
+                      <th style={{ padding: '8px' }}>Effective Attempts</th>
+                      <th style={{ padding: '8px' }}>Time Taken</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: 700 }}>1</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 800 }}>General Section</td>
+                      <td style={{ padding: '10px 8px' }}>{totalQs}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 700, color: '#16a34a' }}>{answeredCnt}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 700, color: '#7c3aed' }}>{answeredMarkedCnt}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 700, color: '#ea580c' }}>{notAnsweredCnt}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 700, color: '#9333ea' }}>{markedOnlyCnt}</td>
+                      <td style={{ padding: '10px 8px' }}>{notVisitedCnt}</td>
+                      <td style={{ padding: '10px 8px', fontWeight: 800 }}>{answeredCnt + answeredMarkedCnt}</td>
+                      <td style={{ padding: '10px 8px' }}>{formatTimer((attemptData.durationMins * 60) - remainingSec)}</td>
+                    </tr>
+                    {/* Total Row */}
+                    <tr style={{ background: '#f8fafc', fontWeight: 900, borderTop: '2px solid #cbd5e1' }}>
+                      <td colSpan="2" style={{ padding: '10px 8px', textAlign: 'left' }}>Total</td>
+                      <td style={{ padding: '10px 8px' }}>{totalQs}</td>
+                      <td style={{ padding: '10px 8px', color: '#16a34a' }}>{answeredCnt}</td>
+                      <td style={{ padding: '10px 8px', color: '#7c3aed' }}>{answeredMarkedCnt}</td>
+                      <td style={{ padding: '10px 8px', color: '#ea580c' }}>{notAnsweredCnt}</td>
+                      <td style={{ padding: '10px 8px', color: '#9333ea' }}>{markedOnlyCnt}</td>
+                      <td style={{ padding: '10px 8px' }}>{notVisitedCnt}</td>
+                      <td style={{ padding: '10px 8px' }}>{answeredCnt + answeredMarkedCnt}</td>
+                      <td style={{ padding: '10px 8px' }}>{formatTimer((attemptData.durationMins * 60) - remainingSec)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Bottom Footer Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, paddingTop: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Do you want to submit?</span>
+                <button
+                  onClick={() => setShowSubmitModal(false)}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFinalSubmit}
+                  disabled={submitting}
+                  style={{ padding: '8px 26px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 900, fontSize: 14, cursor: 'pointer' }}
+                >
+                  {submitting ? 'Submitting…' : 'Submit'}
+                </button>
+              </div>
+
             </div>
           </div>
         </div>

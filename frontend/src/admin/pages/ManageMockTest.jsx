@@ -11,6 +11,8 @@ import {
   RiStackLine
 } from 'react-icons/ri';
 
+import { getSocket } from '../../utils/socket';
+
 export default function ManageMockTest() {
   // Top View Mode: 'tests' or 'categories'
   const [viewMode, setViewMode] = useState('tests');
@@ -159,6 +161,17 @@ export default function ManageMockTest() {
 
   useEffect(() => {
     fetchAllData();
+
+    const socket = getSocket();
+    const handleUpdate = () => fetchAllData();
+
+    socket.on('mocktests_updated', handleUpdate);
+    socket.on('exams_updated', handleUpdate);
+
+    return () => {
+      socket.off('mocktests_updated', handleUpdate);
+      socket.off('exams_updated', handleUpdate);
+    };
   }, [fetchAllData]);
 
   // Load test details for question mapping
@@ -242,12 +255,13 @@ export default function ManageMockTest() {
 
   const saveExam = async () => {
     if (!examForm.name.trim()) return Swal.fire('Error', 'Exam Category name is required', 'error');
+    const { _id, __v, createdAt, updatedAt, ...cleanPayload } = examForm;
     try {
       if (editingExam) {
-        await api.put(`/exams/${editingExam._id}`, examForm);
+        await api.put(`/exams/${editingExam._id}`, cleanPayload);
         Swal.fire('Success', 'Exam Category updated successfully', 'success');
       } else {
-        await api.post('/exams', examForm);
+        await api.post('/exams', cleanPayload);
         Swal.fire('Success', 'Exam Category created successfully', 'success');
       }
       setExamModal(false);
@@ -815,16 +829,7 @@ export default function ManageMockTest() {
                         </td>
                         <td style={{ padding: '12px' }}>
                           <div style={{ fontWeight: 800, color: '#0f172a' }}>{ex.name}</div>
-                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{ex.description || 'Mock Test Category'}</div>
-                          {Array.isArray(ex.topics) && ex.topics.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                              {ex.topics.map((tName, tIdx) => (
-                                <span key={tIdx} style={{ fontSize: 10, fontWeight: 700, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: 10 }}>
-                                  {tName}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{ex.description || 'Mock Test Category'}</div>
                         </td>
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1039,41 +1044,6 @@ export default function ManageMockTest() {
                   onChange={e => setExamForm(f => ({ ...f, price: Number(e.target.value) }))}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
                 />
-              </div>
-            </div>
-
-            {/* Exam Topic Sections Manager */}
-            <div style={{ marginBottom: 16, background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <label style={{ fontSize: 12, fontWeight: 800, color: '#1e293b', display: 'block', marginBottom: 6 }}>
-                Topic Sections <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}>(Managed sections under this category)</span>
-              </label>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                <input
-                  value={topicInput}
-                  onChange={e => setTopicInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTopicToExamForm(); } }}
-                  placeholder="e.g. OPSC OAS, OSSSC RI, OSSC CGL..."
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
-                />
-                <button
-                  type="button"
-                  onClick={addTopicToExamForm}
-                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
-                >
-                  + Add Section
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 100, overflowY: 'auto' }}>
-                {examForm.topics?.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>No topic sections added yet.</span>
-                ) : (
-                  examForm.topics?.map((topName, tIdx) => (
-                    <span key={tIdx} style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '3px 10px', borderRadius: 14, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {topName}
-                      <button type="button" onClick={() => removeTopicFromExamForm(topName)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 900 }}>×</button>
-                    </span>
-                  ))
-                )}
               </div>
             </div>
 

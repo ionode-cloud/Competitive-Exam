@@ -203,20 +203,47 @@ exports.getPublicSubjectTree = async (req, res, next) => {
 /* ── Test Instructions Loader ──────────────────────────────────────────────── */
 exports.getTestInstructions = async (req, res, next) => {
   try {
-    const test = await SubjectTest.findById(req.params.testId)
+    const { testId } = req.params;
+    let test = await SubjectTest.findById(testId)
       .populate('subjectId', 'name color icon')
       .populate('topicId', 'name');
 
+    if (!test) {
+      const MockTest = require('../models/MockTest');
+      const mockTest = await MockTest.findById(testId).populate('examination', 'name').populate('subject', 'name');
+      if (mockTest) {
+        const isFull = mockTest.testType === 'full_length' || (mockTest.totalMarks && mockTest.totalMarks >= 100);
+        test = {
+          _id: mockTest._id,
+          title: mockTest.name || mockTest.title,
+          description: mockTest.description,
+          subjectId: { name: mockTest.subject?.name || mockTest.examination?.name || 'Mock Test' },
+          topicId: { name: mockTest.topicName || (isFull ? 'Full Length Test' : 'Sectional Test') },
+          totalQuestions: mockTest.questions?.length || mockTest.totalQuestions || (isFull ? 100 : 50),
+          totalMarks: mockTest.totalMarks || (isFull ? 100 : 50),
+          duration: mockTest.duration || (isFull ? 120 : 60),
+          positiveMarks: mockTest.positiveMarks || 1,
+          negativeMarks: mockTest.negativeMarks || 0.25,
+          accessType: mockTest.accessType || (mockTest.price > 0 ? 'Premium' : 'Free'),
+          availableLanguages: ['English', 'Odia'],
+          allowLanguageChange: true,
+          isMockTest: true
+        };
+      }
+    }
+
     if (!test) return res.status(404).json({ success: false, message: 'Test not found' });
 
-    await ensureTestQuestions(test);
+    if (!test.isMockTest) {
+      await ensureTestQuestions(test);
+    }
 
     let instruction = await SubjectTestInstruction.findOne({ testId: test._id });
     if (!instruction) {
       instruction = {
         title: test.title,
-        summary: test.description || 'Subject Practice Test',
-        sections: [{ name: test.subjectId?.name || 'Subject Test', questions: test.totalQuestions, marks: test.totalMarks, duration: test.duration, negativeMarking: test.negativeMarks }],
+        summary: test.description || 'Competitive Exam Mock Test',
+        sections: [{ name: test.subjectId?.name || 'General Paper', questions: test.totalQuestions, marks: test.totalMarks, duration: test.duration, negativeMarking: test.negativeMarks }],
         instructions: [
           `You have ${test.duration} minutes to complete the test.`,
           `The test contains ${test.totalQuestions} questions.`,
@@ -243,8 +270,8 @@ exports.getTestInstructions = async (req, res, next) => {
           positiveMarks: test.positiveMarks,
           negativeMarks: test.negativeMarks,
           accessType: test.accessType,
-          availableLanguages: test.availableLanguages,
-          allowLanguageChange: test.allowLanguageChange,
+          availableLanguages: test.availableLanguages || ['English', 'Odia'],
+          allowLanguageChange: test.allowLanguageChange !== false,
         },
         instruction
       }
@@ -259,7 +286,30 @@ exports.startExamAttempt = async (req, res, next) => {
     const { selectedLanguage = 'en', isPreview = false } = req.body;
     const userId = req.user._id;
 
-    const test = await SubjectTest.findById(testId);
+    let test = await SubjectTest.findById(testId);
+    let isMockTest = false;
+
+    if (!test) {
+      const MockTest = require('../models/MockTest');
+      const mockTest = await MockTest.findById(testId);
+      if (mockTest) {
+        const isFull = mockTest.testType === 'full_length' || (mockTest.totalMarks && mockTest.totalMarks >= 100);
+        test = {
+          _id: mockTest._id,
+          title: mockTest.name || mockTest.title,
+          status: 'published',
+          duration: mockTest.duration || (isFull ? 120 : 60),
+          positiveMarks: mockTest.positiveMarks || 1,
+          negativeMarks: mockTest.negativeMarks || 0.25,
+          accessType: mockTest.accessType || (mockTest.price > 0 ? 'Premium' : 'Free'),
+          randomizeQuestions: mockTest.randomizeQuestions || false,
+          isMockTest: true,
+          mockTestObj: mockTest
+        };
+        isMockTest = true;
+      }
+    }
+
     if (!test) return res.status(404).json({ success: false, message: 'Test not found' });
     if (test.status !== 'published' && !isPreview) {
       return res.status(400).json({ success: false, message: 'This test is currently not published' });
@@ -281,8 +331,8 @@ exports.startExamAttempt = async (req, res, next) => {
       }
     }
 
-    // 2. Category-Based Access Gate (if not preview)
-    if (!isPreview) {
+    // 2. Category-Based Access Gate (if not preview and not MockTest)
+    if (!isPreview && !isMockTest) {
       const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
 
       // Resolve the category for this test
@@ -330,45 +380,54 @@ exports.startExamAttempt = async (req, res, next) => {
       }
     }
 
-    // 2. Fetch mapped questions — always search both collections (questionModel tag may be wrong on legacy records)
-    const fetchAndPopulateMaps = async (tId) => {
-      const rawMaps = await SubjectTestQuestionMap.find({ testId: tId }).sort('order');
-      if (rawMaps.length === 0) return [];
+    // 3. Resolve questions
+    let questions = [];
 
+    if (isMockTest) {
       const Question = require('../models/Question');
-      const allIds = rawMaps.map(m => m.questionId);
+      const mockObj = test.mockTestObj;
+      if (mockObj.questions && mockObj.questions.length > 0) {
+        questions = await Question.find({ _id: { $in: mockObj.questions } });
+      }
+      if (questions.length === 0 && mockObj.subject) {
+        questions = await Question.find({ subject: mockObj.subject }).limit(50);
+      }
+      if (questions.length === 0) {
+        questions = await Question.find({ status: { $ne: 'archived' } }).limit(50);
+      }
+    } else {
+      const fetchAndPopulateMaps = async (tId) => {
+        const rawMaps = await SubjectTestQuestionMap.find({ testId: tId }).sort('order');
+        if (rawMaps.length === 0) return [];
 
-      // Search BOTH collections for every ID — whichever has the doc wins
-      const [bankDocs, stDocs] = await Promise.all([
-        Question.find({ _id: { $in: allIds } }),
-        SubjectTestQuestion.find({ _id: { $in: allIds } })
-      ]);
+        const Question = require('../models/Question');
+        const allIds = rawMaps.map(m => m.questionId);
 
-      const docMap = new Map();
-      // SubjectTestQuestion first (lower priority), then Question overwrites if found in both
-      [...stDocs, ...bankDocs].forEach(d => docMap.set(d._id.toString(), d));
+        const [bankDocs, stDocs] = await Promise.all([
+          Question.find({ _id: { $in: allIds } }),
+          SubjectTestQuestion.find({ _id: { $in: allIds } })
+        ]);
 
-      return rawMaps.map(m => ({
-        ...m.toObject(),
-        questionId: docMap.get(m.questionId.toString()) || null
-      }));
-    };
+        const docMap = new Map();
+        [...stDocs, ...bankDocs].forEach(d => docMap.set(d._id.toString(), d));
 
-    let maps = await fetchAndPopulateMaps(testId);
+        return rawMaps.map(m => ({
+          ...m.toObject(),
+          questionId: docMap.get(m.questionId.toString()) || null
+        }));
+      };
 
-    if (maps.length === 0) {
-      await ensureTestQuestions(test);
-      maps = await fetchAndPopulateMaps(testId);
+      let maps = await fetchAndPopulateMaps(testId);
+      if (maps.length === 0) {
+        await ensureTestQuestions(test);
+        maps = await fetchAndPopulateMaps(testId);
+      }
+      maps = maps.filter(m => m.questionId != null);
+      if (maps.length === 0) {
+        return res.status(400).json({ success: false, message: 'This test has no questions assigned yet' });
+      }
+      questions = maps.map(m => m.questionId);
     }
-
-    // Filter out maps where questionId was deleted (null)
-    maps = maps.filter(m => m.questionId != null);
-
-    if (maps.length === 0) {
-      return res.status(400).json({ success: false, message: 'This test has no questions assigned yet' });
-    }
-
-    let questions = maps.map(m => m.questionId);
 
     // Randomize questions if test setting enabled
     if (test.randomizeQuestions) {
@@ -462,20 +521,34 @@ exports.getExamAttempt = async (req, res, next) => {
       return exports.submitAttemptInternal(attempt, res);
     }
 
-    const test = await SubjectTest.findById(attempt.testId);
+    let test = await SubjectTest.findById(attempt.testId);
+    if (!test) {
+      const MockTest = require('../models/MockTest');
+      const mockTest = await MockTest.findById(attempt.testId);
+      if (mockTest) {
+        test = {
+          _id: mockTest._id,
+          title: mockTest.name || mockTest.title,
+          positiveMarks: mockTest.positiveMarks || 1,
+          negativeMarks: mockTest.negativeMarks || 0.25,
+          isMockTest: true
+        };
+      }
+    }
 
-    // Fetch questions — always search both collections (questionModel tag unreliable on legacy records)
     const Question = require('../models/Question');
-    const rawMaps = await SubjectTestQuestionMap.find({ testId: attempt.testId }).sort('order');
-    const allIds = rawMaps.map(m => m.questionId);
+    const qOrderIds = (attempt.questionOrder || []).map(id => String(id));
     const [bankDocs, stDocs] = await Promise.all([
-      Question.find({ _id: { $in: allIds } }),
-      SubjectTestQuestion.find({ _id: { $in: allIds } })
+      Question.find({ _id: { $in: qOrderIds } }),
+      SubjectTestQuestion.find({ _id: { $in: qOrderIds } })
     ]);
     const docMapG = new Map();
     [...stDocs, ...bankDocs].forEach(d => docMapG.set(d._id.toString(), d));
-    const maps = rawMaps.map(m => ({ ...m.toObject(), questionId: docMapG.get(m.questionId.toString()) || null }));
 
+    let questionsList = qOrderIds.map(id => docMapG.get(id)).filter(Boolean);
+    if (questionsList.length === 0) {
+      questionsList = await Question.find({ status: { $ne: 'archived' } }).limit(50);
+    }
 
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
@@ -485,28 +558,16 @@ exports.getExamAttempt = async (req, res, next) => {
       });
     };
 
-    // Preserve questionOrder from attempt if available, else use map order
-    const qOrderIds = (attempt.questionOrder || []).map(id => String(id));
-    let orderedMaps = qOrderIds.length > 0
-      ? qOrderIds.map(id => maps.find(m => m.questionId && String(m.questionId._id) === id)).filter(Boolean)
-      : maps;
-    if (orderedMaps.length === 0) orderedMaps = maps;
-
-
-    const examQuestions = orderedMaps.map((m, idx) => {
-      const q = m.questionId;
-      if (!q) return null;
-      return {
-        _id: q._id,
-        index: idx + 1,
-        questionText: q.questionText,
-        questionImage: q.questionImage,
-        questionType: q.questionType || 'single_correct',
-        options: normalizeOptions(q.options),
-        marks: q.defaultMarks || q.marks || test?.positiveMarks || 1,
-        negativeMarks: q.defaultNegativeMarks || q.negativeMarks || test?.negativeMarks || 0.25,
-      };
-    }).filter(Boolean);
+    const examQuestions = questionsList.map((q, idx) => ({
+      _id: q._id,
+      index: idx + 1,
+      questionText: q.questionText,
+      questionImage: q.questionImage,
+      questionType: q.questionType || 'single_correct',
+      options: normalizeOptions(q.options),
+      marks: q.defaultMarks || q.marks || test?.positiveMarks || 1,
+      negativeMarks: q.defaultNegativeMarks || q.negativeMarks || test?.negativeMarks || 0.25,
+    }));
 
     res.json({
       success: true,
@@ -673,54 +734,88 @@ exports.submitExamAttempt = async (req, res, next) => {
 exports.getExamAttemptResult = async (req, res, next) => {
   try {
     const { attemptId } = req.params;
-    const attempt = await SubjectTestAttempt.findById(attemptId)
-      .populate({ path: 'testId', select: 'title positiveMarks negativeMarks resultSettings' })
-      .populate('questionOrder');
-
+    const attempt = await SubjectTestAttempt.findById(attemptId);
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
     if (attempt.userId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Unauthorized access to result' });
     }
 
-    const test = attempt.testId;
-    const resultSettings = test?.resultSettings || {};
-
-    // Prepare Detailed Questions Analysis (if settings allow)
-    let solutions = [];
-    if (resultSettings.showSolutions || req.user.role === 'admin') {
-      solutions = attempt.questionOrder.map((q, idx) => {
-        const qStr = q._id.toString();
-        const userAns = attempt.answers.get(qStr) || null;
-        const isCorrect = userAns === q.correctAnswer;
-        const isSkipped = !userAns;
-
-        return {
-          _id: q._id,
-          index: idx + 1,
-          questionText: q.questionText,
-          questionImage: q.questionImage,
-          options: q.options,
-          userAnswer: userAns,
-          correctAnswer: resultSettings.showCorrectAnswers !== false ? q.correctAnswer : null,
-          explanation: resultSettings.showExplanation !== false ? q.explanation : null,
-          isCorrect,
-          isSkipped,
-          marks: isCorrect ? (q.defaultMarks || test.positiveMarks || 1) : (isSkipped ? 0 : -(q.defaultNegativeMarks || test.negativeMarks || 0.25))
+    let test = await SubjectTest.findById(attempt.testId).select('title positiveMarks negativeMarks');
+    if (!test) {
+      const MockTest = require('../models/MockTest');
+      const mockTest = await MockTest.findById(attempt.testId);
+      if (mockTest) {
+        test = {
+          title: mockTest.name || mockTest.title,
+          positiveMarks: mockTest.positiveMarks || 1,
+          negativeMarks: mockTest.negativeMarks || 0.25
         };
-      });
+      }
     }
+
+    // Fetch questions mapped to questionOrder
+    const Question = require('../models/Question');
+    const qOrderIds = (attempt.questionOrder || []).map(id => String(id));
+    const [bankDocs, stDocs] = await Promise.all([
+      Question.find({ _id: { $in: qOrderIds } }),
+      SubjectTestQuestion.find({ _id: { $in: qOrderIds } })
+    ]);
+    const docMap = new Map();
+    [...stDocs, ...bankDocs].forEach(d => docMap.set(d._id.toString(), d));
+
+    let questionsList = qOrderIds.map(id => docMap.get(id)).filter(Boolean);
+    if (questionsList.length === 0) {
+      questionsList = await Question.find({ status: { $ne: 'archived' } }).limit(50);
+    }
+
+    const normalizeOptions = (rawOpts) => {
+      if (!Array.isArray(rawOpts)) return [];
+      return rawOpts.map(o => {
+        const optId = o.id || o.label || '';
+        return { id: optId, text: o.text || '', image: o.image || '' };
+      });
+    };
+
+    const solutions = questionsList.map((q, idx) => {
+      const qStr = q._id.toString();
+      const userAns = attempt.answers ? attempt.answers.get(qStr) || null : null;
+      const isCorrect = userAns && userAns === q.correctAnswer;
+      const isSkipped = !userAns;
+
+      return {
+        _id: q._id,
+        index: idx + 1,
+        questionText: q.questionText,
+        questionImage: q.questionImage,
+        options: normalizeOptions(q.options),
+        userAnswer: userAns,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation || '',
+        isCorrect,
+        isSkipped,
+        marks: isCorrect ? (q.defaultMarks || test?.positiveMarks || 1) : (isSkipped ? 0 : -(q.defaultNegativeMarks || test?.negativeMarks || 0.25))
+      };
+    });
+
+    const totalQs = attempt.questionOrder?.length || questionsList.length;
+    const totalMaxMarks = totalQs * (test?.positiveMarks || 1);
+
+    const User = require('../models/User');
+    const userDoc = await User.findById(attempt.userId).select('name');
+    const userName = userDoc?.name || req.user?.name || 'Student Candidate';
 
     res.json({
       success: true,
       data: {
-        testTitle: test?.title,
+        testTitle: test?.title || 'Competitive Exam Practice Test',
         attemptId: attempt._id,
+        userName,
         status: attempt.status,
         score: attempt.score,
-        totalMarks: attempt.questionOrder.length * (test?.positiveMarks || 1),
+        totalMarks: totalMaxMarks,
         percentage: attempt.percentage,
         accuracy: attempt.accuracy,
-        totalQuestions: attempt.questionOrder.length,
+        totalQuestions: totalQs,
         attempted: attempt.correctCount + attempt.incorrectCount,
         correctCount: attempt.correctCount,
         incorrectCount: attempt.incorrectCount,

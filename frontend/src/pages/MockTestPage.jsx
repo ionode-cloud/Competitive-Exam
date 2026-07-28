@@ -1,6 +1,6 @@
 // MockTestPage.jsx — Full-Length (100 Marks) & Sectional (< 100 Marks) Mock Tests
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   FaLandmark,
   FaTrain,
@@ -12,7 +12,7 @@ import {
   FaChevronRight,
   FaLayerGroup,
   FaCheckCircle
-} from 'react-icons/fa';
+} from 'react-icons/fa';import { getSocket } from '../utils/socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -48,30 +48,36 @@ export default function MockTestPage() {
               topicsMap.get(topName).push(t);
             });
 
-            const topics = [];
-            topicsMap.forEach((tList, tName) => {
-              topics.push({ name: tName, tests: tList });
-            });
-
-            if (topics.length === 0) {
-              topics.push({ name: `${catItem.category || catItem.name} General`, tests: [] });
-            }
-
-            const iconMap = {
-              landmark: <FaLandmark />,
-              train: <FaTrain />,
-              university: <FaUniversity />,
-              shield: <FaShieldAlt />,
-              clipboard: <FaClipboardList />
-            };
+            const topicEntries = Array.from(topicsMap.entries());
+            const topics = topicEntries.map(([tName, tList], tIdx) => ({
+              id: tIdx + 1,
+              name: tName,
+              testsCount: tList.length,
+              tests: tList.map(item => ({
+                _id: item._id,
+                title: item.name || item.title,
+                subtext: item.subtext || `${item.totalQuestions || 100} Qs • ${item.duration || 120} Mins`,
+                questionsCount: item.totalQuestions || 100,
+                marks: item.totalMarks || 100,
+                durationMins: item.duration || 120,
+                pricingType: item.pricingType || 'Free',
+                positiveMarks: item.positiveMarks || 1,
+                negativeMarks: item.negativeMarks || 0.25,
+                difficulty: item.difficulty || 'Medium',
+                attemptsCount: item.totalAttempts || 0,
+                testType: item.testType || ((item.totalQuestions || 100) >= 100 ? 'full_length' : 'sectional'),
+              }))
+            }));
 
             return {
               _id: catItem._id,
               category: catItem.category || catItem.name,
-              icon: iconMap[catItem.icon] || <FaLandmark />,
-              color: catItem.color || colorList[idx % colorList.length],
-              bg: catItem.bg || bgList[idx % bgList.length],
-              topics: topics
+              icon: <FaLandmark />,
+              color: colorList[idx % colorList.length],
+              bg: bgList[idx % bgList.length],
+              topics: topics.length > 0 ? topics : [
+                { id: 1, name: 'General Mock Tests', testsCount: 0, tests: [] }
+              ]
             };
           });
 
@@ -98,13 +104,32 @@ export default function MockTestPage() {
     };
   }, [fetchLiveMockTests]);
 
-  const rawCat = parseInt(searchParams.get('cat') ?? '', 10);
-  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), Math.max(categoriesList.length - 1, 0));
+  // Handle URL category parameters once on initial load or URL change
+  const [paramHandledKey, setParamHandledKey] = useState('');
 
   useEffect(() => {
-    setActiveCategory(urlCat);
-    setActiveTopic(null);
-  }, [urlCat]);
+    const catIdParam = searchParams.get('catId') || '';
+    const rawCat = searchParams.get('cat') || '';
+    const paramKey = `${catIdParam}-${rawCat}`;
+
+    if (categoriesList.length > 0 && paramKey !== paramHandledKey) {
+      if (catIdParam) {
+        const foundIdx = categoriesList.findIndex(c => (c._id && c._id.toString() === catIdParam.toString()) || c.category === catIdParam);
+        if (foundIdx !== -1) {
+          setActiveCategory(foundIdx);
+          setActiveTopic(null);
+          setParamHandledKey(paramKey);
+          return;
+        }
+      }
+      if (rawCat !== '' && !isNaN(parseInt(rawCat, 10))) {
+        const idx = Math.min(Math.max(parseInt(rawCat, 10), 0), categoriesList.length - 1);
+        setActiveCategory(idx);
+        setActiveTopic(null);
+        setParamHandledKey(paramKey);
+      }
+    }
+  }, [searchParams, categoriesList, paramHandledKey]);
 
   const cat = categoriesList[activeCategory] || categoriesList[0] || {
     category: 'Mock Tests',
@@ -113,6 +138,7 @@ export default function MockTestPage() {
     bg: '#F3ECFE',
     topics: []
   };
+
   const topic = activeTopic !== null && cat.topics ? cat.topics[activeTopic] : null;
 
   const handleCategoryChange = (i) => {
@@ -338,14 +364,14 @@ export default function MockTestPage() {
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FaClock /> {test.mins} Minutes</span>
                         </div>
                       </div>
-                      <a href="#" style={{
+                      <Link to={`/subject-test/instructions/${test._id}`} style={{
                         display: 'inline-block', fontSize: 13, fontWeight: 700,
                         color: '#fff', background: test.marks === 100 ? '#7C3AED' : cat.color,
                         padding: '9px 20px', borderRadius: 9,
                         whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none'
                       }}>
                         {test.free ? 'Start Free →' : 'Attempt →'}
-                      </a>
+                      </Link>
                     </div>
                   ))
                 )}

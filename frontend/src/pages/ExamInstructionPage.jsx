@@ -1,6 +1,7 @@
+// ExamInstructionPage.jsx — Pre-Exam Instructions Screen
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaCheckCircle, FaExclamationTriangle, FaShieldAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaExclamationTriangle, FaShieldAlt, FaClock, FaClipboardList, FaAward } from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -62,7 +63,6 @@ export default function ExamInstructionPage() {
         return;
       }
 
-      // Navigate to CBT Exam Interface
       navigate(`/subject-test/exam/${res.data.attemptId}`);
     } catch (err) {
       alert('Error starting exam: ' + err.message);
@@ -72,9 +72,9 @@ export default function ExamInstructionPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ minHeight: '85vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
         <div style={{ textAlign: 'center' }}>
-          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#1957D6', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}></div>
+          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}></div>
           <p style={{ color: '#64748b', fontSize: 14, fontWeight: 700 }}>Loading Test Instructions…</p>
         </div>
       </div>
@@ -82,140 +82,137 @@ export default function ExamInstructionPage() {
   }
 
   const test = data?.test || {
-    title: 'Subject Practice Test',
-    totalQuestions: 25,
-    totalMarks: 25,
-    duration: 25,
+    title: 'Competitive Exam Test',
+    totalQuestions: 100,
+    totalMarks: 100,
+    duration: 120,
     positiveMarks: 1,
     negativeMarks: 0.25,
   };
 
   const instruction = data?.instruction || {
     instructions: [
-      'You have 25 minutes to complete the test.',
-      'The test contains 25 questions.',
-      'There is only one correct answer to each question.',
-      'You will be awarded +1 mark for correct answer, -0.25 for wrong answer.',
-      'You can change answers or clear responses anytime before submitting.',
-      'When timer reaches 00:00, test will auto submit.'
+      'Read all questions carefully before choosing your answer.',
+      'Each question has only one correct answer.',
+      'Negative marking applies for incorrect attempts if configured (+1 / -0.25).',
+      'Do not refresh or close the browser page during the active test session.',
+      'The exam countdown timer starts only after clicking the Start Test button.',
+      'Submit your test before the remaining time reaches 00:00.',
+      'Use the Question Palette on the right panel for quick question navigation.'
     ],
-    agreementText: 'I have read and understood the instructions. All computer hardware allotted to me are in proper working condition. I agree to follow all examination instructions and rules.'
+    agreementText: 'I have read all the instructions carefully. All computer hardware allotted to me are in proper working condition. I agree to follow all examination instructions and rules.'
   };
 
   return (
-    <div style={{ minHeight: '90vh', background: '#f1f5f9', padding: '24px 16px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '92vh', background: '#f1f5f9', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 940, margin: '0 auto', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
 
-        {/* Top Header */}
-        <div style={{ background: '#1e293b', color: '#fff', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => navigate('/subject-test')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
+        {/* Header Bar */}
+        <div style={{ background: '#1e293b', color: '#fff', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '3px solid #2563eb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button onClick={() => navigate('/mock-test')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', padding: '8px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
               <FaArrowLeft /> Back
             </button>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{test.title}</h2>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 800, background: '#3b82f6', padding: '4px 12px', borderRadius: 20 }}>
-            {test.accessType || 'FREE'} TEST
-          </span>
-        </div>
-
-        {/* Summary Bar */}
-        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Total Questions</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{test.totalQuestions} Qs</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Maximum Marks</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{test.totalMarks} Marks</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Duration</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{test.duration} Minutes</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Marking Scheme</div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#0F9D58' }}>+{test.positiveMarks} / <span style={{ color: '#dc2626' }}>-{test.negativeMarks}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, background: '#2563eb', padding: '4px 12px', borderRadius: 20 }}>
+              {test.accessType || 'FREE'} TEST
+            </span>
           </div>
         </div>
 
-        <div style={{ padding: '24px 28px' }}>
-          {/* Section summary table if available */}
-          {instruction.sections?.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 800, color: '#334155' }}>Sectional Breakdown</h4>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', color: '#475569', fontSize: 11 }}>
-                    <th style={{ padding: '8px 12px' }}>S.No.</th>
-                    <th style={{ padding: '8px 12px' }}>Section Name</th>
-                    <th style={{ padding: '8px 12px' }}>Questions</th>
-                    <th style={{ padding: '8px 12px' }}>Max Marks</th>
-                    <th style={{ padding: '8px 12px' }}>Duration</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {instruction.sections.map((sec, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 700 }}>{i + 1}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 700, color: '#1e293b' }}>{sec.name}</td>
-                      <td style={{ padding: '8px 12px' }}>{sec.questions}</td>
-                      <td style={{ padding: '8px 12px' }}>{sec.marks}</td>
-                      <td style={{ padding: '8px 12px' }}>{sec.duration} mins</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Rules List */}
-          <div style={{ marginBottom: 24 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, color: '#0f172a' }}>Please read the following instructions carefully:</h4>
-            <ol style={{ margin: 0, paddingLeft: 20, color: '#334155', fontSize: 13.5, lineHeight: 1.7 }}>
-              {instruction.instructions?.map((rule, idx) => (
-                <li key={idx} style={{ marginBottom: 6 }}>{rule}</li>
-              ))}
-            </ol>
+        {/* Candidate & Test Metadata Header Card */}
+        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Subject Test Name</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{test.title}</div>
           </div>
-
-          {/* Language Selection */}
-          <div style={{ background: '#eff6ff', borderRadius: 12, padding: '16px 20px', marginBottom: 24, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#1e40af', marginBottom: 2 }}>Choose Your Default Language:</div>
-              <div style={{ fontSize: 11.5, color: '#3b82f6' }}>Questions will be presented in this language. You can toggle language during exam if allowed.</div>
-            </div>
-            <select value={selectedLanguage} onChange={e => setSelectedLanguage(e.target.value)}
-              style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #2563eb', fontWeight: 700, fontSize: 13, color: '#1e293b', outline: 'none' }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Duration</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{test.duration} Mins</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total Questions</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{test.totalQuestions} Qs</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total Marks</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{test.totalMarks} Marks</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Negative Marking</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#dc2626', marginTop: 2 }}>-{test.negativeMarks || 0.25}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Default Language</div>
+            <select
+              value={selectedLanguage}
+              onChange={e => setSelectedLanguage(e.target.value)}
+              style={{ marginTop: 2, padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 800, fontSize: 13 }}
+            >
               <option value="en">English</option>
               <option value="or">Odia</option>
               <option value="hi">Hindi</option>
             </select>
           </div>
+        </div>
+
+        <div style={{ padding: '24px 28px' }}>
+          {/* Candidate Info Card */}
+          <div style={{ background: '#eff6ff', borderRadius: 12, border: '1px solid #bfdbfe', padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#1e3a8a' }}>Student Candidate</div>
+              <div style={{ fontSize: 12, color: '#2563eb', marginTop: 2 }}>Exam: <strong>{test.title}</strong> • Type: <strong>{test.totalQuestions >= 100 ? 'Full Length Mock' : 'Sectional Practice'}</strong></div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, background: '#dbeafe', color: '#1d4ed8', padding: '4px 10px', borderRadius: 20 }}>CBT Exam Portal</span>
+          </div>
+
+          {/* Instructions List */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 900, color: '#0f172a' }}>General Instructions:</h4>
+            <ul style={{ margin: 0, paddingLeft: 20, color: '#334155', fontSize: 13.5, lineHeight: 1.7 }}>
+              {instruction.instructions?.map((rule, idx) => (
+                <li key={idx} style={{ marginBottom: 6 }}>{rule}</li>
+              ))}
+            </ul>
+          </div>
 
           {/* Agreement Checkbox */}
           <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', fontSize: 13, color: '#334155', lineHeight: 1.5 }}>
-              <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)}
-                style={{ width: 18, height: 18, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }} />
-              <span>{instruction.agreementText}</span>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', fontSize: 13.5, color: '#1e293b', fontWeight: 600, lineHeight: 1.5 }}>
+              <input
+                type="checkbox"
+                checked={agree}
+                onChange={e => setAgree(e.target.checked)}
+                style={{ width: 18, height: 18, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
+              />
+              <span>I have read all the instructions carefully.</span>
             </label>
           </div>
 
-          {/* Start Trigger */}
-          <button
-            onClick={handleStartExam}
-            disabled={!agree || starting}
-            style={{
-              width: '100%', padding: '16px', borderRadius: 12, border: 'none',
-              background: agree ? 'linear-gradient(135deg, #0F9D58 0%, #059669 100%)' : '#cbd5e1',
-              color: '#fff', fontWeight: 900, fontSize: 16, cursor: agree ? 'pointer' : 'not-allowed',
-              boxShadow: agree ? '0 8px 20px rgba(15, 157, 88, 0.35)' : 'none',
-              transition: 'all .2s'
-            }}
-          >
-            {starting ? 'Initializing CBT Exam Engine…' : 'I am ready to begin →'}
-          </button>
+          {/* Bottom Action Buttons */}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              onClick={() => navigate('/mock-test')}
+              style={{ padding: '14px 24px', borderRadius: 10, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}
+            >
+              Back
+            </button>
+            <button
+              onClick={handleStartExam}
+              disabled={!agree || starting}
+              style={{
+                flex: 1, padding: '14px 24px', borderRadius: 10, border: 'none',
+                background: agree ? '#2563eb' : '#cbd5e1',
+                color: '#fff', fontWeight: 900, fontSize: 15, cursor: agree ? 'pointer' : 'not-allowed',
+                boxShadow: agree ? '0 4px 14px rgba(37, 99, 235, 0.35)' : 'none',
+                transition: 'all .2s'
+              }}
+            >
+              {starting ? 'Initializing Exam Engine…' : 'Start Test →'}
+            </button>
+          </div>
         </div>
 
       </div>

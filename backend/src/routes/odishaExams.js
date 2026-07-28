@@ -4,6 +4,8 @@ const ctrl = require('../controllers/odishaExamController');
 const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/rbac');
 
+router.get('/config', ctrl.getConfig);
+router.put('/config', protect, adminOnly, ctrl.updateConfig);
 router.get('/', protect, adminOnly, ctrl.getOdishaExams);
 router.get('/options', protect, adminOnly, ctrl.getDropdownOptions);
 router.post('/', protect, adminOnly, ctrl.createOdishaExam);

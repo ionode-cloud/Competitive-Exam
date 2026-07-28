@@ -1,377 +1,577 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RiAddLine, RiEditLine, RiDeleteBin2Line, RiShieldLine, RiFileTextLine } from 'react-icons/ri';
-import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
+import {
+  RiFontColor,
+  RiLayoutGridLine,
+  RiAddLine,
+  RiEditLine,
+  RiDeleteBinLine,
+  RiDeleteBin2Line,
+  RiDragMove2Line,
+  RiArrowUpLine,
+  RiArrowDownLine,
+  RiShieldLine
+} from 'react-icons/ri';
 import Swal from 'sweetalert2';
 import api from '../api/axios';
-import DataTable from '../components/DataTable';
-import Modal from '../components/Modal';
 
 export default function OdishaExams() {
-  const [data, setData] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [exams, setExams] = useState([]);
+  const [categoryPrices, setCategoryPrices] = useState({});
+  const [draggedExamIdx, setDraggedExamIdx] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
 
-  // Dropdown options from backend
-  const [examOptions, setExamOptions] = useState(['OSSSC', 'OPSC', 'OSSC', 'Odisha Police', 'UPSC']);
-  const [mockOptions, setMockOptions] = useState(['RI_2026', 'ARI_2026', 'AMIN_2026', 'PEO_2026', 'CGL_Mock_01']);
-
-  // Inline "Create new" toggles
-  const [isCustomExam, setIsCustomExam] = useState(false);
-  const [isCustomMock, setIsCustomMock] = useState(false);
-
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: {
-      examinationName: '',
-      customExaminationName: '',
-      mockTestName: '',
-      customMockTestName: '',
-      price: 499,
-    }
+  // Banner Settings State
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [config, setConfig] = useState({
+    bannerEyebrow: 'Exam Section',
+    bannerHeading: 'Browse All Competitive Exams',
+    bannerSubtitle: 'Find your target exam category and get structured preparation resources — tests, PDFs & live classes.',
+    bannerStats: [
+      { n: '50+', label: 'Exams Covered' },
+      { n: '6', label: 'Categories' },
+      { n: '10K+', label: 'Students' }
+    ]
   });
 
-  const selectedExamSelect = watch('examinationName');
-  const selectedMockSelect = watch('mockTestName');
+  // Modal State
+  const [examModal, setExamModal] = useState(false);
+  const [editingExam, setEditingExam] = useState(null);
+  const [examForm, setExamForm] = useState({
+    name: '',
+    description: '',
+    icon: 'landmark',
+    price: 499,
+    isFree: false,
+    status: 'active',
+    topics: []
+  });
+  const [topicInput, setTopicInput] = useState('');
 
-  const fetchDropdowns = useCallback(async () => {
+  // Notify listeners on changes
+  const notifyUpdated = () => {
+    window.dispatchEvent(new Event('examsection-updated'));
     try {
-      const res = await api.get('/odisha-exams/options');
-      if (res.data?.data) {
-        if (res.data.data.examinationNames?.length) setExamOptions(res.data.data.examinationNames);
-        if (res.data.data.mockTestNames?.length) setMockOptions(res.data.data.mockTestNames);
+      localStorage.setItem('examsection-updated', Date.now().toString());
+    } catch { /* silent */ }
+  };
+
+  // ── Data Fetching ─────────────────────────────────────────────────────────────
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await api.get('/odisha-exams/config');
+      if (res.data?.success && res.data?.data) {
+        const c = res.data.data;
+        setConfig({
+          bannerEyebrow: c.bannerEyebrow || 'Exam Section',
+          bannerHeading: c.bannerHeading || 'Browse All Competitive Exams',
+          bannerSubtitle: c.bannerSubtitle || 'Find your target exam category and get structured preparation resources — tests, PDFs & live classes.',
+          bannerStats: c.bannerStats || [
+            { n: '50+', label: 'Exams Covered' },
+            { n: '6', label: 'Categories' },
+            { n: '10K+', label: 'Students' }
+          ]
+        });
       }
-    } catch {}
+    } catch { /* silent */ }
   }, []);
 
-  const fetchOdishaExams = useCallback(async () => {
-    setLoading(true);
+  const fetchExams = useCallback(async () => {
     try {
-      const { data } = await api.get('/odisha-exams', { params: { page, limit: 10, search } });
-      setData(data.data);
-      setTotal(data.pagination.total);
-    } catch {
-      toast.error('Failed to load Odisha Exams');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search]);
+      const res = await api.get('/exams');
+      if (res.data?.success) {
+        const list = res.data.data || [];
+        setExams(list);
+        const map = {};
+        list.forEach(ex => { map[ex._id] = ex.price ?? 499; });
+        setCategoryPrices(map);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchConfig(), fetchExams()]);
+    setLoading(false);
+  }, [fetchConfig, fetchExams]);
 
   useEffect(() => {
-    fetchDropdowns();
-    fetchOdishaExams();
-  }, [fetchOdishaExams]);
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const openCreateModal = () => {
-    setEditingItem(null);
-    setIsCustomExam(false);
-    setIsCustomMock(false);
-    reset({
-      examinationName: examOptions[0] || 'OSSSC',
-      customExaminationName: '',
-      mockTestName: mockOptions[0] || 'RI_2026',
-      customMockTestName: '',
-      price: 499,
-    });
-    setModalOpen(true);
-  };
-
-  const openEditModal = (item) => {
-    setEditingItem(item);
-
-    const isExamInList = examOptions.includes(item.examinationName);
-    setIsCustomExam(!isExamInList);
-
-    const isMockInList = mockOptions.includes(item.mockTestName);
-    setIsCustomMock(!isMockInList);
-
-    reset({
-      examinationName: isExamInList ? item.examinationName : '__custom__',
-      customExaminationName: isExamInList ? '' : item.examinationName,
-      mockTestName: isMockInList ? item.mockTestName : '__custom__',
-      customMockTestName: isMockInList ? '' : item.mockTestName,
-      price: item.price,
-    });
-    setModalOpen(true);
-  };
-
-  const onSubmit = async (values) => {
+  // ── Banner Settings Handlers ─────────────────────────────────────────────
+  const handleSaveConfig = async () => {
+    setSavingConfig(true);
     try {
-      const finalExamName = isCustomExam ? values.customExaminationName?.trim() : values.examinationName;
-      const finalMockName = isCustomMock ? values.customMockTestName?.trim() : values.mockTestName;
+      await api.put('/odisha-exams/config', config);
+      Swal.fire('Saved!', 'Exam Section banner settings updated successfully.', 'success');
+      notifyUpdated();
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to save banner settings', 'error');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
-      if (!finalExamName) {
-        toast.error('Examination Name is required');
-        return;
-      }
-      if (!finalMockName) {
-        toast.error('Mock Test Name is required');
-        return;
-      }
+  const addStatBadge = () => {
+    setConfig(prev => ({
+      ...prev,
+      bannerStats: [...(prev.bannerStats || []), { n: '100+', label: 'New Badge' }]
+    }));
+  };
 
-      const payload = {
-        examinationName: finalExamName,
-        mockTestName: finalMockName,
-        price: Number(values.price) || 0,
-      };
+  const removeStatBadge = (idx) => {
+    setConfig(prev => ({
+      ...prev,
+      bannerStats: prev.bannerStats.filter((_, i) => i !== idx)
+    }));
+  };
 
-      if (editingItem) {
-        await api.put(`/odisha-exams/${editingItem._id}`, payload);
-        toast.success('Odisha Exam updated successfully!');
+  const updateStatBadge = (idx, field, val) => {
+    setConfig(prev => {
+      const updated = [...(prev.bannerStats || [])];
+      updated[idx] = { ...updated[idx], [field]: val };
+      return { ...prev, bannerStats: updated };
+    });
+  };
+
+  // ── Exam Category Handlers ───────────────────────────────────────────────────
+  const handleSaveExamPrice = async (examId, newPrice) => {
+    try {
+      await api.put(`/exams/${examId}`, { price: Number(newPrice) });
+      Swal.fire('Saved!', 'Exam Category price updated successfully', 'success');
+      notifyUpdated();
+      fetchExams();
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to update price', 'error');
+    }
+  };
+
+  const moveExam = (fromIdx, toIdx) => {
+    if (toIdx < 0 || toIdx >= exams.length) return;
+    const updated = [...exams];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+    setExams(updated);
+    notifyUpdated();
+  };
+
+  const openCreateExam = () => {
+    setEditingExam(null);
+    setExamForm({ name: '', description: '', icon: 'landmark', price: 499, isFree: false, status: 'active', topics: [] });
+    setTopicInput('');
+    setExamModal(true);
+  };
+
+  const openEditExam = (ex) => {
+    setEditingExam(ex);
+    setExamForm({
+      name: ex.name || '',
+      description: ex.description || '',
+      icon: ex.icon || 'landmark',
+      price: ex.price || 0,
+      isFree: ex.isFree !== false,
+      status: ex.status || 'active',
+      topics: Array.isArray(ex.topics) ? [...ex.topics] : []
+    });
+    setTopicInput('');
+    setExamModal(true);
+  };
+
+  const addTopicToExamForm = () => {
+    if (!topicInput.trim()) return;
+    if (examForm.topics?.includes(topicInput.trim())) return;
+    setExamForm(prev => ({ ...prev, topics: [...(prev.topics || []), topicInput.trim()] }));
+    setTopicInput('');
+  };
+
+  const removeTopicFromExamForm = (topName) => {
+    setExamForm(prev => ({ ...prev, topics: (prev.topics || []).filter(t => t !== topName) }));
+  };
+
+  const saveExam = async () => {
+    if (!examForm.name.trim()) return Swal.fire('Error', 'Category name is required', 'error');
+    const { _id, __v, createdAt, updatedAt, ...cleanPayload } = examForm;
+    try {
+      if (editingExam) {
+        await api.put(`/exams/${editingExam._id}`, cleanPayload);
+        Swal.fire('Success', 'Exam Category updated successfully', 'success');
       } else {
-        await api.post('/odisha-exams', payload);
-        toast.success('Odisha Exam created successfully!');
+        await api.post('/exams', cleanPayload);
+        Swal.fire('Success', 'Exam Category created successfully', 'success');
       }
-      setModalOpen(false);
-      fetchDropdowns();
-      fetchOdishaExams();
+      setExamModal(false);
+      setEditingExam(null);
+      notifyUpdated();
+      fetchExams();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Operation failed');
+      Swal.fire('Error', err.response?.data?.message || 'Save failed', 'error');
     }
   };
 
-  const handleDelete = async (item) => {
-    const result = await Swal.fire({
-      title: `Delete "${item.examinationName} - ${item.mockTestName}"?`,
-      text: 'This action cannot be undone.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, Delete',
-    });
-    if (!result.isConfirmed) return;
-
+  const deleteExam = async (id) => {
+    const res = await Swal.fire({ title: 'Delete Category?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444' });
+    if (!res.isConfirmed) return;
     try {
-      await api.delete(`/odisha-exams/${item._id}`);
-      toast.success('Odisha Exam deleted');
-      fetchOdishaExams();
+      await api.delete(`/exams/${id}`);
+      Swal.fire('Deleted', 'Exam Category deleted', 'success');
+      notifyUpdated();
+      fetchExams();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Delete failed');
+      Swal.fire('Error', err.response?.data?.message || 'Delete failed', 'error');
     }
   };
-
-  const columns = [
-    {
-      key: 'examinationName',
-      label: 'Examination Name',
-      sortable: true,
-      render: r => (
-        <span className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center">
-            {r.examinationName?.substring(0, 2)?.toUpperCase()}
-          </span>
-          {r.examinationName}
-        </span>
-      )
-    },
-    {
-      key: 'mockTestName',
-      label: 'Mock Test Name',
-      sortable: true,
-      render: r => (
-        <span className="font-mono text-sm text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700">
-          {r.mockTestName}
-        </span>
-      )
-    },
-    {
-      key: 'price',
-      label: 'Price',
-      sortable: true,
-      render: r => (
-        r.price === 0 ? (
-          <span className="admin-badge-green font-bold">Free</span>
-        ) : (
-          <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{r.price}</span>
-        )
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: r => (
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => openEditModal(r)}
-            className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 transition-colors"
-            title="Edit"
-          >
-            <RiEditLine className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(r)}
-            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-            title="Delete"
-          >
-            <RiDeleteBin2Line className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    },
-  ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <RiShieldLine className="w-6 h-6 text-primary-600" /> Odisha Exam
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage examination categories, unique mock test names, and test series prices
-          </p>
-        </div>
-        <button onClick={openCreateModal} className="admin-btn-primary">
-          <RiAddLine className="w-4 h-4" /> Add Odisha Exam
-        </button>
+    <div style={{ padding: '24px 28px', minHeight: '85vh', background: 'var(--bg)' }}>
+      
+      {/* Top Page Header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <RiShieldLine style={{ color: '#2563eb' }} /> Odisha Exams (Exam Section)
+        </h1>
+        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+          Manage Exam Section banner settings, exam categories, subscription prices, and topic sections
+        </p>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={data}
-        total={total}
-        page={page}
-        limit={10}
-        loading={loading}
-        onPageChange={setPage}
-        search={search}
-        onSearch={(v) => { setSearch(v); setPage(1); }}
-        searchPlaceholder="Search by examination or mock test name..."
-        emptyMessage="No Odisha Exam entries found. Click 'Add Odisha Exam' to create your first entry."
-      />
+      {/* Two-Column Manager Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 24 }}>
+        
+        {/* Left Column: BANNER TEXT SETTINGS & STATS BADGES */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: '#475569', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <RiFontColor color="#2563eb" /> Banner Text Settings
+            </h3>
 
-      {/* Create / Edit Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingItem ? 'Edit Odisha Exam' : 'Create New Odisha Exam'}
-        size="md"
-        footer={
-          <>
-            <button type="button" onClick={() => setModalOpen(false)} className="admin-btn-secondary">
-              Cancel
-            </button>
-            <button
-              form="odisha-form"
-              type="submit"
-              disabled={isSubmitting}
-              className="admin-btn-primary"
-            >
-              {isSubmitting ? 'Saving...' : editingItem ? 'Update' : 'Create'}
-            </button>
-          </>
-        }
-      >
-        <form id="odisha-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Examination Name Field */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="admin-label mb-0">Examination Name *</label>
+            {/* EYEBROW LABEL */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                Eyebrow Label <span style={{ fontSize: 10, fontWeight: 500, color: '#94a3b8' }}>(Small text above heading)</span>
+              </label>
+              <input
+                value={config.bannerEyebrow}
+                onChange={e => setConfig(prev => ({ ...prev, bannerEyebrow: e.target.value }))}
+                placeholder="e.g. Exam Section"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, outline: 'none' }}
+              />
+            </div>
+
+            {/* MAIN HEADING */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                Main Banner Heading
+              </label>
+              <input
+                value={config.bannerHeading}
+                onChange={e => setConfig(prev => ({ ...prev, bannerHeading: e.target.value }))}
+                placeholder="e.g. Browse All Competitive Exams"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 800, color: '#0f172a', outline: 'none' }}
+              />
+            </div>
+
+            {/* SUBTITLE / DESCRIPTION */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+                Subtitle / Description
+              </label>
+              <textarea
+                rows={3}
+                value={config.bannerSubtitle}
+                onChange={e => setConfig(prev => ({ ...prev, bannerSubtitle: e.target.value }))}
+                placeholder="Find your target exam category and get structured preparation resources..."
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, outline: 'none', lineHeight: 1.5 }}
+              />
+            </div>
+
+            {/* STATS BADGES */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', margin: 0, textTransform: 'uppercase' }}>
+                  Stats Badges
+                </label>
+                <button
+                  onClick={addStatBadge}
+                  style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}
+                >
+                  + Add
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {config.bannerStats?.map((st, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      value={st.n}
+                      onChange={e => updateStatBadge(idx, 'n', e.target.value)}
+                      placeholder="50+"
+                      style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 800, textAlign: 'center' }}
+                    />
+                    <input
+                      value={st.label}
+                      onChange={e => updateStatBadge(idx, 'label', e.target.value)}
+                      placeholder="Exams Covered"
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                    />
+                    <button
+                      onClick={() => removeStatBadge(idx)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}
+                    >
+                      <RiDeleteBin2Line fontSize={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* LIVE BANNER PREVIEW CARD */}
+            <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: 14, padding: 20, color: '#fff' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#FDE68A', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                {config.bannerEyebrow || 'Exam Section'}
+              </div>
+              <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                {config.bannerHeading || 'Browse All Competitive Exams'}
+              </h4>
+              <p style={{ margin: '0 0 16px', fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                {config.bannerSubtitle}
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {config.bannerStats?.map((st, idx) => (
+                  <div key={idx} style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', minWidth: 50 }}>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: '#FFC93C' }}>{st.n}</div>
+                    <div style={{ fontSize: 9, color: '#cbd5e1', marginTop: 2 }}>{st.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
               <button
-                type="button"
-                onClick={() => {
-                  setIsCustomExam(!isCustomExam);
-                  if (!isCustomExam) setValue('examinationName', '__custom__');
-                  else setValue('examinationName', examOptions[0] || 'OSSSC');
-                }}
-                className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1"
+                onClick={handleSaveConfig}
+                disabled={savingConfig}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '12px', borderRadius: 10, fontWeight: 800, fontSize: 14 }}
               >
-                {isCustomExam ? '← Select Existing' : '+ Create New Examination'}
+                {savingConfig ? 'Saving Settings...' : 'Save Banner Settings'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: EXAM SECTION CATEGORIES & PRICES MANAGER */}
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <RiLayoutGridLine /> EXAM SECTION CATEGORIES &amp; PRICES
+                </h3>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                  Manage exam categories, section topics &amp; subscription prices for Exam Section
+                </p>
+              </div>
+              <button
+                onClick={openCreateExam}
+                className="btn btn-primary"
+                style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <RiAddLine /> + Add Exam Category
               </button>
             </div>
 
-            {isCustomExam ? (
-              <input
-                {...register('customExaminationName', { required: isCustomExam ? 'New Examination Name required' : false })}
-                className="admin-input"
-                placeholder="e.g. OSSSC, OPSC, OSSC..."
-                autoFocus
-              />
-            ) : (
-              <select
-                {...register('examinationName', { required: 'Please select examination' })}
-                className="admin-input"
-                onChange={e => {
-                  if (e.target.value === '__custom__') setIsCustomExam(true);
-                }}
-              >
-                {examOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-                <option value="__custom__">+ Create New Examination...</option>
-              </select>
-            )}
-            {errors.examinationName && <p className="text-red-500 text-xs mt-1">{errors.examinationName.message}</p>}
-            {errors.customExaminationName && <p className="text-red-500 text-xs mt-1">{errors.customExaminationName.message}</p>}
+            {/* Exam Categories Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                    <th style={{ padding: '10px 12px', width: 70 }}>REORDER</th>
+                    <th style={{ padding: '10px 12px' }}>EXAM CATEGORY</th>
+                    <th style={{ padding: '10px 12px', width: 170 }}>CATEGORY PRICE (₹)</th>
+                    <th style={{ padding: '10px 12px' }}>STATUS</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>Loading categories...</td></tr>
+                  ) : exams.length === 0 ? (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>No exam categories found. Click "+ Add Exam Category" to create one.</td></tr>
+                  ) : (
+                    exams.map((ex, idx) => (
+                      <tr
+                        key={ex._id || idx}
+                        draggable
+                        onDragStart={() => setDraggedExamIdx(idx)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          if (draggedExamIdx !== null && draggedExamIdx !== idx) {
+                            moveExam(draggedExamIdx, idx);
+                            setDraggedExamIdx(null);
+                          }
+                        }}
+                        style={{
+                          borderBottom: '1px solid #f1f5f9',
+                          background: draggedExamIdx === idx ? '#eff6ff' : 'transparent',
+                          opacity: draggedExamIdx === idx ? 0.5 : 1
+                        }}
+                      >
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'grab' }} title="Drag to reorder">
+                            <RiDragMove2Line style={{ color: '#94a3b8' }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{idx + 1}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ fontWeight: 800, color: '#0f172a' }}>{ex.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{ex.description || 'Exam Section Category'}</div>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>₹</span>
+                            <input
+                              type="number"
+                              value={categoryPrices[ex._id] !== undefined ? categoryPrices[ex._id] : (ex.price ?? 499)}
+                              onChange={e => setCategoryPrices(prev => ({ ...prev, [ex._id]: e.target.value }))}
+                              style={{
+                                width: 80, padding: '5px 8px', borderRadius: 6,
+                                border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveExamPrice(ex._id, categoryPrices[ex._id] !== undefined ? categoryPrices[ex._id] : (ex.price ?? 499))}
+                              style={{
+                                padding: '5px 10px', borderRadius: 6, border: 'none',
+                                background: '#2563eb', color: '#fff', fontSize: 11, fontWeight: 800, cursor: 'pointer'
+                              }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20,
+                            background: ex.status === 'inactive' ? '#FEF1E4' : '#EAF1FD',
+                            color: ex.status === 'inactive' ? '#EA7A1E' : '#1957D6'
+                          }}>
+                            {ex.status === 'inactive' ? 'Inactive' : 'Active'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button
+                              onClick={() => moveExam(idx, idx - 1)}
+                              disabled={idx === 0}
+                              style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', opacity: idx === 0 ? 0.3 : 1 }}
+                              title="Move Up"
+                            >
+                              <RiArrowUpLine fontSize={13} />
+                            </button>
+                            <button
+                              onClick={() => moveExam(idx, idx + 1)}
+                              disabled={idx === exams.length - 1}
+                              style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', opacity: idx === exams.length - 1 ? 0.3 : 1 }}
+                              title="Move Down"
+                            >
+                              <RiArrowDownLine fontSize={13} />
+                            </button>
+                            <button onClick={() => openEditExam(ex)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }} title="Edit">
+                              <RiEditLine fontSize={14} color="#2563eb" />
+                            </button>
+                            <button onClick={() => deleteExam(ex._id)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }} title="Delete">
+                              <RiDeleteBinLine fontSize={14} color="#ef4444" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+        </div>
+      </div>
 
-          {/* Mock Test Name Field */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="admin-label mb-0">Mock Test Name (Unique Name) *</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCustomMock(!isCustomMock);
-                  if (!isCustomMock) setValue('mockTestName', '__custom__');
-                  else setValue('mockTestName', mockOptions[0] || 'RI_2026');
-                }}
-                className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1"
+      {/* ── EXAM CATEGORY MODAL ── */}
+      {examModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, padding: 24, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 800 }}>{editingExam ? 'Edit Exam Category' : 'Add Exam Category'}</h3>
+            
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Category Name *</label>
+              <input
+                value={examForm.name}
+                onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Bank & Insurance"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Description</label>
+              <input
+                value={examForm.description}
+                onChange={e => setExamForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Brief description for category"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Icon Type</label>
+                <select
+                  value={examForm.icon}
+                  onChange={e => setExamForm(f => ({ ...f, icon: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                >
+                  <option value="landmark">🏛 Landmark / State PSC</option>
+                  <option value="train">🚆 Train / SSC &amp; Railway</option>
+                  <option value="university">🏦 University / Banking</option>
+                  <option value="shield">🛡 Shield / Police &amp; Defence</option>
+                  <option value="clipboard">📋 Clipboard / General</option>
+                  <option value="scale">⚖ Balance Scale / Regulatory</option>
+                  <option value="teacher">👨‍🏫 Teacher / Teaching</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Category Price (₹)</label>
+                <input
+                  type="number"
+                  value={examForm.price}
+                  onChange={e => setExamForm(f => ({ ...f, price: Number(e.target.value) }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Status</label>
+              <select
+                value={examForm.status}
+                onChange={e => setExamForm(f => ({ ...f, status: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
               >
-                {isCustomMock ? '← Select Existing' : '+ Create New Mock Test Name'}
+                <option value="active">Active (Visible in User Panel)</option>
+                <option value="inactive">Inactive (Hidden)</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button onClick={() => setExamModal(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+                Cancel
+              </button>
+              <button onClick={saveExam} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 800 }}>
+                Save Exam Category
               </button>
             </div>
-
-            {isCustomMock ? (
-              <input
-                {...register('customMockTestName', { required: isCustomMock ? 'Unique Mock Test Name required' : false })}
-                className="admin-input font-mono text-sm"
-                placeholder="e.g. RI_2026, ARI_2026, CGL_Mock_01..."
-                autoFocus
-              />
-            ) : (
-              <select
-                {...register('mockTestName', { required: 'Please select mock test name' })}
-                className="admin-input font-mono text-sm"
-                onChange={e => {
-                  if (e.target.value === '__custom__') setIsCustomMock(true);
-                }}
-              >
-                {mockOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-                <option value="__custom__">+ Create New Mock Test Name...</option>
-              </select>
-            )}
-            {errors.mockTestName && <p className="text-red-500 text-xs mt-1">{errors.mockTestName.message}</p>}
-            {errors.customMockTestName && <p className="text-red-500 text-xs mt-1">{errors.customMockTestName.message}</p>}
           </div>
+        </div>
+      )}
 
-          {/* Price Field */}
-          <div>
-            <label className="admin-label">Price (₹) *</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">₹</span>
-              <input
-                {...register('price', {
-                  required: 'Price is required',
-                  valueAsNumber: true,
-                  min: { value: 0, message: 'Price cannot be negative' }
-                })}
-                type="number"
-                min="0"
-                className="admin-input pl-8 font-semibold"
-                placeholder="499"
-              />
-            </div>
-            {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>}
-            <p className="text-xs text-slate-400 mt-1">Set 0 for free mock test series</p>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

@@ -151,6 +151,9 @@ const server = app.listen(PORT, () => {
   console.log(`🔗 API base: http://localhost:${PORT}/api`);
 });
 
+const { initSocket } = require('./src/utils/socket');
+initSocket(server);
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err.message);

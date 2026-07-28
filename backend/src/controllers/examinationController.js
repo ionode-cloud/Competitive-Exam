@@ -1,6 +1,7 @@
 const Examination = require('../models/Examination');
 const MockTest = require('../models/MockTest');
 const { paginate, paginateResponse } = require('../utils/pagination');
+const { emitEvent } = require('../utils/socket');
 
 // @desc    Get all examinations
 // @route   GET /api/examinations
@@ -39,9 +40,15 @@ exports.getExamination = async (req, res, next) => {
 // @route   POST /api/examinations
 exports.createExamination = async (req, res, next) => {
   try {
-    const exam = await Examination.create({ ...req.body, createdBy: req.user._id });
+    const { _id, __v, createdAt, updatedAt, ...createData } = req.body;
+    const exam = await Examination.create({ ...createData, createdBy: req.user?._id });
+    emitEvent('exams_updated', { action: 'create', data: exam });
+
     res.status(201).json({ success: true, data: exam });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: 'An examination category with this name already exists' });
+    }
     next(err);
   }
 };
@@ -50,12 +57,18 @@ exports.createExamination = async (req, res, next) => {
 // @route   PUT /api/examinations/:id
 exports.updateExamination = async (req, res, next) => {
   try {
-    const exam = await Examination.findByIdAndUpdate(req.params.id, req.body, {
+    const { _id, __v, createdAt, updatedAt, ...updateData } = req.body;
+    const exam = await Examination.findByIdAndUpdate(req.params.id, updateData, {
       new: true, runValidators: true,
     });
     if (!exam) return res.status(404).json({ success: false, message: 'Examination not found' });
+    emitEvent('exams_updated', { action: 'update', data: exam });
+
     res.json({ success: true, data: exam });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: 'An examination category with this name already exists' });
+    }
     next(err);
   }
 };
