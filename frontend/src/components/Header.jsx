@@ -499,7 +499,7 @@ export default function Header() {
       <header>
         <div className="top-row wrap">
           <Link to="/" className="brand">
-            <span className="mark" style={{ display: 'flex', alignItems: 'center' }}><img style={{borderRadius:'10px'}} src={Logo} alt="Logo" /></span>SS Academy
+            <span className="mark" style={{ display: 'flex', alignItems: 'center' }}><img style={{borderRadius:'10px'}} src={Logo} alt="Sunil Sir Academy" /></span>Sunil Sir Academy
           </Link>
           <div className="search-cluster">
             <span className="search-icon-prefix" style={{ display: 'flex', alignItems: 'center' }}><FaSearch /></span>

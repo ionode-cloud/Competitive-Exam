@@ -41,30 +41,33 @@ connectDB().then(() => {
 
 const app = express();
 
-// Universal CORS configuration middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  next();
-});
+// Dynamic allowed origins whitelist from environment variables and production/dev defaults
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_WWW,
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5303',
+  'http://localhost:3000',
+  'https://sunilsiracademy.com',
+  'https://www.sunilsiracademy.com',
+].filter(Boolean);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    return callback(null, true);
+    // Allow requests without Origin header (Postman, server-to-server, health checks, cron jobs)
+    if (!origin) return callback(null, true);
+
+    const cleanOrigin = origin.replace(/\/$/, '');
+    const isAllowed = allowedOrigins.some(item => item && item.replace(/\/$/, '') === cleanOrigin);
+
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
+      return callback(null, origin);
+    }
+    return callback(null, false);
   },
   credentials: true,
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   optionsSuccessStatus: 200,
 };

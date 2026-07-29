@@ -369,29 +369,46 @@ export default function ManageMockTest() {
   };
 
   const saveTest = async () => {
-    if (!testForm.examination || !testForm.name.trim()) {
-      return Swal.fire('Error', 'Exam Category and Test Title are required', 'error');
+    if (!testForm.name || !testForm.name.trim()) {
+      return Swal.fire('Error', 'Test Title is required', 'error');
     }
+
+    // Ensure exam category exists or use fallback default
+    const examId = testForm.examination || (exams.length > 0 ? exams[0]._id : undefined);
+
     try {
       const isFull = testForm.testType === 'full_length';
-      const payload = {
-        ...testForm,
-        subject: testForm.subjectId || undefined,
-        title: testForm.name,
+      const cleanPayload = {
+        name: testForm.name.trim(),
+        title: testForm.name.trim(),
+        testType: testForm.testType || 'full_length',
         duration: isFull ? 120 : 60,
         totalQuestions: isFull ? 100 : 50,
         totalMarks: isFull ? 100 : 50,
+        negativeMarking: Number(testForm.negativeMarking) || 0.25,
+        description: testForm.description || '',
         accessType: 'Free',
         price: 0,
         pricingType: 'free',
-        status: 'published'
+        status: testForm.status || 'published',
       };
 
+      if (examId) {
+        cleanPayload.examination = examId;
+      }
+      if (testForm.subjectId && testForm.subjectId !== '') {
+        cleanPayload.subject = testForm.subjectId;
+        cleanPayload.subjectName = testForm.subjectName;
+      }
+      if (testForm.topicName && testForm.topicName !== '') {
+        cleanPayload.topicName = testForm.topicName;
+      }
+
       if (editingTest) {
-        await api.put(`/mocktests/${editingTest._id}`, payload);
+        await api.put(`/mocktests/${editingTest._id}`, cleanPayload);
         Swal.fire('Success', 'Mock Test updated successfully', 'success');
       } else {
-        await api.post('/mocktests', payload);
+        await api.post('/mocktests', cleanPayload);
         Swal.fire('Success', 'Mock Test created successfully', 'success');
       }
       setTestModal(false);
@@ -399,7 +416,7 @@ export default function ManageMockTest() {
       notifyMockTestsUpdated();
       fetchAllData();
     } catch (err) {
-      Swal.fire('Error', err.response?.data?.message || 'Action failed', 'error');
+      Swal.fire('Error', err.response?.data?.message || err.message || 'Action failed', 'error');
     }
   };
 

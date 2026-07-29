@@ -12,11 +12,12 @@ exports.updateConfig = async (req, res, next) => {
   try {
     let cfg = await OdishaExamConfig.findOne();
     if (!cfg) cfg = new OdishaExamConfig();
-    const { bannerEyebrow, bannerHeading, bannerSubtitle, bannerStats } = req.body;
+    const { bannerEyebrow, bannerHeading, bannerSubtitle, bannerStats, homeBannerSlides } = req.body;
     if (bannerEyebrow !== undefined) cfg.bannerEyebrow = bannerEyebrow;
     if (bannerHeading !== undefined) cfg.bannerHeading = bannerHeading;
     if (bannerSubtitle !== undefined) cfg.bannerSubtitle = bannerSubtitle;
     if (Array.isArray(bannerStats)) cfg.bannerStats = bannerStats;
+    if (Array.isArray(homeBannerSlides)) cfg.homeBannerSlides = homeBannerSlides;
     await cfg.save();
     res.json({ success: true, data: cfg, message: 'Banner settings saved successfully' });
   } catch (err) { next(err); }

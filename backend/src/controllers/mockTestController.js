@@ -68,10 +68,19 @@ exports.getMockTest = async (req, res, next) => {
 // @route   POST /api/mocktests
 exports.createMockTest = async (req, res, next) => {
   try {
-    const mt = await MockTest.create({ ...req.body, createdBy: req.user._id });
+    const payload = { ...req.body };
+    if (!payload.subject || payload.subject === '') delete payload.subject;
+    if (!payload.examination || payload.examination === '') delete payload.examination;
+    if (!payload.name && payload.title) payload.name = payload.title;
 
-    // Increment exam mock test count
-    await Examination.findByIdAndUpdate(mt.examination, { $inc: { mockTestsCount: 1 } });
+    const mt = await MockTest.create({
+      ...payload,
+      createdBy: req.user?._id || undefined,
+    });
+
+    if (mt.examination) {
+      await Examination.findByIdAndUpdate(mt.examination, { $inc: { mockTestsCount: 1 } }).catch(() => {});
+    }
     emitEvent('mocktests_updated', { action: 'create', data: mt });
 
     res.status(201).json({ success: true, data: mt });
@@ -84,7 +93,12 @@ exports.createMockTest = async (req, res, next) => {
 // @route   PUT /api/mocktests/:id
 exports.updateMockTest = async (req, res, next) => {
   try {
-    const mt = await MockTest.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = { ...req.body };
+    if (!payload.subject || payload.subject === '') delete payload.subject;
+    if (!payload.examination || payload.examination === '') delete payload.examination;
+    if (!payload.name && payload.title) payload.name = payload.title;
+
+    const mt = await MockTest.findByIdAndUpdate(req.params.id, payload, {
       new: true, runValidators: true,
     }).populate('examination', 'name');
 

@@ -57,8 +57,8 @@ export default function Footer() {
         {/* Brand column */}
         <div className="footer-brand-col">
           <Link to="/" className="footer-logo">
-            <span className="f-mark"><img style={{borderRadius:'10px'}} src={Logo} alt="SS Academy" /></span>
-            <span className="f-name">SS Academy</span>
+            <span className="f-mark"><img style={{borderRadius:'10px'}} src={Logo} alt="Sunil Sir Academy" /></span>
+            <span className="f-name">Sunil Sir Academy</span>
           </Link>
           <p className="footer-tagline">
             Odisha's #1 platform for competitive exam preparation. We help
@@ -114,9 +114,9 @@ export default function Footer() {
               <span className="fc-icon"><FaPhoneAlt /></span>
               +91 98765 43210 
             </a>
-            <a href="mailto:info@prephub.in">
+            <a href="mailto:info@sunilsiracademy.com">
               <span className="fc-icon"><FaEnvelope /></span>
-              info@prephub.in
+              info@sunilsiracademy.com
             </a>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
               <span className="fc-icon"><FaMapMarkerAlt /></span>
@@ -139,7 +139,7 @@ export default function Footer() {
       {/* ── Bottom bar ── */}
       <div className="footer-bottom">
         <div className="footer-bottom-left">
-          © 2026 SS Academy. Made with <span className="heart"><FaHeart /></span> for
+          © 2026 Sunil Sir Academy. Made with <span className="heart"><FaHeart /></span> for
           Odisha aspirants. All rights reserved.
         </div>
         <div className="footer-bottom-right">

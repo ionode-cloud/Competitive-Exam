@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
-import { FaFileAlt, FaTimes, FaLock, FaExclamationTriangle } from 'react-icons/fa';
+// PdfViewerModal.jsx — Mobile-responsive PDF viewer with 0-100% smooth percentage loader & direct mobile PDF rendering
+import { useEffect, useState, useRef } from 'react';
+import { FaTimes, FaLock, FaFilePdf } from 'react-icons/fa';
 
 export default function PdfViewerModal({ pdf, onClose }) {
-  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // PDF Loading Progress State (0% to 100%)
+  const [progress, setProgress] = useState(0);
+  const [loadingPdf, setLoadingPdf] = useState(true);
+
+  const timerRef = useRef(null);
+
+  // 1. Mobile screen detector
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(
@@ -17,66 +24,45 @@ export default function PdfViewerModal({ pdf, onClose }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // 2. Smooth 0% -> 100% Loader simulation with safety fallback
   useEffect(() => {
-    const triggerScreenshotWarning = () => {
-      setShowScreenshotModal(true);
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText('');
-      }
-    };
+    setProgress(0);
+    setLoadingPdf(true);
 
-    // 1. Block keyboard shortcuts for PrintScreen, Snipping tool, Print (Ctrl+P / Cmd+P), Save (Ctrl+S / Cmd+S)
-    const handleKeyDown = (e) => {
-      if (e.key === 'PrintScreen' || e.keyCode === 44) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggerScreenshotWarning();
-        return false;
-      }
+    timerRef.current = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(timerRef.current);
+          return 95;
+        }
+        const step = prev < 40 ? 5 : prev < 75 ? 3 : 2;
+        return Math.min(prev + step, 95);
+      });
+    }, 35);
 
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 's' || e.key === 'S' || e.key === '3' || e.key === '4' || e.key === '5')) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggerScreenshotWarning();
-        return false;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S' || e.key === 'u' || e.key === 'U')) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggerScreenshotWarning();
-        return false;
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      if (e.key === 'PrintScreen' || e.keyCode === 44) {
-        triggerScreenshotWarning();
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        triggerScreenshotWarning();
-      }
-    };
-
-    const handleWindowBlur = () => {
-      triggerScreenshotWarning();
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('keyup', handleKeyUp, true);
-    window.addEventListener('blur', handleWindowBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Safety timeout: dismiss loader after 2.2 seconds if onLoad event doesn't trigger on mobile browsers
+    const safetyTimeout = setTimeout(() => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setProgress(100);
+      setTimeout(() => {
+        setLoadingPdf(false);
+      }, 300);
+    }, 2200);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('keyup', handleKeyUp, true);
-      window.removeEventListener('blur', handleWindowBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (timerRef.current) clearInterval(timerRef.current);
+      clearTimeout(safetyTimeout);
     };
-  }, []);
+  }, [pdf]);
+
+  // Handle PDF loaded event
+  const handleIframeLoaded = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setProgress(100);
+    setTimeout(() => {
+      setLoadingPdf(false);
+    }, 300);
+  };
 
   if (!pdf) return null;
 
@@ -85,37 +71,36 @@ export default function PdfViewerModal({ pdf, onClose }) {
     ? rawPdfUrl
     : `${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')}${rawPdfUrl.startsWith('/') ? '' : '/'}${rawPdfUrl}`;
 
-  // Hide native PDF viewer download/save/print toolbars
+  // Direct PDF URL with toolbar disabled
   const securePdfUrl = fullPdfUrl.includes('#') ? fullPdfUrl : `${fullPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`;
 
+  // On Mobile: Use direct securePdfUrl (native WebKit/Blink PDF engine in Safari & Chrome)
+  // On Desktop: Use Google Docs Viewer for public URLs or direct securePdfUrl
   const isPublicUrl = fullPdfUrl.startsWith('http') && !fullPdfUrl.includes('localhost') && !fullPdfUrl.includes('127.0.0.1');
-  const iframeSrc = isPublicUrl
+  const iframeSrc = (!isMobile && isPublicUrl)
     ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(fullPdfUrl)}`
     : securePdfUrl;
 
   return (
     <div
-      onContextMenu={(e) => e.preventDefault()}
-      onCopy={(e) => e.preventDefault()}
-      onCut={(e) => e.preventDefault()}
-      onDragStart={(e) => e.preventDefault()}
       style={{
         position: 'fixed', inset: 0, background: '#0f172a', zIndex: 100000,
-        display: 'flex', flexDirection: 'column',
+        display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh',
         userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        overflow: 'hidden'
       }}
     >
-      {/* Responsive Security Header */}
+      {/* Responsive Header Bar */}
       <div style={{
-        height: 52, background: '#090d16', color: '#f8fafc',
+        height: isMobile ? 48 : 52, background: '#090d16', color: '#f8fafc',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 12px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
-        zIndex: 20, borderBottom: '1px solid #1e293b'
+        zIndex: 20, borderBottom: '1px solid #1e293b', flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, marginRight: 8 }}>
-          <FaFileAlt style={{ flexShrink: 0, color: '#FFC93C', fontSize: 16 }} />
+          <FaFilePdf style={{ flexShrink: 0, color: '#ef4444', fontSize: isMobile ? 16 : 18 }} />
           <span style={{
-            fontSize: isMobile ? 12 : 13.5, fontWeight: 700, color: '#f8fafc',
+            fontSize: isMobile ? 12.5 : 14, fontWeight: 700, color: '#f8fafc',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
           }}>
             {pdf.title}
@@ -136,8 +121,8 @@ export default function PdfViewerModal({ pdf, onClose }) {
             onClick={onClose}
             style={{
               background: '#DC2626', color: '#fff', border: 'none',
-              padding: '6px 12px', borderRadius: 6, fontWeight: 800,
-              fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+              padding: isMobile ? '5px 10px' : '6px 14px', borderRadius: 8, fontWeight: 800,
+              fontSize: isMobile ? 11.5 : 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
             }}
           >
             <FaTimes /> Close
@@ -145,18 +130,70 @@ export default function PdfViewerModal({ pdf, onClose }) {
         </div>
       </div>
 
-      {/* Main PDF Viewer Frame Container */}
+      {/* Main PDF View Frame Container */}
       <div style={{
-        flex: 1, width: '100%', height: 'calc(100% - 52px)',
+        flex: 1, width: '100%', height: `calc(100vh - ${isMobile ? 48 : 52}px)`,
         background: '#1e293b', position: 'relative', overflow: 'hidden',
         WebkitOverflowScrolling: 'touch'
       }}>
         
+        {/* ── 0-100% PERCENTAGE COUNTER PROGRESS OVERLAY ── */}
+        {loadingPdf && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 60,
+            background: '#0f172a', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: 24,
+            transition: 'opacity 0.35s ease-out'
+          }}>
+            {/* Circular Percentage Badge */}
+            <div style={{
+              width: isMobile ? 110 : 130, height: isMobile ? 110 : 130,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #1e293b 65%, #0f172a 66%)',
+              border: '4px solid #334155',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 40px rgba(37,99,235,0.25)',
+              marginBottom: 20, position: 'relative'
+            }}>
+              <div style={{
+                fontSize: isMobile ? 28 : 34, fontWeight: 900,
+                color: '#38bdf8', fontFamily: 'monospace', letterSpacing: -1
+              }}>
+                {progress}%
+              </div>
+              <div style={{
+                fontSize: 10, color: '#94a3b8', textTransform: 'uppercase',
+                letterSpacing: 1.2, marginTop: 2, fontWeight: 700
+              }}>
+                Loading PDF
+              </div>
+            </div>
+
+            {/* Horizontal Progress Bar */}
+            <div style={{
+              width: '100%', maxWidth: 280, background: '#1e293b',
+              height: 8, borderRadius: 10, overflow: 'hidden',
+              border: '1px solid #334155', marginBottom: 14
+            }}>
+              <div style={{
+                height: '100%', width: `${progress}%`,
+                background: 'linear-gradient(90deg, #2563eb, #38bdf8, #4ade80)',
+                transition: 'width 0.12s ease-out', borderRadius: 10
+              }} />
+            </div>
+
+            <div style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 600, textAlign: 'center', maxWidth: 300 }}>
+              {progress < 100 ? 'Preparing document for mobile viewing…' : 'Document Ready!'}
+            </div>
+          </div>
+        )}
+
         {/* Security Watermark Grid Overlay */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
-          display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(140px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: isMobile ? 20 : 40, padding: isMobile ? 15 : 30, opacity: 0.12, overflow: 'hidden'
+          display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(130px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: isMobile ? 18 : 36, padding: isMobile ? 12 : 24, opacity: 0.12, overflow: 'hidden'
         }}>
           {Array.from({ length: 16 }).map((_, i) => (
             <div key={i} style={{
@@ -164,79 +201,22 @@ export default function PdfViewerModal({ pdf, onClose }) {
               color: '#fff', textTransform: 'uppercase', letterSpacing: 1.2,
               userSelect: 'none', whiteSpace: 'nowrap'
             }}>
-              PrepHub Security • Protected
+              Sunil Sir Academy • Protected
             </div>
           ))}
         </div>
 
-        {/* PDF Frame — Uses iframe directly on mobile for smooth touch scrolling */}
-        {isMobile ? (
-          <iframe
-            src={iframeSrc}
-            title={pdf.title}
-            style={{
-              width: '100%', height: '100%', border: 'none',
-              background: '#1e293b', WebkitOverflowScrolling: 'touch'
-            }}
-          />
-        ) : (
-          <object
-            data={securePdfUrl}
-            type="application/pdf"
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          >
-            <iframe
-              src={iframeSrc}
-              title={pdf.title}
-              style={{ width: '100%', height: '100%', border: 'none', background: '#1e293b' }}
-            />
-          </object>
-        )}
+        {/* Responsive Mobile PDF Frame */}
+        <iframe
+          src={iframeSrc}
+          title={pdf.title}
+          onLoad={handleIframeLoaded}
+          style={{
+            width: '100%', height: '100%', border: 'none',
+            background: '#1e293b', WebkitOverflowScrolling: 'touch'
+          }}
+        />
       </div>
-
-      {/* ── Screenshots Not Allowed Popup Modal ────────────────────── */}
-      {showScreenshotModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 200000,
-          background: 'rgba(15, 23, 42, 0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-        }}>
-          <div style={{
-            background: '#1e293b', border: '1.5px solid #ef4444', borderRadius: 20,
-            padding: isMobile ? '24px 18px' : '32px 24px', maxWidth: 420, width: '100%', textAlign: 'center',
-            boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.35)', color: '#fff'
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)',
-              border: '2px solid #ef4444', color: '#ef4444', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 16px'
-            }}>
-              <FaExclamationTriangle />
-            </div>
-
-            <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 8, letterSpacing: -0.3 }}>
-              Screenshots Not Allowed!
-            </h3>
-
-            <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5, marginBottom: 20, padding: '0 4px' }}>
-              Taking screenshots, screen recording, or saving PDF study material is strictly prohibited on PrepHub to protect copyrighted content.
-            </p>
-
-            <button
-              onClick={() => setShowScreenshotModal(false)}
-              style={{
-                width: '100%', padding: '12px', background: '#ef4444', color: '#fff',
-                border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 13.5,
-                cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
-            >
-              I Understand &amp; Agree
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Anti-Print CSS */}
       <style>{`

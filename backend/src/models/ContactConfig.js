@@ -5,26 +5,26 @@ const contactConfigSchema = new mongoose.Schema({
   phoneValue:    { type: String, default: '+91 98765 43210' },
   phoneSub:      { type: String, default: 'Mon–Sat, 9 AM – 7 PM' },
 
-  emailValue:    { type: String, default: 'info@prephub.in' },
+  emailValue:    { type: String, default: 'info@sunilsiracademy.com' },
   emailSub:      { type: String, default: 'Reply within 24 hours' },
 
   whatsappValue: { type: String, default: '+91 98765 43210' },
   whatsappSub:   { type: String, default: 'Chat instantly' },
 
-  addressValue:  { type: String, default: 'PrepHub HQ, Bhubaneswar' },
+  addressValue:  { type: String, default: 'Sunil Sir Academy HQ, Bhubaneswar' },
   addressSub:    { type: String, default: 'Odisha – 751001, India' },
 
   // Social Handles & Links
-  youtubeHandle:  { type: String, default: '@PrepHubOdisha' },
+  youtubeHandle:  { type: String, default: '@SunilSirAcademy' },
   youtubeLink:    { type: String, default: 'https://youtube.com' },
 
-  telegramHandle: { type: String, default: 't.me/PrepHubOdisha' },
-  telegramLink:   { type: String, default: 'https://t.me/PrepHubOdisha' },
+  telegramHandle: { type: String, default: 't.me/SunilSirAcademy' },
+  telegramLink:   { type: String, default: 'https://t.me/SunilSirAcademy' },
 
-  instagramHandle:{ type: String, default: '@prephub.in' },
+  instagramHandle:{ type: String, default: '@sunilsiracademy' },
   instagramLink:  { type: String, default: 'https://instagram.com' },
 
-  facebookHandle: { type: String, default: 'PrepHub Odisha' },
+  facebookHandle: { type: String, default: 'Sunil Sir Academy' },
   facebookLink:   { type: String, default: 'https://facebook.com' },
 
   // Support Hours

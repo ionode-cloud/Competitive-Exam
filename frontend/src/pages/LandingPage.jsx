@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import {
   FaUniversity,
   FaTrain,
@@ -38,7 +39,8 @@ const catTiles = [
   { icon: <FaLandmark />, label: 'State PSC / SSSC', bg: 'var(--orange-bg)', go: 'var(--orange)', cat: 0 },
 ];
 
-const promoSlides = [
+// Fallback slides (used if API fails)
+const defaultPromoSlides = [
   { tag: 'MAINS QUANT BATCH', title: 'Saviour 4.0 — One Stop Solution', desc: '50+ live mains-level quant classes, topic-wise sessions, sectional tests + quizzes.', price: '₹499', orig: '₹1,999', cta: 'Grab It Now' },
   { tag: 'OPSC OAS BATCH', title: 'Mission OAS 2026 — Comprehensive', desc: 'Integrated Prelims + Mains syllabus coverage with senior civil servant mentors.', price: '₹2,499', orig: '₹9,999', cta: 'Enrol Now' },
   { tag: 'OSSSC RI / ARI', title: 'Revenue Inspector Special Batch', desc: 'Complete syllabus of Mathematics, Computer, Odia, English and General Knowledge.', price: '₹999', orig: '₹3,999', cta: 'Join Batch' },
@@ -47,11 +49,33 @@ const promoSlides = [
 
 function Dashboard() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [promoSlides, setPromoSlides] = useState(defaultPromoSlides);
+
+  // Fetch banner slides from backend (managed in Admin Panel → Odisha Exams tab)
   useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    axios.get(`${apiBase}/odisha-exams/config`)
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data?.homeBannerSlides) && res.data.data.homeBannerSlides.length > 0) {
+          setPromoSlides(res.data.data.homeBannerSlides);
+        }
+      })
+      .catch(() => { /* silently use default slides */ });
+  }, []);
+
+  useEffect(() => {
+    if (promoSlides.length === 0) return;
     const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % promoSlides.length), 4000);
     return () => clearInterval(timer);
-  }, []);
-  const slide = promoSlides[currentSlide];
+  }, [promoSlides]);
+
+  // Reset slide index if slides change and current is out of range
+  useEffect(() => {
+    if (currentSlide >= promoSlides.length) setCurrentSlide(0);
+  }, [promoSlides, currentSlide]);
+
+  const slide = promoSlides[currentSlide] || promoSlides[0];
+  if (!slide) return null;
 
   return (
     <div className="dashboard-full">

@@ -535,71 +535,47 @@ function PlanEditModal({ mode, plan, mockCats, subjectCats, ebookCats, materialC
             </div>
           </div>
 
-          {/* ── CATEGORY ACCESS DROPDOWNS ── */}
+          {/* ── CATEGORY ACCESS CHECKBOXES ── */}
           <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl space-y-3 border border-slate-200 dark:border-slate-600">
             <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
               Category Access Permissions (Which Tabs/Categories are unlocked by this plan)
             </h4>
 
-            {/* 1. Mock Test Categories Dropdown */}
-            <div>
-              <label className="admin-label text-xs">🎯 Mock Test Tab Categories Allowed</label>
-              <select
-                value={form.allowedMockTestCats?.includes('all') ? 'all' : (form.allowedMockTestCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedMockTestCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Mock Test Categories Unlocked</option>
-                {mockCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 1. Mock Test Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="🎯 Mock Test Tab Categories Allowed"
+              categories={mockCats}
+              selected={form.allowedMockTestCats}
+              onChange={val => setForm(f => ({ ...f, allowedMockTestCats: val }))}
+              getCategoryName={c => c.name}
+            />
 
-            {/* 2. Subject Test Categories Dropdown */}
-            <div>
-              <label className="admin-label text-xs">📚 Subject Test Tab Categories Allowed</label>
-              <select
-                value={form.allowedSubjectTestCats?.includes('all') ? 'all' : (form.allowedSubjectTestCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedSubjectTestCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Subject Test Categories Unlocked</option>
-                {subjectCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 2. Subject Test Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📚 Subject Test Tab Categories Allowed"
+              categories={subjectCats}
+              selected={form.allowedSubjectTestCats}
+              onChange={val => setForm(f => ({ ...f, allowedSubjectTestCats: val }))}
+              getCategoryName={c => c.name}
+            />
 
-            {/* 3. PYQ E-Book Categories Dropdown */}
-            <div>
-              <label className="admin-label text-xs">📖 PYQ E-Book Tab Categories Allowed</label>
-              <select
-                value={form.allowedEbookCats?.includes('all') ? 'all' : (form.allowedEbookCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedEbookCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All PYQ E-Books Unlocked</option>
-                {ebookCats.map(c => (
-                  <option key={c._id} value={c.title || c.name}>{c.title || c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 3. PYQ E-Book Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📖 PYQ E-Book Tab Categories Allowed"
+              categories={ebookCats}
+              selected={form.allowedEbookCats}
+              onChange={val => setForm(f => ({ ...f, allowedEbookCats: val }))}
+              getCategoryName={c => c.title || c.name}
+            />
 
-            {/* 4. Material Categories Dropdown */}
-            <div>
-              <label className="admin-label text-xs">📄 Study Material Tab Categories Allowed</label>
-              <select
-                value={form.allowedMaterialCats?.includes('all') ? 'all' : (form.allowedMaterialCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedMaterialCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Study Materials &amp; PDFs Unlocked</option>
-                {materialCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 4. Material Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📄 Study Material Tab Categories Allowed"
+              categories={materialCats}
+              selected={form.allowedMaterialCats}
+              onChange={val => setForm(f => ({ ...f, allowedMaterialCats: val }))}
+              getCategoryName={c => c.name}
+            />
           </div>
 
           {/* Features List */}
@@ -738,67 +714,47 @@ function ComboEditModal({ combo, mockCats, subjectCats, ebookCats, materialCats,
             </select>
           </div>
 
-          {/* Category Access Dropdowns */}
+          {/* ── CATEGORY ACCESS CHECKBOXES ── */}
           <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl space-y-3 border border-slate-200 dark:border-slate-600">
             <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
               Category Access Permissions (Which Tabs/Categories are unlocked by this pack)
             </h4>
 
-            <div>
-              <label className="admin-label text-xs">🎯 Mock Test Tab Categories Allowed</label>
-              <select
-                value={form.allowedMockTestCats?.includes('all') ? 'all' : (form.allowedMockTestCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedMockTestCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Mock Test Categories Unlocked</option>
-                {mockCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 1. Mock Test Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="🎯 Mock Test Tab Categories Allowed"
+              categories={mockCats}
+              selected={form.allowedMockTestCats}
+              onChange={val => setForm(f => ({ ...f, allowedMockTestCats: val }))}
+              getCategoryName={c => c.name}
+            />
 
-            <div>
-              <label className="admin-label text-xs">📚 Subject Test Tab Categories Allowed</label>
-              <select
-                value={form.allowedSubjectTestCats?.includes('all') ? 'all' : (form.allowedSubjectTestCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedSubjectTestCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Subject Test Categories Unlocked</option>
-                {subjectCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 2. Subject Test Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📚 Subject Test Tab Categories Allowed"
+              categories={subjectCats}
+              selected={form.allowedSubjectTestCats}
+              onChange={val => setForm(f => ({ ...f, allowedSubjectTestCats: val }))}
+              getCategoryName={c => c.name}
+            />
 
-            <div>
-              <label className="admin-label text-xs">📖 PYQ E-Book Tab Categories Allowed</label>
-              <select
-                value={form.allowedEbookCats?.includes('all') ? 'all' : (form.allowedEbookCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedEbookCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All PYQ E-Books Unlocked</option>
-                {ebookCats.map(c => (
-                  <option key={c._id} value={c.title || c.name}>{c.title || c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 3. PYQ E-Book Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📖 PYQ E-Book Tab Categories Allowed"
+              categories={ebookCats}
+              selected={form.allowedEbookCats}
+              onChange={val => setForm(f => ({ ...f, allowedEbookCats: val }))}
+              getCategoryName={c => c.title || c.name}
+            />
 
-            <div>
-              <label className="admin-label text-xs">📄 Study Material Tab Categories Allowed</label>
-              <select
-                value={form.allowedMaterialCats?.includes('all') ? 'all' : (form.allowedMaterialCats?.[0] || 'all')}
-                onChange={e => setForm(f => ({ ...f, allowedMaterialCats: [e.target.value] }))}
-                className="admin-input text-xs"
-              >
-                <option value="all">✅ All Study Materials &amp; PDFs Unlocked</option>
-                {materialCats.map(c => (
-                  <option key={c._id} value={c.name}>{c.name} Category Only</option>
-                ))}
-              </select>
-            </div>
+            {/* 4. Material Categories Checkboxes */}
+            <CategoryCheckboxGroup
+              label="📄 Study Material Tab Categories Allowed"
+              categories={materialCats}
+              selected={form.allowedMaterialCats}
+              onChange={val => setForm(f => ({ ...f, allowedMaterialCats: val }))}
+              getCategoryName={c => c.name}
+            />
           </div>
 
           {/* Included Items */}
@@ -834,6 +790,88 @@ function ComboEditModal({ combo, mockCats, subjectCats, ebookCats, materialCats,
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ── Category Checkbox Group Helper Subcomponent ── */
+function CategoryCheckboxGroup({ label, categories, selected, onChange, getCategoryName }) {
+  const isAll = !selected || selected.length === 0 || selected.includes('all');
+
+  const handleToggleAll = (e) => {
+    if (e.target.checked) {
+      onChange(['all']);
+    } else {
+      onChange([]);
+    }
+  };
+
+  const handleToggleCategory = (catName) => {
+    let current = isAll ? categories.map(getCategoryName) : [...(selected || [])];
+    if (current.includes(catName)) {
+      current = current.filter(c => c !== catName);
+    } else {
+      current.push(catName);
+    }
+
+    if (current.length === 0) {
+      onChange([]);
+    } else if (current.length >= categories.length) {
+      onChange(['all']);
+    } else {
+      onChange(current);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between">
+        <label className="admin-label text-xs font-bold mb-0 text-slate-800 dark:text-slate-200">
+          {label}
+        </label>
+        <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+          {isAll ? '✅ All Categories Unlocked' : `${(selected || []).length} of ${categories.length} Selected`}
+        </span>
+      </div>
+
+      <div className="pt-1.5 space-y-2">
+        {/* Toggle All */}
+        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700">
+          <input
+            type="checkbox"
+            checked={isAll}
+            onChange={handleToggleAll}
+            className="w-4 h-4 rounded text-blue-600 accent-blue-600 cursor-pointer"
+          />
+          <span>Unlock All Categories in this Tab</span>
+        </label>
+
+        {/* Category Checkboxes Grid */}
+        <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700 max-h-36 overflow-y-auto pr-1">
+          {categories.map((cat) => {
+            const name = getCategoryName(cat);
+            const isChecked = isAll || (selected || []).includes(name);
+            return (
+              <label
+                key={cat._id || name}
+                className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                  isChecked
+                    ? 'bg-blue-50/70 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => handleToggleCategory(name)}
+                  className="w-3.5 h-3.5 rounded text-blue-600 accent-blue-600 cursor-pointer"
+                />
+                <span className="truncate">{name}</span>
+              </label>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
