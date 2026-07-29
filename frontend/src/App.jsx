@@ -14,6 +14,7 @@ import MaterialsPage    from './pages/MaterialsPage';
 import ContactUsPage    from './pages/ContactUsPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import UserProfilePage  from './pages/UserProfilePage';
+import PolicyPage       from './pages/PolicyPage';
 
 // Admin panel
 import AdminLayout      from './admin/layouts/AdminLayout';
@@ -108,6 +109,11 @@ export default function App() {
             <Route path="/contact" element={<UserLayout><ContactUsPage /></UserLayout>} />
             <Route path="/subscription" element={<UserLayout><SubscriptionPage /></UserLayout>} />
             <Route path="/profile" element={<UserLayout><UserProfilePage /></UserLayout>} />
+            <Route path="/privacy-policy" element={<UserLayout><PolicyPage type="privacy-policy" /></UserLayout>} />
+            <Route path="/terms" element={<UserLayout><PolicyPage type="terms" /></UserLayout>} />
+            <Route path="/refund-policy" element={<UserLayout><PolicyPage type="refund-policy" /></UserLayout>} />
+            <Route path="/disclaimer" element={<UserLayout><PolicyPage type="disclaimer" /></UserLayout>} />
+            <Route path="/about-us" element={<UserLayout><PolicyPage type="about-us" /></UserLayout>} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

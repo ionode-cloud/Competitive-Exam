@@ -3,9 +3,9 @@ const mongoose = require('mongoose');
 const purchaseSchema = new mongoose.Schema({
   orderId: { type: String, unique: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  productType: { type: String, enum: ['mocktest', 'subject', 'ebook', 'bundle'], required: true },
+  productType: { type: String, enum: ['mocktest', 'subject', 'ebook', 'material', 'bundle', 'subscription'], required: true },
   product: { type: mongoose.Schema.Types.ObjectId, refPath: 'productModel' },
-  productModel: { type: String, enum: ['MockTest', 'Subject', 'EBook'] },
+  productModel: { type: String },
   productName: { type: String },
   amount: { type: Number, required: true },
   currency: { type: String, default: 'INR' },

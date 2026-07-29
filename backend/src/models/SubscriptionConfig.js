@@ -17,6 +17,11 @@ const planSchema = new mongoose.Schema({
   badge:     { type: String, default: '' },
   features:  { type: [featureSchema], default: [] },
   order:     { type: Number, default: 0 },
+  // Category access permissions
+  allowedMockTestCats:    { type: [String], default: ['all'] },
+  allowedSubjectTestCats: { type: [String], default: ['all'] },
+  allowedEbookCats:       { type: [String], default: ['all'] },
+  allowedMaterialCats:    { type: [String], default: ['all'] },
   // UPI/payment details per plan
   upiId:     { type: String, default: '' },
   qrCode:    { type: String, default: '' }, // base64 or URL
@@ -31,6 +36,10 @@ const comboSchema = new mongoose.Schema({
   color: { type: String, default: '#1957D6' },
   bg:    { type: String, default: '#EAF1FD' },
   items: { type: [String], default: [] },
+  allowedMockTestCats:    { type: [String], default: ['all'] },
+  allowedSubjectTestCats: { type: [String], default: ['all'] },
+  allowedEbookCats:       { type: [String], default: ['all'] },
+  allowedMaterialCats:    { type: [String], default: ['all'] },
   order: { type: Number, default: 0 },
   upiId: { type: String, default: '' },
   qrCode:{ type: String, default: '' },

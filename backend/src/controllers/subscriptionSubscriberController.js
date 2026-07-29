@@ -181,3 +181,45 @@ exports.cancelSubscription  = (req, res, next) => changeStatus(req, res, next, '
 exports.suspendSubscription = (req, res, next) => changeStatus(req, res, next, 'suspended',  'Subscription Suspended',  req.body.reason || 'Suspended by admin');
 exports.resumeSubscription  = (req, res, next) => changeStatus(req, res, next, 'active',     'Subscription Resumed',    'Resumed by admin');
 exports.activateSubscription= (req, res, next) => changeStatus(req, res, next, 'active',     'Subscription Activated',  'Manually activated by admin');
+
+/* ── PUT update subscriber (edit expiry, status, notes, amount) ──────────── */
+exports.updateSubscriber = async (req, res, next) => {
+  try {
+    const { expiryDate, status, paymentStatus, amount, notes, transactionId, paymentMethod } = req.body;
+    const sub = await UserSubscription.findById(req.params.id);
+    if (!sub) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+    if (expiryDate)     sub.expiryDate     = new Date(expiryDate);
+    if (status)         sub.status         = status;
+    if (paymentStatus)  sub.paymentStatus  = paymentStatus;
+    if (amount !== undefined) sub.amount   = amount;
+    if (notes !== undefined)  sub.notes    = notes;
+    if (transactionId)  sub.transactionId  = transactionId;
+    if (paymentMethod)  sub.paymentMethod  = paymentMethod;
+
+    sub.timeline.push({ event: 'Subscription Updated', description: 'Updated by admin', by: 'admin' });
+    await sub.save();
+
+    const populated = await sub.populate([
+      { path: 'userId', select: 'name email phone' },
+      { path: 'planId', select: 'name code billingCycle' },
+    ]);
+    res.json({ success: true, data: populated, message: 'Subscription updated successfully' });
+  } catch (err) { next(err); }
+};
+
+/* ── DELETE subscriber ────────────────────────────────────────────────────── */
+exports.deleteSubscriber = async (req, res, next) => {
+  try {
+    const sub = await UserSubscription.findById(req.params.id);
+    if (!sub) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+    // Decrement plan subscriber count
+    if (sub.planId) {
+      await SubscriptionPlan.findByIdAndUpdate(sub.planId, { $inc: { subscriberCount: -1 } });
+    }
+
+    await UserSubscription.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Subscription deleted successfully' });
+  } catch (err) { next(err); }
+};

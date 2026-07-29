@@ -1,5 +1,5 @@
 // SubscriptionPage.jsx — Dynamic plans with billing toggle + payment modal & Razorpay Integration
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FaFileAlt, FaClipboardList, FaVideo, FaTrophy, FaStar, FaDollarSign,
   FaCheck, FaTimes, FaCopy, FaQrcode, FaMobileAlt, FaCreditCard,
@@ -254,13 +254,23 @@ export default function SubscriptionPage() {
   const [loading, setLoading]     = useState(true);
   const [payItem, setPayItem]     = useState(null); // plan or combo selected for payment
 
-  useEffect(() => {
+  const fetchConfig = useCallback(() => {
     fetch(`${API_URL}/subscription-config/public`)
       .then(r => r.json())
       .then(j => { if (j.success) setCfg(j.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 3000);
+    window.addEventListener('storage', fetchConfig);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', fetchConfig);
+    };
+  }, [fetchConfig]);
 
   /* Dynamic data with fallbacks */
   const monthlyPlans  = cfg?.monthlyPlans?.length ? cfg.monthlyPlans : DEFAULT_MONTHLY;
@@ -340,10 +350,31 @@ export default function SubscriptionPage() {
                 </div>
               )}
               <div style={{ fontSize: 13, fontWeight: 700, opacity: plan.highlight ? .75 : undefined, color: plan.highlight ? undefined : plan.color, marginBottom: 8 }}>{plan.name}</div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginBottom: 22 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginBottom: 16 }}>
                 <span style={{ fontSize: 36, fontWeight: 900 }}>{plan.price}</span>
                 <span style={{ fontSize: 13, opacity: .7, paddingBottom: 6 }}>{plan.duration}</span>
               </div>
+
+              {/* Category Access Badges */}
+              {(plan.allowedMockTestCats || plan.allowedSubjectTestCats || plan.allowedEbookCats || plan.allowedMaterialCats) && (
+                <div style={{ background: plan.highlight ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '8px 12px', marginBottom: 16, fontSize: 11 }}>
+                  <div style={{ fontWeight: 800, marginBottom: 4, opacity: 0.9 }}>Unlocked Category Access:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ background: plan.highlight ? 'rgba(255,255,255,0.2)' : plan.color + '18', color: plan.highlight ? '#fff' : plan.color, padding: '2px 7px', borderRadius: 12, fontWeight: 700 }}>
+                      🎯 Mock: {plan.allowedMockTestCats?.includes('all') ? 'All Exams' : plan.allowedMockTestCats?.join(', ')}
+                    </span>
+                    <span style={{ background: plan.highlight ? 'rgba(255,255,255,0.2)' : plan.color + '18', color: plan.highlight ? '#fff' : plan.color, padding: '2px 7px', borderRadius: 12, fontWeight: 700 }}>
+                      📚 Subject: {plan.allowedSubjectTestCats?.includes('all') ? 'All Subjects' : plan.allowedSubjectTestCats?.join(', ')}
+                    </span>
+                    <span style={{ background: plan.highlight ? 'rgba(255,255,255,0.2)' : plan.color + '18', color: plan.highlight ? '#fff' : plan.color, padding: '2px 7px', borderRadius: 12, fontWeight: 700 }}>
+                      📖 E-Books: {plan.allowedEbookCats?.includes('all') ? 'All PYQs' : plan.allowedEbookCats?.join(', ')}
+                    </span>
+                    <span style={{ background: plan.highlight ? 'rgba(255,255,255,0.2)' : plan.color + '18', color: plan.highlight ? '#fff' : plan.color, padding: '2px 7px', borderRadius: 12, fontWeight: 700 }}>
+                      📄 Materials: {plan.allowedMaterialCats?.includes('all') ? 'All PDFs' : plan.allowedMaterialCats?.join(', ')}
+                    </span>
+                  </div>
+                </div>
+              )}
               <div style={{ borderTop: plan.highlight ? 'rgba(255,255,255,.25) 1px solid' : '1px solid var(--line)', paddingTop: 20, marginBottom: 22 }}>
                 {(plan.features || []).map((f, j) => (
                   <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, fontSize: 13.5, opacity: f.ok ? 1 : (plan.highlight ? .45 : .4) }}>

@@ -111,6 +111,7 @@ app.use('/api/material-categories', materialCategoryRoutes);
 app.use('/api/materials-config',    materialsConfigRoutes);
 app.use('/api/ebooks-config',        ebookConfigRoutes);
 app.use('/api/pyq-ebooks',           pyqCategoryRoutes);
+app.use('/api/pyq-categories',       pyqCategoryRoutes);
 app.use('/api/subscription-config',  subscriptionConfigRoutes);
 app.use('/api/subscriptions',        subscriptionRoutes);
 app.use('/api/students',             studentRoutes);

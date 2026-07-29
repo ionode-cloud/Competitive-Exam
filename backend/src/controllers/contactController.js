@@ -77,3 +77,36 @@ exports.deleteContactMessage = async (req, res, next) => {
     next(err);
   }
 };
+
+// ── Contact Config Singleton Controller ────────────────────────────────────
+const ContactConfig = require('../models/ContactConfig');
+
+async function getOrCreateConfig() {
+  let cfg = await ContactConfig.findOne();
+  if (!cfg) cfg = await ContactConfig.create({});
+  return cfg;
+}
+
+exports.getContactConfig = async (req, res, next) => {
+  try {
+    const cfg = await getOrCreateConfig();
+    res.json({ success: true, data: cfg });
+  } catch (err) { next(err); }
+};
+
+exports.updateContactConfig = async (req, res, next) => {
+  try {
+    const body = { ...req.body };
+    delete body._id;
+    delete body.__v;
+    delete body.createdAt;
+    delete body.updatedAt;
+
+    const cfg = await ContactConfig.findOneAndUpdate(
+      {},
+      { $set: body },
+      { new: true, runValidators: true, upsert: true }
+    );
+    res.json({ success: true, data: cfg, message: 'Contact settings updated successfully!' });
+  } catch (err) { next(err); }
+};

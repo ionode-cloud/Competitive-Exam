@@ -759,6 +759,26 @@ exports.purchaseCategory = async (req, res, next) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
+    // Also record in main Purchase model for Admin Orders management
+    const Purchase = require('../models/Purchase');
+    const finalOrderId = orderId || ('ORD-SUBJ-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase());
+    await Purchase.findOneAndUpdate(
+      { student: userId, product: categoryId, productType: 'subject' },
+      {
+        orderId: finalOrderId,
+        student: userId,
+        productType: 'subject',
+        product: categoryId,
+        productModel: 'Subject',
+        productName: `Subject Category: ${category.name}`,
+        amount: paid,
+        finalAmount: paid,
+        status: 'completed',
+        notes: `Subject Category purchase for ${category.name}`,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).catch(() => {});
+
     res.json({ success: true, message: `Access granted to all tests in "${category.name}"` });
   } catch (err) { next(err); }
 };

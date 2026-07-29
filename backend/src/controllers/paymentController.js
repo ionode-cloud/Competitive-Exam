@@ -12,12 +12,28 @@ exports.getOrders = async (req, res, next) => {
     const filter = {};
     if (status) filter.status = status;
     if (productType) filter.productType = productType;
-    if (search) filter.orderId = { $regex: search, $options: 'i' };
+
+    if (search) {
+      const User = require('../models/User');
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ]
+      }).select('_id');
+      const userIds = matchingUsers.map(u => u._id);
+
+      filter.$or = [
+        { orderId: { $regex: search, $options: 'i' } },
+        { productName: { $regex: search, $options: 'i' } },
+        { student: { $in: userIds } }
+      ];
+    }
 
     const { skip, limit: lim } = paginate(null, page, limit);
     const [data, total] = await Promise.all([
       Purchase.find(filter).sort(sort).skip(skip).limit(lim)
-        .populate('student', 'name email')
+        .populate('student', 'name email phone')
         .populate('paymentId'),
       Purchase.countDocuments(filter),
     ]);
@@ -32,6 +48,55 @@ exports.getOrder = async (req, res, next) => {
       .populate('paymentId');
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     res.json({ success: true, data: order });
+  } catch (err) { next(err); }
+};
+
+exports.createOrder = async (req, res, next) => {
+  try {
+    const { studentId, productName, productType, amount, status = 'completed', notes } = req.body;
+    if (!studentId || !productName || !productType || amount === undefined) {
+      return res.status(400).json({ success: false, message: 'Student ID, Product Name, Product Type, and Amount are required' });
+    }
+
+    const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+    const purchase = await Purchase.create({
+      orderId,
+      student: studentId,
+      productType,
+      productName,
+      amount: Number(amount),
+      finalAmount: Number(amount),
+      status,
+      notes,
+    });
+
+    const populated = await purchase.populate('student', 'name email phone');
+    res.status(201).json({ success: true, data: populated, message: 'Order created successfully' });
+  } catch (err) { next(err); }
+};
+
+exports.updateOrder = async (req, res, next) => {
+  try {
+    const { productName, productType, amount, status, notes } = req.body;
+    const update = {};
+    if (productName) update.productName = productName;
+    if (productType) update.productType = productType;
+    if (amount !== undefined) { update.amount = Number(amount); update.finalAmount = Number(amount); }
+    if (status) update.status = status;
+    if (notes !== undefined) update.notes = notes;
+
+    const order = await Purchase.findByIdAndUpdate(req.params.id, update, { new: true })
+      .populate('student', 'name email phone');
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    res.json({ success: true, data: order, message: 'Order updated successfully' });
+  } catch (err) { next(err); }
+};
+
+exports.deleteOrder = async (req, res, next) => {
+  try {
+    const order = await Purchase.findByIdAndDelete(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    res.json({ success: true, message: 'Order deleted successfully' });
   } catch (err) { next(err); }
 };
 
@@ -382,6 +447,24 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
         // Update subscriber count on plan
         await SubscriptionPlan.findByIdAndUpdate(plan._id, { $inc: { subscriberCount: 1 } }).catch(() => {});
       }
+    }
+
+    // Also record Purchase in Purchase collection for Admin Orders tab tracking
+    if (payUserId) {
+      const prodType = req.body.productType || (planId ? 'subscription' : 'subject');
+      const prodName = req.body.productName || (planId ? 'Subscription Plan' : 'Competitive Exam Purchase');
+      
+      await Purchase.create({
+        orderId: razorpay_order_id || ('ORD-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase()),
+        student: payUserId,
+        productType: prodType,
+        productName: prodName,
+        amount: Number(amount) || 0,
+        finalAmount: Number(amount) || 0,
+        status: 'completed',
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: finalTxnId,
+      }).catch(() => {});
     }
 
     return res.json({

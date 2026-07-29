@@ -32,6 +32,8 @@ router.post('/plans/:id/duplicate',     planCtrl.duplicatePlan);
 router.get('/subscribers',              subscriberCtrl.getSubscribers);
 router.post('/manual',                  subscriberCtrl.addManualSubscription);
 router.get('/subscribers/:id',          subscriberCtrl.getSubscriber);
+router.put('/subscribers/:id',          subscriberCtrl.updateSubscriber);
+router.delete('/subscribers/:id',       subscriberCtrl.deleteSubscriber);
 router.patch('/subscribers/:id/extend', subscriberCtrl.extendSubscription);
 router.patch('/subscribers/:id/change-plan', subscriberCtrl.changePlan);
 router.patch('/subscribers/:id/cancel',   subscriberCtrl.cancelSubscription);

@@ -1,5 +1,5 @@
-// ContactUsPage.jsx — Contact form + info
-import { useState } from 'react';
+// ContactUsPage.jsx — Dynamic contact info, social handles, support hours, and hero banner settings
+import { useState, useEffect } from 'react';
 import {
   FaPhoneAlt,
   FaEnvelope,
@@ -13,27 +13,51 @@ import {
   FaClock
 } from 'react-icons/fa';
 
-const contactInfo = [
-  { icon: <FaPhoneAlt />, label: 'Call Us', value: '+91 98765 43210', sub: 'Mon–Sat, 9 AM – 7 PM', color: '#1957D6', bg: '#EAF1FD' },
-  { icon: <FaEnvelope />, label: 'Email Us', value: 'info@prephub.in', sub: 'Reply within 24 hours', color: '#0F9D58', bg: '#E8F8EE' },
-  { icon: <FaWhatsapp />, label: 'WhatsApp', value: '+91 98765 43210', sub: 'Chat instantly', color: '#0F9D58', bg: '#E8F8EE' },
-  { icon: <FaMapMarkerAlt />, label: 'Office Address', value: 'PrepHub HQ, Bhubaneswar', sub: 'Odisha – 751001, India', color: '#7C3AED', bg: '#F3ECFE' },
-];
-
-const socials = [
-  { icon: <FaYoutube />, name: 'YouTube', handle: '@PrepHubOdisha', color: '#B4232F', bg: '#FCEBEA', link: '#' },
-  { icon: <FaTelegramPlane />, name: 'Telegram', handle: 't.me/PrepHubOdisha', color: '#1957D6', bg: '#EAF1FD', link: '#' },
-  { icon: <FaInstagram />, name: 'Instagram', handle: '@prephub.in', color: '#7C3AED', bg: '#F3ECFE', link: '#' },
-  { icon: <FaFacebook />, name: 'Facebook', handle: 'PrepHub Odisha', color: '#1957D6', bg: '#EAF1FD', link: '#' },
-];
-
 export default function ContactUsPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+  // Dynamic Contact Config State
+  const [config, setConfig] = useState({
+    phoneValue: '+91 98765 43210',
+    phoneSub: 'Mon–Sat, 9 AM – 7 PM',
+    emailValue: 'info@prephub.in',
+    emailSub: 'Reply within 24 hours',
+    whatsappValue: '+91 98765 43210',
+    whatsappSub: 'Chat instantly',
+    addressValue: 'PrepHub HQ, Bhubaneswar',
+    addressSub: 'Odisha – 751001, India',
+    youtubeHandle: '@PrepHubOdisha',
+    youtubeLink: 'https://youtube.com',
+    telegramHandle: 't.me/PrepHubOdisha',
+    telegramLink: 'https://t.me/PrepHubOdisha',
+    instagramHandle: '@prephub.in',
+    instagramLink: 'https://instagram.com',
+    facebookHandle: 'PrepHub Odisha',
+    facebookLink: 'https://facebook.com',
+    weekdayHours: '9:00 AM – 7:00 PM',
+    saturdayHours: '10:00 AM – 5:00 PM',
+    sundayHours: 'Closed',
+    bannerEyebrow: 'Contact Us',
+    bannerHeading: 'Get In Touch With Us',
+    bannerSubtitle: "Have questions? We're here to help you on your exam journey — Mon to Sat, 9 AM–7 PM.",
+  });
+
+  useEffect(() => {
+    fetch(`${API_URL}/contact/config/public`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.success && data?.data) {
+          setConfig(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [API_URL]);
+
   const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
   const handleSubmit = async e => {
     e.preventDefault();
     setSubmitting(true);
@@ -58,6 +82,20 @@ export default function ContactUsPage() {
     }
   };
 
+  const contactInfo = [
+    { icon: <FaPhoneAlt />, label: 'Call Us', value: config.phoneValue, sub: config.phoneSub, color: '#1957D6', bg: '#EAF1FD' },
+    { icon: <FaEnvelope />, label: 'Email Us', value: config.emailValue, sub: config.emailSub, color: '#0F9D58', bg: '#E8F8EE' },
+    { icon: <FaWhatsapp />, label: 'WhatsApp', value: config.whatsappValue, sub: config.whatsappSub, color: '#0F9D58', bg: '#E8F8EE' },
+    { icon: <FaMapMarkerAlt />, label: 'Office Address', value: config.addressValue, sub: config.addressSub, color: '#7C3AED', bg: '#F3ECFE' },
+  ];
+
+  const socials = [
+    { icon: <FaYoutube />, name: 'YouTube', handle: config.youtubeHandle, color: '#B4232F', bg: '#FCEBEA', link: config.youtubeLink },
+    { icon: <FaTelegramPlane />, name: 'Telegram', handle: config.telegramHandle, color: '#1957D6', bg: '#EAF1FD', link: config.telegramLink },
+    { icon: <FaInstagram />, name: 'Instagram', handle: config.instagramHandle, color: '#7C3AED', bg: '#F3ECFE', link: config.instagramLink },
+    { icon: <FaFacebook />, name: 'Facebook', handle: config.facebookHandle, color: '#1957D6', bg: '#EAF1FD', link: config.facebookLink },
+  ];
+
   const inputStyle = {
     width: '100%', padding: '11px 14px', borderRadius: 10,
     border: '1.5px solid var(--line)', background: 'var(--bg)',
@@ -72,12 +110,12 @@ export default function ContactUsPage() {
         <div className="wrap">
           <div className="contact-hero-wrap" style={{ display: 'flex', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
-              <div className="eyebrow" style={{ color: '#FDE68A' }}>Contact Us</div>
+              <div className="eyebrow" style={{ color: '#FDE68A' }}>{config.bannerEyebrow}</div>
               <h1 style={{ fontFamily: 'var(--disp)', fontSize: 'clamp(20px,2.8vw,30px)', color: '#fff', margin: '6px 0 8px' }}>
-                Get In Touch With Us
+                {config.bannerHeading}
               </h1>
               <p style={{ color: '#94A3B8', fontSize: 13.5, maxWidth: '52ch', lineHeight: 1.6, margin: 0 }}>
-                Have questions? We're here to help you on your exam journey — Mon to Sat, 9 AM–7 PM.
+                {config.bannerSubtitle}
               </p>
             </div>
             <div className="contact-hero-badges" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
@@ -191,7 +229,7 @@ export default function ContactUsPage() {
               <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 18 }}>Follow Us</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {socials.map((s, i) => (
-                  <a key={i} href={s.link} style={{
+                  <a key={i} href={s.link || '#'} target="_blank" rel="noreferrer" style={{
                     display: 'flex', alignItems: 'center', gap: 14,
                     background: s.bg, borderRadius: 10, padding: '12px 16px',
                     textDecoration: 'none', transition: 'transform .15s',
@@ -213,9 +251,9 @@ export default function ContactUsPage() {
             <div className="contact-sidebar-card" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: 28 }}>
               <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>Support Hours</h3>
               {[
-                { day: 'Monday – Friday', time: '9:00 AM – 7:00 PM' },
-                { day: 'Saturday', time: '10:00 AM – 5:00 PM' },
-                { day: 'Sunday', time: 'Closed' },
+                { day: 'Monday – Friday', time: config.weekdayHours },
+                { day: 'Saturday', time: config.saturdayHours },
+                { day: 'Sunday', time: config.sundayHours },
               ].map((row, i) => (
                 <div key={i} style={{
                   display: 'flex', justifyContent: 'space-between',
