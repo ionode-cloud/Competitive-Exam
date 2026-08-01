@@ -4,6 +4,63 @@ const Chapter = require('../models/Chapter');
 const SubChapter = require('../models/SubChapter');
 const XLSX = require('xlsx');
 const { paginate, paginateResponse } = require('../utils/pagination');
+const SubjectTestQuestionMap = require('../models/SubjectTestQuestionMap');
+const SubjectTest = require('../models/SubjectTest');
+const MockTest = require('../models/MockTest');
+
+const syncQuestionDeletionWithTests = async (questionIds) => {
+  if (!Array.isArray(questionIds) || questionIds.length === 0) return;
+  try {
+    const maps = await SubjectTestQuestionMap.find({
+      $or: [{ questionId: { $in: questionIds } }, { _id: { $in: questionIds } }]
+    });
+    const affectedSubjectTestIds = [...new Set(maps.map(m => m.testId.toString()))];
+
+    await SubjectTestQuestionMap.deleteMany({
+      $or: [{ questionId: { $in: questionIds } }, { _id: { $in: questionIds } }]
+    });
+
+    for (const testId of affectedSubjectTestIds) {
+      const remainingCount = await SubjectTestQuestionMap.countDocuments({ testId });
+      const test = await SubjectTest.findById(testId);
+      if (test) {
+        if (remainingCount === 0) {
+          test.status = 'archived';
+          test.totalQuestions = 0;
+          test.totalMarks = 0;
+          await test.save();
+        } else {
+          test.totalQuestions = remainingCount;
+          test.totalMarks = remainingCount * (test.positiveMarks || 1);
+          await test.save();
+        }
+      }
+    }
+
+    const affectedMockTests = await MockTest.find({
+      $or: [
+        { 'questions.question': { $in: questionIds } },
+        { 'questions._id': { $in: questionIds } }
+      ]
+    });
+
+    for (const mt of affectedMockTests) {
+      mt.questions = mt.questions.filter(q => {
+        const qId = (q.question?._id || q.question || q._id).toString();
+        return !questionIds.some(id => id.toString() === qId);
+      });
+      mt.completedQuestions = mt.questions.length;
+      mt.totalQuestions = mt.questions.length;
+      mt.totalMarks = mt.questions.length * (mt.positiveMarks || 1);
+      if (mt.questions.length === 0) {
+        mt.status = 'archived';
+      }
+      await mt.save();
+    }
+  } catch (err) {
+    console.error('Error syncing question deletion with tests:', err);
+  }
+};
 
 // @desc    Get all questions with filters
 // @route   GET /api/questions
@@ -96,6 +153,7 @@ exports.deleteQuestion = async (req, res, next) => {
     if (q.chapter) await Chapter.findByIdAndUpdate(q.chapter, { $inc: { questionCount: -1 } });
     if (q.subChapter) await SubChapter.findByIdAndUpdate(q.subChapter, { $inc: { questionCount: -1 } });
 
+    await syncQuestionDeletionWithTests([q._id]);
     await q.deleteOne();
     res.json({ success: true, message: 'Question deleted' });
   } catch (err) {
@@ -131,8 +189,11 @@ exports.duplicateQuestion = async (req, res, next) => {
 exports.bulkDelete = async (req, res, next) => {
   try {
     const { ids } = req.body;
-    await Question.deleteMany({ _id: { $in: ids } });
-    res.json({ success: true, message: `${ids.length} questions deleted` });
+    if (Array.isArray(ids) && ids.length > 0) {
+      await syncQuestionDeletionWithTests(ids);
+      await Question.deleteMany({ _id: { $in: ids } });
+    }
+    res.json({ success: true, message: `${ids?.length || 0} questions deleted` });
   } catch (err) {
     next(err);
   }

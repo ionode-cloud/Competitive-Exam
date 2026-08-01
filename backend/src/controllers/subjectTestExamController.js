@@ -552,9 +552,10 @@ exports.getExamAttempt = async (req, res, next) => {
 
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
-      return rawOpts.map(o => {
-        const optId = o.id || o.label || '';
-        return { id: optId, text: o.text || '', image: o.image || '' };
+      return rawOpts.map((o, idx) => {
+        const optLabel = o.label || String.fromCharCode(65 + idx);
+        const optId = o.id || o._id || optLabel;
+        return { id: optId, label: optLabel, text: o.text || '', image: o.image || '' };
       });
     };
 
@@ -611,15 +612,92 @@ exports.saveAnswer = async (req, res, next) => {
       } else {
         attempt.answers.set(questionId, selectedOption);
       }
+      attempt.markModified('answers');
     }
 
     if (status) {
       attempt.questionStates.set(questionId, status);
+      attempt.markModified('questionStates');
     }
 
     await attempt.save();
     res.json({ success: true, answers: attempt.answers, questionStates: attempt.questionStates });
   } catch (err) { next(err); }
+};
+
+const checkAnswerMatch = (userAns, q) => {
+  if (userAns === undefined || userAns === null || userAns === '' || !q || !q.correctAnswer) return false;
+
+  const uStr = String(userAns).trim().toLowerCase();
+  const cStr = String(q.correctAnswer).trim().toLowerCase();
+
+  // 1. Direct match
+  if (uStr === cStr) return true;
+
+  const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
+
+  // Helper to find option index for any value (ID, label, index, text)
+  const findOptionIndex = (valStr) => {
+    if (!valStr) return -1;
+    let idxFromLetter = letterMap[valStr];
+    if (idxFromLetter !== undefined) return idxFromLetter;
+
+    if (!isNaN(parseInt(valStr, 10)) && parseInt(valStr, 10) >= 0 && parseInt(valStr, 10) < 10) {
+      return parseInt(valStr, 10);
+    }
+
+    if (Array.isArray(q.options) && q.options.length > 0) {
+      const foundIdx = q.options.findIndex((opt, idx) => {
+        const optId = String(opt.id || opt._id || '').trim().toLowerCase();
+        const optLabel = String(opt.label || String.fromCharCode(65 + idx)).trim().toLowerCase();
+        const optText = String(opt.text || '').trim().toLowerCase();
+        return (
+          optId === valStr ||
+          optLabel === valStr ||
+          (optText !== '' && optText === valStr)
+        );
+      });
+      if (foundIdx !== -1) return foundIdx;
+    }
+
+    return -1;
+  };
+
+  const userIdx = findOptionIndex(uStr);
+  const correctIdx = findOptionIndex(cStr);
+
+  if (userIdx !== -1 && correctIdx !== -1 && userIdx === correctIdx) {
+    return true;
+  }
+
+  return false;
+};
+
+const getUserAnswer = (answersMapOrObj, qStr) => {
+  if (!answersMapOrObj) return null;
+  const targetKey = String(qStr);
+
+  if (typeof answersMapOrObj.get === 'function') {
+    let val = answersMapOrObj.get(targetKey);
+    if (val !== undefined && val !== null && val !== '') return val;
+    for (const [k, v] of answersMapOrObj.entries()) {
+      if (String(k) === targetKey && v !== undefined && v !== null && v !== '') return v;
+    }
+  }
+
+  if (typeof answersMapOrObj === 'object') {
+    if (answersMapOrObj[targetKey] !== undefined && answersMapOrObj[targetKey] !== null && answersMapOrObj[targetKey] !== '') {
+      return answersMapOrObj[targetKey];
+    }
+    for (const k of Object.keys(answersMapOrObj)) {
+      if (String(k) === targetKey) {
+        const v = answersMapOrObj[k];
+        if (v !== undefined && v !== null && v !== '') return v;
+      }
+    }
+  }
+
+  return null;
 };
 
 /* ── Submit Attempt Internal Helper ────────────────────────────────────────── */
@@ -659,14 +737,14 @@ exports.submitAttemptInternal = async (attempt, res) => {
     attempt.questionOrder.forEach(qId => {
       const qStr = qId.toString();
       const q = questionMap.get(qStr);
-      const userAns = attempt.answers.get(qStr);
+      const userAns = getUserAnswer(attempt.answers, qStr);
 
-      const posMark = q?.defaultMarks || q?.marks || test?.positiveMarks || 1;
-      const negMark = q?.defaultNegativeMarks || q?.negativeMarks || test?.negativeMarks || 0.25;
+      const posMark = (q && typeof q.defaultMarks === 'number' && q.defaultMarks > 0) ? q.defaultMarks : ((q && typeof q.marks === 'number' && q.marks > 0) ? q.marks : (test && test.positiveMarks ? test.positiveMarks : 1));
+      const negMark = (q && typeof q.defaultNegativeMarks === 'number' && q.defaultNegativeMarks > 0) ? q.defaultNegativeMarks : ((q && typeof q.negativeMarks === 'number' && q.negativeMarks > 0) ? q.negativeMarks : (test && test.negativeMarks ? test.negativeMarks : 0.25));
 
       if (!userAns) {
         skippedCount++;
-      } else if (q && userAns === q.correctAnswer) {
+      } else if (q && checkAnswerMatch(userAns, q)) {
         correctCount++;
         positiveTotal += posMark;
       } else {
@@ -699,6 +777,23 @@ exports.submitAttemptInternal = async (attempt, res) => {
 
     await attempt.save();
 
+    // Broadcast real-time Socket.IO event
+    try {
+      const { emitEvent } = require('../utils/socket');
+      emitEvent('attempt_submitted', {
+        attemptId: attempt._id,
+        testId: attempt.testId,
+        score: attempt.score,
+        totalMarks: totalMaxMarks,
+        correctCount,
+        incorrectCount,
+        percentage,
+        rank,
+        totalTakers,
+        percentile
+      });
+    } catch { /* proceed */ }
+
     return res.json({
       success: true,
       message: 'Test submitted successfully',
@@ -726,6 +821,22 @@ exports.submitExamAttempt = async (req, res, next) => {
     const { attemptId } = req.params;
     const attempt = await SubjectTestAttempt.findById(attemptId);
     if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
+
+    // Fail-safe: merge any client-submitted answers directly into attempt.answers map
+    if (req.body && req.body.answers && typeof req.body.answers === 'object') {
+      Object.entries(req.body.answers).forEach(([qId, opt]) => {
+        if (opt) attempt.answers.set(qId, opt);
+      });
+      attempt.markModified('answers');
+    }
+    if (req.body && req.body.questionStates && typeof req.body.questionStates === 'object') {
+      Object.entries(req.body.questionStates).forEach(([qId, st]) => {
+        if (st) attempt.questionStates.set(qId, st);
+      });
+      attempt.markModified('questionStates');
+    }
+    await attempt.save();
+
     return exports.submitAttemptInternal(attempt, res);
   } catch (err) { next(err); }
 };
@@ -770,17 +881,37 @@ exports.getExamAttemptResult = async (req, res, next) => {
 
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
-      return rawOpts.map(o => {
-        const optId = o.id || o.label || '';
-        return { id: optId, text: o.text || '', image: o.image || '' };
+      return rawOpts.map((o, idx) => {
+        const optLabel = o.label || String.fromCharCode(65 + idx);
+        const optId = o.id || o._id || optLabel;
+        return { id: optId, label: optLabel, text: o.text || '', image: o.image || '' };
       });
     };
 
+    let correctCount = 0;
+    let incorrectCount = 0;
+    let skippedCount = 0;
+    let positiveTotal = 0;
+    let negativeTotal = 0;
+
     const solutions = questionsList.map((q, idx) => {
       const qStr = q._id.toString();
-      const userAns = attempt.answers ? attempt.answers.get(qStr) || null : null;
-      const isCorrect = userAns && userAns === q.correctAnswer;
+      const userAns = getUserAnswer(attempt.answers, qStr);
+      const isCorrect = userAns ? checkAnswerMatch(userAns, q) : false;
       const isSkipped = !userAns;
+
+      const posMark = (q && typeof q.defaultMarks === 'number' && q.defaultMarks > 0) ? q.defaultMarks : ((q && typeof q.marks === 'number' && q.marks > 0) ? q.marks : (test && test.positiveMarks ? test.positiveMarks : 1));
+      const negMark = (q && typeof q.defaultNegativeMarks === 'number' && q.defaultNegativeMarks > 0) ? q.defaultNegativeMarks : ((q && typeof q.negativeMarks === 'number' && q.negativeMarks > 0) ? q.negativeMarks : (test && test.negativeMarks ? test.negativeMarks : 0.25));
+
+      if (isSkipped) {
+        skippedCount++;
+      } else if (isCorrect) {
+        correctCount++;
+        positiveTotal += posMark;
+      } else {
+        incorrectCount++;
+        negativeTotal += negMark;
+      }
 
       return {
         _id: q._id,
@@ -793,16 +924,54 @@ exports.getExamAttemptResult = async (req, res, next) => {
         explanation: q.explanation || '',
         isCorrect,
         isSkipped,
-        marks: isCorrect ? (q.defaultMarks || test?.positiveMarks || 1) : (isSkipped ? 0 : -(q.defaultNegativeMarks || test?.negativeMarks || 0.25))
+        marks: isCorrect ? posMark : (isSkipped ? 0 : -negMark)
       };
     });
 
     const totalQs = attempt.questionOrder?.length || questionsList.length;
     const totalMaxMarks = totalQs * (test?.positiveMarks || 1);
+    const realScore = Math.max(0, parseFloat((positiveTotal - negativeTotal).toFixed(2)));
+    const percentage = totalMaxMarks > 0 ? parseFloat(((realScore / totalMaxMarks) * 100).toFixed(2)) : 0;
+    const attemptedCount = correctCount + incorrectCount;
+    const accuracy = attemptedCount > 0 ? parseFloat(((correctCount / attemptedCount) * 100).toFixed(2)) : 0;
+
+    // Auto-heal attempt record in MongoDB if score/counts were outdated
+    if (attempt.score !== realScore || attempt.correctCount !== correctCount) {
+      attempt.score = realScore;
+      attempt.correctCount = correctCount;
+      attempt.incorrectCount = incorrectCount;
+      attempt.skippedCount = skippedCount;
+      attempt.positiveMarksTotal = parseFloat(positiveTotal.toFixed(2));
+      attempt.negativeMarksTotal = parseFloat(negativeTotal.toFixed(2));
+      attempt.percentage = percentage;
+      attempt.accuracy = accuracy;
+      await attempt.save().catch(() => {});
+    }
 
     const User = require('../models/User');
     const userDoc = await User.findById(attempt.userId).select('name');
     const userName = userDoc?.name || req.user?.name || 'Student Candidate';
+
+    // Calculate live rank and percentile
+    const allCompleted = await SubjectTestAttempt.find({ testId: attempt.testId, status: 'completed' })
+      .select('score')
+      .sort('-score updatedAt');
+    
+    const totalTakers = Math.max(1, allCompleted.length);
+    let rank = 1;
+    let betterThanCount = 0;
+    allCompleted.forEach((att, idx) => {
+      if (att._id.toString() === attempt._id.toString()) {
+        rank = idx + 1;
+      }
+      if (att.score < realScore) {
+        betterThanCount++;
+      }
+    });
+
+    const percentile = totalTakers > 1 
+      ? parseFloat(((betterThanCount / (totalTakers - 1)) * 100).toFixed(1)) 
+      : 100;
 
     res.json({
       success: true,
@@ -815,6 +984,9 @@ exports.getExamAttemptResult = async (req, res, next) => {
         totalMarks: totalMaxMarks,
         percentage: attempt.percentage,
         accuracy: attempt.accuracy,
+        rank,
+        totalTakers,
+        percentile,
         totalQuestions: totalQs,
         attempted: attempt.correctCount + attempt.incorrectCount,
         correctCount: attempt.correctCount,

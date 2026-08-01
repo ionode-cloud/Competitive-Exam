@@ -231,7 +231,12 @@ exports.removeQuestion = async (req, res, next) => {
     const mt = await MockTest.findById(req.params.id);
     if (!mt) return res.status(404).json({ success: false, message: 'Mock test not found' });
 
-    mt.questions = mt.questions.filter(q => q.question.toString() !== req.params.questionId);
+    const qIdStr = req.params.questionId;
+    mt.questions = mt.questions.filter(q => {
+      const targetId = (q.question?._id || q.question || q._id).toString();
+      const subDocId = q._id ? q._id.toString() : '';
+      return targetId !== qIdStr && subDocId !== qIdStr;
+    });
     mt.completedQuestions = mt.questions.length;
     await mt.save();
 

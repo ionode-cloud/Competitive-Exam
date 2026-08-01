@@ -189,7 +189,7 @@ export default function SubjectTestPage() {
   const [activeSubject, setActiveSubject] = useState(0);
   const [activeTopic, setActiveTopic] = useState(null);
 
-  const rawSubParam = searchParams.get('sub') ?? searchParams.get('cat') ?? searchParams.get('catId') ?? '';
+  const rawSubParam = searchParams.get('sub') ?? searchParams.get('cat') ?? searchParams.get('catId') ?? searchParams.get('subject') ?? '';
 
   // Re-sync active subject index whenever URL param or subjectList changes
   useEffect(() => {
@@ -204,8 +204,12 @@ export default function SubjectTestPage() {
         return;
       }
 
-      // 2. Try matching by category name
-      const nameIdx = subjectList.findIndex(s => s.name.toLowerCase() === rawSubParam.toLowerCase());
+      // 2. Try matching by category name substring
+      const qStr = rawSubParam.toLowerCase().trim();
+      const nameIdx = subjectList.findIndex(s => {
+        const sName = (s.name || '').toLowerCase().trim();
+        return sName.includes(qStr) || qStr.includes(sName);
+      });
       if (nameIdx !== -1) {
         setActiveSubject(nameIdx);
         setActiveTopic(null);
@@ -220,9 +224,6 @@ export default function SubjectTestPage() {
         return;
       }
     }
-
-    setActiveSubject(0);
-    setActiveTopic(null);
   }, [rawSubParam, subjectList]);
 
   const sub = subjectList[activeSubject] || subjectList[0];

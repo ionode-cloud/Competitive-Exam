@@ -29,7 +29,9 @@ function SortableQuestion({ item, onRemove, onEdit }) {
         <RiDragMoveLine className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate" dangerouslySetInnerHTML={{ __html: q.questionText || 'Question text unavailable' }} />
+        <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
+          {q.questionText || 'Question text unavailable'}
+        </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
           <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 font-semibold">
             Section: {item.section || q.section || 'General'}
@@ -684,7 +686,9 @@ export default function CreateMockTest() {
                   className="mt-0.5 rounded text-primary-600"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2" dangerouslySetInnerHTML={{ __html: q.questionText }} />
+                  <div className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
+                    {q.questionText}
+                  </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
                     <span className="admin-badge-gray">{q.difficulty}</span>
                     {q.subject?.name && <span>• {q.subject.name}</span>}

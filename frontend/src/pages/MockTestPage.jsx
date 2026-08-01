@@ -200,7 +200,12 @@ export default function MockTestPage() {
             };
           });
 
-          setCategoriesList(formattedLive);
+          setCategoriesList(formattedLive.length > 0 ? formattedLive : [
+            { _id: 'osssc', category: 'OSSSC', categoryPrice: 199, icon: <FaLandmark />, color: '#7C3AED', bg: '#F3ECFE', topics: [{ id: 1, name: 'OSSSC Official Papers', testsCount: 0, tests: [] }] },
+            { _id: 'ossc', category: 'OSSC', categoryPrice: 199, icon: <FaTrain />, color: '#0F9D58', bg: '#E8F8EE', topics: [{ id: 1, name: 'OSSC Official Papers', testsCount: 0, tests: [] }] },
+            { _id: 'police', category: 'ODISHA POLICE', categoryPrice: 199, icon: <FaShieldAlt />, color: '#1957D6', bg: '#EAF1FD', topics: [{ id: 1, name: 'Odisha Police Papers', testsCount: 0, tests: [] }] },
+            { _id: 'opsc', category: 'OPSC', categoryPrice: 199, icon: <FaLandmark />, color: '#EA7A1E', bg: '#FEF1E4', topics: [{ id: 1, name: 'OPSC Official Papers', testsCount: 0, tests: [] }] },
+          ]);
         }
       })
       .catch(() => { /* silent */ });
@@ -209,7 +214,6 @@ export default function MockTestPage() {
   useEffect(() => {
     fetchLiveMockTests();
 
-    // Auto-polling every 3 seconds for real-time synchronization
     const timer = setInterval(fetchLiveMockTests, 3000);
 
     const handleSync = () => fetchLiveMockTests();
@@ -223,32 +227,33 @@ export default function MockTestPage() {
     };
   }, [fetchLiveMockTests]);
 
-  // Handle URL category parameters once on initial load or URL change
-  const [paramHandledKey, setParamHandledKey] = useState('');
-
+  // Handle URL category parameters whenever searchParams or categoriesList change
   useEffect(() => {
-    const catIdParam = searchParams.get('catId') || '';
-    const rawCat = searchParams.get('cat') || '';
-    const paramKey = `${catIdParam}-${rawCat}`;
+    const rawCat = searchParams.get('cat') || searchParams.get('catId') || searchParams.get('category') || '';
+    if (!rawCat || categoriesList.length === 0) return;
 
-    if (categoriesList.length > 0 && paramKey !== paramHandledKey) {
-      if (catIdParam) {
-        const foundIdx = categoriesList.findIndex(c => (c._id && c._id.toString() === catIdParam.toString()) || c.category === catIdParam);
-        if (foundIdx !== -1) {
-          setActiveCategory(foundIdx);
-          setActiveTopic(null);
-          setParamHandledKey(paramKey);
-          return;
-        }
-      }
-      if (rawCat !== '' && !isNaN(parseInt(rawCat, 10))) {
-        const idx = Math.min(Math.max(parseInt(rawCat, 10), 0), categoriesList.length - 1);
-        setActiveCategory(idx);
-        setActiveTopic(null);
-        setParamHandledKey(paramKey);
-      }
+    // 1. Try exact ID match
+    let foundIdx = categoriesList.findIndex(c => c._id && c._id.toString() === rawCat.toString());
+
+    // 2. Try name string match (e.g. 'OSSSC', 'OSSC', 'ODISHA POLICE', 'OPSC')
+    if (foundIdx === -1) {
+      const qStr = rawCat.trim().toLowerCase();
+      foundIdx = categoriesList.findIndex(c => {
+        const catStr = (c.category || c.name || '').trim().toLowerCase();
+        return catStr.includes(qStr) || qStr.includes(catStr);
+      });
     }
-  }, [searchParams, categoriesList, paramHandledKey]);
+
+    // 3. Try integer index fallback
+    if (foundIdx === -1 && !isNaN(parseInt(rawCat, 10))) {
+      foundIdx = Math.min(Math.max(parseInt(rawCat, 10), 0), categoriesList.length - 1);
+    }
+
+    if (foundIdx !== -1) {
+      setActiveCategory(foundIdx);
+      setActiveTopic(null);
+    }
+  }, [searchParams, categoriesList]);
 
   const cat = categoriesList[activeCategory] || categoriesList[0] || {
     category: 'Mock Tests',

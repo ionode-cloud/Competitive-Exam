@@ -108,6 +108,13 @@ export default function ManageMockTest() {
   const [autoModal, setAutoModal] = useState(false);
   const [autoSelectForm, setAutoSelectForm] = useState({ easyCount: 20, mediumCount: 20, hardCount: 10 });
 
+  // Available Question Bank Modal Filter States
+  const [mapSubjectFilter, setMapSubjectFilter] = useState('');
+  const [mapTopicFilter, setMapTopicFilter] = useState('');
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [availableBankQs, setAvailableBankQs] = useState([]);
+  const [loadingBankQs, setLoadingBankQs] = useState(false);
+
   // ── Data Fetching ─────────────────────────────────────────────────────────────
   const fetchConfig = useCallback(async () => {
     try {
@@ -434,11 +441,38 @@ export default function ManageMockTest() {
   };
 
   // ── Mapping Handlers ────────────────────────────────────────────────────────
-  const openMappingModal = (testId) => {
+  const fetchAvailableBankQuestions = useCallback(async (subjectId, topicName, search) => {
+    setLoadingBankQs(true);
+    try {
+      const params = { limit: 200 };
+      if (subjectId) params.subject = subjectId;
+      if (topicName) params.topic = topicName;
+      if (search) params.search = search;
+      const res = await api.get('/questions', { params });
+      if (res.data?.success) {
+        setAvailableBankQs(res.data.data || []);
+      }
+    } catch { /* silent */ }
+    finally { setLoadingBankQs(false); }
+  }, []);
+
+  const openMappingModal = async (testId) => {
     setSelectedTestDetails(null);
     setSelectedQIds([]);
-    loadTestForMapping(testId);
     setMapModal(true);
+    try {
+      const res = await api.get(`/mocktests/${testId}`);
+      if (res.data?.success) {
+        const test = res.data.data;
+        setSelectedTestDetails(test);
+        const subjId = test.subject?._id || test.subject || test.subjectId || '';
+        const topName = test.topicName || '';
+        setMapSubjectFilter(subjId);
+        setMapTopicFilter(topName);
+        setMapSearchQuery('');
+        fetchAvailableBankQuestions(subjId, topName, '');
+      }
+    } catch { /* silent */ }
   };
 
   const addSelectedQuestionsToTest = async () => {
@@ -449,6 +483,19 @@ export default function ManageMockTest() {
       Swal.fire('Mapped!', res.data?.message || 'Questions mapped successfully', 'success');
       setSelectedQIds([]);
       loadTestForMapping(selectedTestDetails._id);
+      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, mapSearchQuery);
+      fetchAllData();
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Mapping failed', 'error');
+    }
+  };
+
+  const addSingleQuestionToTest = async (qId) => {
+    if (!selectedTestDetails) return;
+    try {
+      await api.post(`/mocktests/${selectedTestDetails._id}/questions`, { questionIds: [qId] });
+      loadTestForMapping(selectedTestDetails._id);
+      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, mapSearchQuery);
       fetchAllData();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Mapping failed', 'error');
@@ -460,11 +507,15 @@ export default function ManageMockTest() {
     try {
       await api.delete(`/mocktests/${selectedTestDetails._id}/questions/${qId}`);
       loadTestForMapping(selectedTestDetails._id);
+      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, mapSearchQuery);
       fetchAllData();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Remove failed', 'error');
     }
   };
+
+  const selectedMapSubjObj = allSubjects.find(s => String(s._id) === String(mapSubjectFilter) || s.name === mapSubjectFilter);
+  const mapAvailableTopics = selectedMapSubjObj?.topics || [];
 
   // Filtered Tests List
   const filteredTests = tests.filter(t => {
@@ -1091,12 +1142,12 @@ export default function ManageMockTest() {
       {/* ── QUESTION MAPPING MODAL ── */}
       {mapModal && selectedTestDetails && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 840, maxHeight: '92vh', overflowY: 'auto', padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 900, maxHeight: '92vh', overflowY: 'auto', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Map Questions — {selectedTestDetails.name || selectedTestDetails.title}</h3>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-                  Total Questions: {selectedTestDetails.questions?.length || 0}
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Map Questions — {selectedTestDetails.name || selectedTestDetails.title}</h3>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>
+                  Mapped Questions: {(selectedTestDetails.questions || []).length}
                 </p>
               </div>
               <button onClick={() => setMapModal(false)} style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}>
@@ -1104,27 +1155,32 @@ export default function ManageMockTest() {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: 20 }}>
+              
               {/* Left Column: Currently Mapped Questions */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 14, background: '#f8fafc' }}>
                 <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 800, color: '#1e293b' }}>
                   Mapped Questions ({(selectedTestDetails.questions || []).length})
                 </h4>
-                <div style={{ maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(selectedTestDetails.questions || []).length === 0 ? (
-                    <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>No questions mapped yet.</p>
+                    <p style={{ fontSize: 12, color: '#94a3b8', margin: 0, padding: 20, textAlign: 'center' }}>No questions mapped yet. Select questions from Available Question Bank on the right.</p>
                   ) : (
                     (selectedTestDetails.questions || []).map((qItem, idx) => {
                       const qObj = qItem.question || qItem;
                       const qId = qObj._id || qItem._id;
                       return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}>
-                          <div style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontWeight: 800, color: '#2563eb', marginRight: 6 }}>Q{idx + 1}.</span>
-                            <span dangerouslySetInnerHTML={{ __html: qObj.questionText || 'Question text' }} />
+                            <span style={{ fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>{qObj.questionText || 'Question text'}</span>
                           </div>
-                          <button onClick={() => removeQuestionFromTest(qId)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
-                            <RiDeleteBin2Line />
+                          <button
+                            type="button"
+                            onClick={() => removeQuestionFromTest(qId)}
+                            style={{ border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 800, flexShrink: 0 }}
+                          >
+                            Remove
                           </button>
                         </div>
                       );
@@ -1135,31 +1191,142 @@ export default function ManageMockTest() {
 
               {/* Right Column: Question Bank Questions */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 14, background: '#fff' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Question Bank</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Available Question Bank</h4>
                   <button onClick={addSelectedQuestionsToTest} style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: '#16a34a', border: 'none', padding: '5px 12px', borderRadius: 6, cursor: 'pointer' }}>
                     + Add Selected ({selectedQIds.length})
                   </button>
                 </div>
 
-                <div style={{ maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {questions.length === 0 ? (
-                    <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>No question bank items found.</p>
+                {/* Subject & Topic Dropdowns */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 2 }}>Subject</label>
+                    <select
+                      value={mapSubjectFilter}
+                      onChange={e => {
+                        const sId = e.target.value;
+                        setMapSubjectFilter(sId);
+                        setMapTopicFilter('');
+                        fetchAvailableBankQuestions(sId, '', mapSearchQuery);
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', fontWeight: 600 }}
+                    >
+                      <option value="">All Subjects</option>
+                      {allSubjects.map(s => (
+                        <option key={s._id} value={s._id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 2 }}>Topic</label>
+                    <select
+                      value={mapTopicFilter}
+                      onChange={e => {
+                        const top = e.target.value;
+                        setMapTopicFilter(top);
+                        fetchAvailableBankQuestions(mapSubjectFilter, top, mapSearchQuery);
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', fontWeight: 600 }}
+                    >
+                      <option value="">All Topics</option>
+                      {mapAvailableTopics.map((t, idx) => (
+                        <option key={idx} value={typeof t === 'string' ? t : t.name}>{typeof t === 'string' ? t : t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Search Input */}
+                <div style={{ marginBottom: 10 }}>
+                  <input
+                    type="text"
+                    value={mapSearchQuery}
+                    onChange={e => {
+                      const q = e.target.value;
+                      setMapSearchQuery(q);
+                      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, q);
+                    }}
+                    placeholder="Search available questions..."
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
+                  />
+                </div>
+
+                {/* Questions List */}
+                <div style={{ maxHeight: 330, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {loadingBankQs ? (
+                    <p style={{ fontSize: 12, color: '#64748b', margin: 0, padding: 20, textAlign: 'center' }}>Loading Question Bank...</p>
+                  ) : availableBankQs.length === 0 ? (
+                    <p style={{ fontSize: 12, color: '#94a3b8', margin: 0, padding: 20, textAlign: 'center' }}>No questions found for selected Subject/Topic.</p>
                   ) : (
-                    questions.map(q => {
+                    availableBankQs.map(q => {
+                      const mappedList = selectedTestDetails.questions || [];
+                      const isMapped = mappedList.some(m => {
+                        const mId = m.question?._id || m.question || m._id;
+                        return String(mId) === String(q._id);
+                      });
                       const isSelected = selectedQIds.includes(q._id);
+                      const subjName = q.subject?.name || q.subjectName || '';
+                      const topName = q.topic || q.topicName || '';
+
                       return (
-                        <label key={q._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: isSelected ? '#eff6ff' : '#fff', cursor: 'pointer', fontSize: 12 }}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={e => {
-                              if (e.target.checked) setSelectedQIds(prev => [...prev, q._id]);
-                              else setSelectedQIds(prev => prev.filter(id => id !== q._id));
-                            }}
-                          />
-                          <span style={{ flex: 1, minWidth: 0 }} dangerouslySetInnerHTML={{ __html: q.questionText || 'Question' }} />
-                        </label>
+                        <div
+                          key={q._id}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: `1.5px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
+                            background: isMapped ? '#f1f5f9' : isSelected ? '#eff6ff' : '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{q.questionText || 'Question'}</div>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                              {subjName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#eff6ff', color: '#2563eb' }}>{subjName}</span>}
+                              {topName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#f3ecfe', color: '#7c3aed' }}>{topName}</span>}
+                              {isMapped && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#059669' }}>✓ Already Mapped</span>}
+                            </div>
+                          </div>
+
+                          {!isMapped && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  setSelectedQIds(prev => prev.includes(q._id) ? prev.filter(id => id !== q._id) : [...prev, q._id]);
+                                }}
+                                title="Select for batch add"
+                                style={{ width: 16, height: 16, cursor: 'pointer' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addSingleQuestionToTest(q._id)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  background: '#16a34a',
+                                  color: '#fff',
+                                  fontWeight: 900,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 3
+                                }}
+                                title="Add to test"
+                              >
+                                <RiAddLine /> + Add
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       );
                     })
                   )}

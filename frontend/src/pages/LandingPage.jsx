@@ -33,10 +33,10 @@ import {
    1. HERO DASHBOARD
 ══════════════════════════════════════════════════════════ */
 const catTiles = [
-  { icon: <FaUniversity />, label: 'Bank & Insurance', bg: 'var(--blue-bg)', go: 'var(--blue)', cat: 2 },
-  { icon: <FaTrain />, label: 'SSC & Railway', bg: 'var(--green-bg)', go: 'var(--green)', cat: 1 },
-  { icon: <FaBalanceScale />, label: 'Regulatory Bodies', bg: 'var(--purple-bg)', go: 'var(--purple)', cat: 3 },
-  { icon: <FaLandmark />, label: 'State PSC / SSSC', bg: 'var(--orange-bg)', go: 'var(--orange)', cat: 0 },
+  { icon: <FaUniversity />, label: 'OSSSC', bg: 'var(--blue-bg)', go: 'var(--blue)', cat: 'OSSSC' },
+  { icon: <FaTrain />, label: 'OSSC', bg: 'var(--green-bg)', go: 'var(--green)', cat: 'OSSC' },
+  { icon: <FaShieldAlt />, label: 'ODISHA POLICE', bg: 'var(--purple-bg)', go: 'var(--purple)', cat: 'ODISHA POLICE' },
+  { icon: <FaLandmark />, label: 'OPSC', bg: 'var(--orange-bg)', go: 'var(--orange)', cat: 'OPSC' },
 ];
 
 // Fallback slides (used if API fails)
@@ -140,12 +140,12 @@ function SectionHeader({ eyebrow, title, linkTo, linkLabel }) {
    2. SUBJECT TEST SECTION
 ══════════════════════════════════════════════════════════ */
 const subjectTestCards = [
-  { icon: <FaCalculator />,      name: 'Mathematics',  color: '#B4232F', bg: '#FCEBEA', desc: 'Quantitative aptitude & shortcuts', tests: 4, free: 2, banner: 'linear-gradient(135deg, #B4232F 0%, #7f1d1d 100%)', sub: 0 },
-  { icon: <FaPuzzlePiece />,     name: 'Reasoning',    color: '#7C3AED', bg: '#F3ECFE', desc: 'Logical, analytical & mental ability', tests: 4, free: 2, banner: 'linear-gradient(135deg, #7C3AED 0%, #4c1d95 100%)', sub: 1 },
-  { icon: <FaBookOpen />,        name: 'English',      color: '#1957D6', bg: '#EAF1FD', desc: 'Grammar review & vocabulary builder', tests: 4, free: 2, banner: 'linear-gradient(135deg, #1957D6 0%, #1e3a8a 100%)', sub: 2 },
-  { icon: <FaGlobe />,           name: 'General Knowledge', color: '#0F9D58', bg: '#E8F8EE', desc: 'State & national awareness', tests: 4, free: 2, banner: 'linear-gradient(135deg, #0F9D58 0%, #064e3b 100%)', sub: 3 },
-  { icon: <FaLaptopCode />,      name: 'Computer',     color: '#0891B2', bg: '#E0F7FA', desc: 'MS Office, networking & OS fundamentals', tests: 4, free: 2, banner: 'linear-gradient(135deg, #0891B2 0%, #164e63 100%)', sub: 4 },
-  { icon: <FaFont />,            name: 'Odia Language', color: '#EA7A1E', bg: '#FEF1E4', desc: 'Odia grammar & syntax mock tests', tests: 4, free: 2, banner: 'linear-gradient(135deg, #EA7A1E 0%, #7c2d12 100%)', sub: 5 },
+  { icon: <FaCalculator />,      name: 'Mathematics',  color: '#B4232F', bg: '#FCEBEA', desc: 'Quantitative aptitude & shortcuts', tests: 4, free: 2, banner: 'linear-gradient(135deg, #B4232F 0%, #7f1d1d 100%)', sub: 'Mathematics' },
+  { icon: <FaPuzzlePiece />,     name: 'Reasoning',    color: '#7C3AED', bg: '#F3ECFE', desc: 'Logical, analytical & mental ability', tests: 4, free: 2, banner: 'linear-gradient(135deg, #7C3AED 0%, #4c1d95 100%)', sub: 'Reasoning' },
+  { icon: <FaBookOpen />,        name: 'English',      color: '#1957D6', bg: '#EAF1FD', desc: 'Grammar review & vocabulary builder', tests: 4, free: 2, banner: 'linear-gradient(135deg, #1957D6 0%, #1e3a8a 100%)', sub: 'English' },
+  { icon: <FaGlobe />,           name: 'General Knowledge', color: '#0F9D58', bg: '#E8F8EE', desc: 'State & national awareness', tests: 4, free: 2, banner: 'linear-gradient(135deg, #0F9D58 0%, #064e3b 100%)', sub: 'General Knowledge' },
+  { icon: <FaLaptopCode />,      name: 'Computer',     color: '#0891B2', bg: '#E0F7FA', desc: 'MS Office, networking & OS fundamentals', tests: 4, free: 2, banner: 'linear-gradient(135deg, #0891B2 0%, #164e63 100%)', sub: 'Computer' },
+  { icon: <FaFont />,            name: 'Odia Language', color: '#EA7A1E', bg: '#FEF1E4', desc: 'Odia grammar & syntax mock tests', tests: 4, free: 2, banner: 'linear-gradient(135deg, #EA7A1E 0%, #7c2d12 100%)', sub: 'Odia' },
 ];
 
 function SubjectTestSection() {
@@ -287,11 +287,10 @@ function QuickAccess() {
    3. HOME SECTION — EXAM SECTION (Luxury Resort Cards)
 ══════════════════════════════════════════════════════════ */
 const homeExamCategories = [
-  { icon: <FaUniversity />, label: 'Bank & Insurance', color: '#1957D6', banner: 'linear-gradient(135deg, #1957D6 0%, #1e3a8a 100%)', count: '12 exams', rating: '★ 4.9', cat: 0 },
-  { icon: <FaTrain />, label: 'SSC & Railway', color: '#0F9D58', banner: 'linear-gradient(135deg, #0F9D58 0%, #064e3b 100%)', count: '8 exams', rating: '★ 4.8', cat: 1 },
-  { icon: <FaLandmark />, label: 'State PSC / SSSC', color: '#7C3AED', banner: 'linear-gradient(135deg, #7C3AED 0%, #4c1d95 100%)', count: '15 exams', rating: '★ 4.9', cat: 2 },
-  { icon: <FaShieldAlt />, label: 'Police & Defence', color: '#B4232F', banner: 'linear-gradient(135deg, #B4232F 0%, #7f1d1d 100%)', count: '6 exams', rating: '★ 4.7', cat: 3 },
-  { icon: <FaChalkboardTeacher />, label: 'Teaching', color: '#EA7A1E', banner: 'linear-gradient(135deg, #EA7A1E 0%, #7c2d12 100%)', count: '9 exams', rating: '★ 4.8', cat: 4 },
+  { icon: <FaLandmark />, label: 'OSSSC', color: '#7C3AED', banner: 'linear-gradient(135deg, #7C3AED 0%, #4c1d95 100%)', count: 'OSSSC RI, ARI, AMIN & PEO packs', rating: '★ 4.9', cat: 'OSSSC' },
+  { icon: <FaTrain />, label: 'OSSC', color: '#0F9D58', banner: 'linear-gradient(135deg, #0F9D58 0%, #064e3b 100%)', count: 'OSSC CGL & CTSA Packs', rating: '★ 4.8', cat: 'OSSC' },
+  { icon: <FaShieldAlt />, label: 'ODISHA POLICE', color: '#1957D6', banner: 'linear-gradient(135deg, #1957D6 0%, #1e3a8a 100%)', count: 'Odisha Police SI & Constable', rating: '★ 4.9', cat: 'ODISHA POLICE' },
+  { icon: <FaUniversity />, label: 'OPSC', color: '#EA7A1E', banner: 'linear-gradient(135deg, #EA7A1E 0%, #7c2d12 100%)', count: 'OPSC OAS & Civil Services', rating: '★ 4.8', cat: 'OPSC' },
 ];
 
 function ExamSectionPreview() {

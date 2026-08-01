@@ -20,12 +20,10 @@ import { getSocket } from '../utils/socket';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
 const defaultCategories = [
-  { icon: <FaLandmark />, label: 'State PSC / SSSC (Odisha)', color: '#7C3AED', bg: '#F3ECFE', exams: [] },
-  { icon: <FaTrain />, label: 'SSC & Railway', color: '#0F9D58', bg: '#E8F8EE', exams: [] },
-  { icon: <FaUniversity />, label: 'Bank & Insurance', color: '#1957D6', bg: '#EAF1FD', exams: [] },
-  { icon: <FaShieldAlt />, label: 'Police & Defence', color: '#B4232F', bg: '#FCEBEA', exams: [] },
-  { icon: <FaChalkboardTeacher />, label: 'Teaching', color: '#EA7A1E', bg: '#FEF1E4', exams: [] },
-  { icon: <FaBalanceScale />, label: 'Regulatory Bodies', color: '#0891B2', bg: '#E0F7FA', exams: [] },
+  { icon: <FaLandmark />, label: 'OSSSC', color: '#7C3AED', bg: '#F3ECFE', exams: [] },
+  { icon: <FaTrain />, label: 'OSSC', color: '#0F9D58', bg: '#E8F8EE', exams: [] },
+  { icon: <FaShieldAlt />, label: 'ODISHA POLICE', color: '#1957D6', bg: '#EAF1FD', exams: [] },
+  { icon: <FaLandmark />, label: 'OPSC', color: '#EA7A1E', bg: '#FEF1E4', exams: [] },
 ];
 
 const iconMap = {
@@ -61,14 +59,25 @@ export default function ExamSectionPage() {
     ]
   });
 
-  const rawCat = parseInt(searchParams.get('cat') ?? '', 10);
-  const urlCat = isNaN(rawCat) ? 0 : Math.min(Math.max(rawCat, 0), categories.length - 1);
+  const [active, setActive] = useState(0);
 
-  const [active, setActive] = useState(urlCat);
+  const rawCatParam = searchParams.get('cat') || searchParams.get('catId') || searchParams.get('category') || '';
 
   useEffect(() => {
-    setActive(urlCat);
-  }, [urlCat]);
+    if (!rawCatParam) return;
+    if (categories.length > 0) {
+      const matchIdx = categories.findIndex(c => {
+        const labelStr = (c.label || c.name || c.category || '').toLowerCase();
+        const qStr = rawCatParam.toLowerCase();
+        return labelStr.includes(qStr) || qStr.includes(labelStr) || (c._id && c._id.toString() === rawCatParam.toString());
+      });
+      if (matchIdx !== -1) {
+        setActive(matchIdx);
+      } else if (!isNaN(parseInt(rawCatParam, 10))) {
+        setActive(Math.min(Math.max(parseInt(rawCatParam, 10), 0), categories.length - 1));
+      }
+    }
+  }, [rawCatParam, categories]);
 
   // Fetch dynamic banner config
   const fetchConfig = useCallback(async () => {

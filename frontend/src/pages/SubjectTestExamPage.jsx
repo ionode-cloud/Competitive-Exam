@@ -173,7 +173,8 @@ export default function SubjectTestExamPage() {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        }
+        },
+        body: JSON.stringify({ answers, questionStates })
       }).then(r => r.json());
 
       if (res.success) {
@@ -270,12 +271,14 @@ export default function SubjectTestExamPage() {
             {/* Option Cards */}
             <div style={{ display: 'grid', gap: 12 }}>
               {currentQ.options?.map((opt, oIdx) => {
-                const isSelected = answers[currentQ._id] === opt.id;
-                const optionLetter = String.fromCharCode(65 + oIdx);
+                const optionLetter = opt.label || String.fromCharCode(65 + oIdx);
+                const optValue = opt.id || opt.label || optionLetter;
+                const userSelected = answers[currentQ._id];
+                const isSelected = userSelected === optValue || userSelected === optionLetter || (opt.id && userSelected === opt.id);
                 return (
                   <div
-                    key={opt.id || oIdx}
-                    onClick={() => handleSelectOption(opt.id)}
+                    key={optValue || oIdx}
+                    onClick={() => handleSelectOption(optValue)}
                     style={{
                       border: `2px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
                       background: isSelected ? '#eff6ff' : '#fff',

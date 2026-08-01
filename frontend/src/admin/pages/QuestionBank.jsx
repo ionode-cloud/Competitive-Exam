@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import api from '../api/axios';
 import DataTable from '../components/DataTable';
+import MathInput from '../components/MathInput';
 
 const diffBadge = (d) => {
   const map = { easy: 'admin-badge-green', moderate: 'admin-badge-yellow', difficult: 'admin-badge-red' };
@@ -64,9 +65,7 @@ export default function QuestionBank() {
       if (res.data.success) {
         const fullList = res.data.data || [];
         setAllSubjects(fullList);
-        // Only show cards for subjects that have at least 1 question created
-        const cardSubjects = fullList.filter(s => (s.questionCount || 0) > 0);
-        setSubjects(cardSubjects);
+        setSubjects(fullList);
       }
     } catch {
       toast.error('Failed to load subjects');
@@ -294,29 +293,37 @@ export default function QuestionBank() {
   };
 
   const columns = [
-    { key: 'questionText', label: 'Question Statement', render: r => (
-      <div className="max-w-md">
-        <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2" dangerouslySetInnerHTML={{ __html: r.questionText }} />
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {r.topic && <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 font-semibold">Topic: {r.topic}</span>}
-          {r.section && <span className="text-xs text-slate-400 font-medium">• Section: {r.section}</span>}
+    {
+      key: 'questionText', label: 'Question Statement', render: r => (
+        <div className="max-w-md">
+          <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2">
+            {r.questionText}
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {r.topic && <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 font-semibold">Topic: {r.topic}</span>}
+            {r.section && <span className="text-xs text-slate-400 font-medium">• Section: {r.section}</span>}
+          </div>
         </div>
-      </div>
-    )},
+      )
+    },
     { key: 'difficulty', label: 'Difficulty', render: r => diffBadge(r.difficulty) },
-    { key: 'correctAnswer', label: 'Correct Answer', render: r => (
-      <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center border border-emerald-300 dark:border-emerald-700">
-        {r.correctAnswer}
-      </span>
-    )},
+    {
+      key: 'correctAnswer', label: 'Correct Answer', render: r => (
+        <span className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center justify-center border border-emerald-300 dark:border-emerald-700">
+          {r.correctAnswer}
+        </span>
+      )
+    },
     { key: 'marks', label: 'Marks', render: r => <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">+{r.marks} / -{r.negativeMarks}</span> },
-    { key: 'actions', label: 'Actions', render: r => (
-      <div className="flex items-center gap-1.5">
-        <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 transition-colors" title="Edit Question"><RiEditLine className="w-4 h-4" /></button>
-        <button onClick={() => handleDuplicate(r._id)} className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 transition-colors" title="Duplicate Question"><RiFileCopyLine className="w-4 h-4" /></button>
-        <button onClick={() => handleDelete(r)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors" title="Delete Question"><RiDeleteBin2Line className="w-4 h-4" /></button>
-      </div>
-    )},
+    {
+      key: 'actions', label: 'Actions', render: r => (
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 transition-colors" title="Edit Question"><RiEditLine className="w-4 h-4" /></button>
+          <button onClick={() => handleDuplicate(r._id)} className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 transition-colors" title="Duplicate Question"><RiFileCopyLine className="w-4 h-4" /></button>
+          <button onClick={() => handleDelete(r)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors" title="Delete Question"><RiDeleteBin2Line className="w-4 h-4" /></button>
+        </div>
+      )
+    },
   ];
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -667,7 +674,7 @@ export default function QuestionBank() {
         <div className="space-y-6">
           {questionBlocks.map((qBlock, blockIdx) => (
             <div key={blockIdx} className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4 shadow-sm">
-              
+
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-3">
                   <span className="w-8 h-8 rounded-xl bg-blue-600 text-white text-sm font-extrabold flex items-center justify-center shadow">
@@ -694,12 +701,11 @@ export default function QuestionBank() {
                 <label className="admin-label text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                   Question Text Statement *
                 </label>
-                <textarea
+                <MathInput
                   rows={4}
                   value={qBlock.questionText}
-                  onChange={e => handleBlockChange(blockIdx, 'questionText', e.target.value)}
-                  className="admin-input text-sm p-3 leading-relaxed"
-                  placeholder={`Type full statement for Question #${blockIdx + 1}...`}
+                  onChange={val => handleBlockChange(blockIdx, 'questionText', val)}
+                  placeholder={`Type statement for Question #${blockIdx + 1}...`}
                   required
                 />
               </div>
@@ -709,18 +715,20 @@ export default function QuestionBank() {
                 <label className="admin-label text-sm font-bold text-slate-800 dark:text-slate-200">
                   Options (A, B, C, D) *
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {qBlock.options.map((opt, optIdx) => (
-                    <div key={opt.label} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <span className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-sm font-extrabold flex items-center justify-center flex-shrink-0 text-slate-800 dark:text-slate-200">
-                        {opt.label}
-                      </span>
-                      <input
-                        type="text"
+                    <div key={opt.label} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-6 h-6 rounded-md bg-slate-200 dark:bg-slate-700 text-xs font-extrabold flex items-center justify-center flex-shrink-0 text-slate-800 dark:text-slate-200">
+                          {opt.label}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Option {opt.label}</span>
+                      </div>
+                      <MathInput
+                        singleLine
                         value={opt.text}
-                        onChange={e => handleOptionChange(blockIdx, optIdx, e.target.value)}
-                        className="admin-input border-0 bg-transparent py-1 text-sm focus:ring-0"
-                        placeholder={`Option ${opt.label} content`}
+                        onChange={val => handleOptionChange(blockIdx, optIdx, val)}
+                        placeholder={`Option ${opt.label} text`}
                         required
                       />
                     </div>
@@ -747,12 +755,11 @@ export default function QuestionBank() {
                   <label className="admin-label text-sm font-bold text-slate-800 dark:text-slate-200">
                     Explanation (Shown after exam submission)
                   </label>
-                  <input
-                    type="text"
+                  <MathInput
+                    singleLine
                     value={qBlock.explanation}
-                    onChange={e => handleBlockChange(blockIdx, 'explanation', e.target.value)}
-                    className="admin-input text-sm"
-                    placeholder="Enter detailed explanation step-by-step..."
+                    onChange={val => handleBlockChange(blockIdx, 'explanation', val)}
+                    placeholder="Enter step-by-step explanation..."
                   />
                 </div>
               </div>

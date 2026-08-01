@@ -74,11 +74,10 @@ const TABS = [
     to: '/exam-section',  
     arrow: true,
     categories: [
-      { label: 'Bank & Insurance', icon: <FaUniversity />, desc: 'IBPS, SBI, LIC exam prep modules' },
-      { label: 'SSC & Railway',    icon: <FaTrain />, desc: 'CGL, CHSL, MTS & RRB NTPC packs' },
-      { label: 'State PSC / SSSC', icon: <FaLandmark />, desc: 'OPSC OAS, OSSSC RI syllabus prep' },
-      { label: 'Police & Defence', icon: <FaShieldAlt />, desc: 'SI, Constable mock test series' },
-      { label: 'Teaching',         icon: <FaChalkboardTeacher />, desc: 'OTET, OSSTET & school teacher papers' }
+      { label: 'OSSSC',        to: '/exam-section?cat=OSSSC',        icon: <FaLandmark />,    desc: 'OSSSC RI, ARI, AMIN & PEO exam modules' },
+      { label: 'OSSC',         to: '/exam-section?cat=OSSC',         icon: <FaTrain />,       desc: 'OSSC CGL, CTSA & Accountant prep packs' },
+      { label: 'ODISHA POLICE',to: '/exam-section?cat=ODISHA POLICE',icon: <FaShieldAlt />,   desc: 'Odisha Police SI, Constable & Battalion prep' },
+      { label: 'OPSC',         to: '/exam-section?cat=OPSC',         icon: <FaUniversity />,  desc: 'OPSC OAS, ASO & Civil Services prep' }
     ]
   },
   { 
@@ -86,10 +85,10 @@ const TABS = [
     to: '/mock-test',  
     arrow: true,
     categories: [
-      { label: 'State PSC / SSSC',  icon: <FaLandmark />, desc: 'OSSSC, OSSC CGL mock exams' },
-      { label: 'SSC & Railway',     icon: <FaTrain />, desc: 'SSC CGL, CHSL, RRB mocks' },
-      { label: 'Bank & Insurance',  icon: <FaUniversity />, desc: 'IBPS, SBI, LIC mocks' },
-      { label: 'Police & Defence',  icon: <FaShieldAlt />, desc: 'Odisha Police SI & Constable mocks' }
+      { label: 'OSSSC',        to: '/mock-test?cat=OSSSC',        icon: <FaLandmark />,    desc: 'OSSSC RI, ARI, AMIN & PEO mock exams' },
+      { label: 'OSSC',         to: '/mock-test?cat=OSSC',         icon: <FaTrain />,       desc: 'OSSC CGL, CTS & Accountant mock tests' },
+      { label: 'ODISHA POLICE',to: '/mock-test?cat=ODISHA POLICE',icon: <FaShieldAlt />,   desc: 'Odisha Police SI & Constable mock tests' },
+      { label: 'OPSC',         to: '/mock-test?cat=OPSC',         icon: <FaUniversity />,  desc: 'OPSC OAS & Civil Services mock exams' }
     ]
   },
   { 

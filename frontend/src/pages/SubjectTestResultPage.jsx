@@ -1,19 +1,18 @@
-// SubjectTestResultPage.jsx — Post-Exam Result Page & View Solutions Review
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaMedal,
   FaChartBar,
-  FaKey,
   FaExclamationTriangle,
   FaCheckCircle,
   FaTimesCircle,
   FaMinusCircle,
   FaEyeSlash,
   FaBullseye,
-  FaClock
+  FaKey
 } from 'react-icons/fa';
+import { getSocket } from '../utils/socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -26,22 +25,42 @@ export default function SubjectTestResultPage() {
   const [error, setError] = useState('');
   const [showSolutions, setShowSolutions] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(`${API_URL}/subject-tests/attempts/${attemptId}/result`, {
-      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-    })
-      .then(r => r.json())
-      .then(j => {
-        if (j.success) {
-          setResult(j.data);
-        } else {
-          setError(j.message || 'Failed to load test result');
-        }
-      })
-      .catch(() => setError('Could not connect to server'))
-      .finally(() => setLoading(false));
+  const fetchResult = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/subject-tests/attempts/${attemptId}/result`, {
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+      }).then(r => r.json());
+
+      if (res.success) {
+        setResult(res.data);
+      } else {
+        setError(res.message || 'Failed to load test result');
+      }
+    } catch {
+      setError('Could not connect to server');
+    } finally {
+      setLoading(false);
+    }
   }, [attemptId]);
+
+  useEffect(() => {
+    fetchResult();
+  }, [fetchResult]);
+
+  // Connect Socket.IO for real-time live score updates
+  useEffect(() => {
+    const socket = getSocket();
+    const handleAttemptUpdate = (data) => {
+      if (data && String(data.attemptId) === String(attemptId)) {
+        fetchResult();
+      }
+    };
+    socket.on('attempt_submitted', handleAttemptUpdate);
+    return () => {
+      socket.off('attempt_submitted', handleAttemptUpdate);
+    };
+  }, [attemptId, fetchResult]);
 
   if (loading) {
     return (
@@ -63,10 +82,62 @@ export default function SubjectTestResultPage() {
     );
   }
 
-  const attemptedCount = result.correctCount + result.incorrectCount;
-  const unseenCount = Math.max(0, result.totalQuestions - (attemptedCount + result.skippedCount));
-  const safeScore = Math.round(result.totalMarks * 0.58);
-  const isSafe = result.score >= safeScore;
+  // Helper to match option against user choice or correct answer
+  const checkOptMatch = (opt, val, oIdx) => {
+    if (!val) return false;
+    const vStr = String(val).trim().toLowerCase();
+    const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
+    const valIdx = letterMap[vStr];
+
+    const optId = String(opt.id || '').trim().toLowerCase();
+    const optLabel = String(opt.label || String.fromCharCode(65 + oIdx)).trim().toLowerCase();
+    const optText = String(opt.text || '').trim().toLowerCase();
+
+    return (
+      optId === vStr ||
+      optLabel === vStr ||
+      String.fromCharCode(65 + oIdx).toLowerCase() === vStr ||
+      (valIdx !== undefined && oIdx === valIdx) ||
+      (optText !== '' && optText === vStr)
+    );
+  };
+
+  const isQuestionCorrect = (q) => {
+    if (!q) return false;
+    if (q.isCorrect === true) return true;
+    if (!q.userAnswer || !q.correctAnswer || !Array.isArray(q.options)) return false;
+    return q.options.some((opt, oIdx) => checkOptMatch(opt, q.userAnswer, oIdx) && checkOptMatch(opt, q.correctAnswer, oIdx));
+  };
+
+  const isQuestionSkipped = (q) => {
+    return !q || !q.userAnswer;
+  };
+
+  // Derive 100% accurate metrics from solution records
+  const totalQs = result.totalQuestions || (Array.isArray(result.solutions) ? result.solutions.length : 1);
+  const markPerQuestion = (result.totalMarks && totalQs) ? (result.totalMarks / totalQs) : 1;
+
+  const trueCorrectCount = Array.isArray(result.solutions)
+    ? result.solutions.filter(q => isQuestionCorrect(q)).length
+    : (result.correctCount || 0);
+
+  const trueIncorrectCount = Array.isArray(result.solutions)
+    ? result.solutions.filter(q => !isQuestionSkipped(q) && !isQuestionCorrect(q)).length
+    : (result.incorrectCount || 0);
+
+  const trueSkippedCount = Array.isArray(result.solutions)
+    ? result.solutions.filter(q => isQuestionSkipped(q)).length
+    : (result.skippedCount || 0);
+
+  const trueScore = Array.isArray(result.solutions)
+    ? parseFloat((trueCorrectCount * markPerQuestion).toFixed(2))
+    : (result.score || (trueCorrectCount * markPerQuestion));
+
+  const displayScore = Math.max(0, trueScore);
+  const attemptedCount = trueCorrectCount + trueIncorrectCount;
+  const unseenCount = Math.max(0, totalQs - (attemptedCount + trueSkippedCount));
+  const safeScore = Math.max(1, Math.round((result.totalMarks || totalQs || 1) * 0.5));
+  const isSafe = displayScore >= safeScore;
 
   // Retrieve logged-in student name
   const studentUserStr = localStorage.getItem('user');
@@ -78,13 +149,6 @@ export default function SubjectTestResultPage() {
     } catch { /* silent */ }
   }
   const studentName = result.userName || loggedInName || 'Student';
-
-  const formatTime = (sec) => {
-    if (!sec || isNaN(sec)) return '0s';
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return m > 0 ? `${m}m ${s}s` : `${s}s`;
-  };
 
   return (
     <div style={{ minHeight: '92vh', background: '#f8fafc', padding: '24px 16px' }}>
@@ -101,13 +165,13 @@ export default function SubjectTestResultPage() {
           <span style={{ fontSize: 13, fontWeight: 800, color: '#64748b' }}>{result.testTitle}</span>
         </div>
 
-        {/* ── TOP PERFORMANCE CARDS (3 Cards Row from Screenshots) ── */}
+        {/* ── TOP PERFORMANCE CARDS ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: 16, marginBottom: 24 }}>
           
           {/* Card 1: Score & Safe Range Banner */}
-          <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #fee2e2', padding: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${isSafe ? '#bbf7d0' : '#fee2e2'}`, padding: 20, boxShadow: '0 4px 14px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#dc2626', fontWeight: 900, fontSize: 16, marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isSafe ? '#16a34a' : '#dc2626', fontWeight: 900, fontSize: 16, marginBottom: 4 }}>
                 <FaExclamationTriangle /> {isSafe ? `Great Job! ${studentName},` : `Keep Going! ${studentName},`}
               </div>
               <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
@@ -116,18 +180,18 @@ export default function SubjectTestResultPage() {
 
               <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
                 {/* Your Score */}
-                <div style={{ flex: 1, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase' }}>Your Score</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#dc2626', marginTop: 2 }}>{result.score} <span style={{ fontSize: 12, color: '#991b1b' }}>/ {result.totalMarks}</span></div>
+                <div style={{ flex: 1, background: isSafe ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isSafe ? '#bbf7d0' : '#fecaca'}`, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: isSafe ? '#15803d' : '#991b1b', textTransform: 'uppercase' }}>Your Score</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: isSafe ? '#16a34a' : '#dc2626', marginTop: 2 }}>{displayScore} <span style={{ fontSize: 12, color: isSafe ? '#15803d' : '#991b1b' }}>/ {result.totalMarks || totalQs}</span></div>
                 </div>
                 {/* Safe Score Range */}
                 <div style={{ flex: 1, background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: '#9a3412', textTransform: 'uppercase' }}>Safe Score Range</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#ea580c', marginTop: 2 }}>{safeScore} <span style={{ fontSize: 12, color: '#9a3412' }}>/ {result.totalMarks}</span></div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#ea580c', marginTop: 2 }}>{safeScore} <span style={{ fontSize: 12, color: '#9a3412' }}>/ {result.totalMarks || totalQs}</span></div>
                 </div>
               </div>
 
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', marginBottom: 6 }}>RECOMMENDED FOR YOU:</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: isSafe ? '#16a34a' : '#dc2626', textTransform: 'uppercase', marginBottom: 6 }}>RECOMMENDED FOR YOU:</div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: '#475569', lineHeight: 1.6 }}>
                 <li>Analyze weak areas</li>
                 <li>Improve speed &amp; accuracy</li>
@@ -135,8 +199,8 @@ export default function SubjectTestResultPage() {
               </ul>
             </div>
 
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '6px 12px', fontSize: 11, fontWeight: 800, color: '#c2410c', marginTop: 14, textAlign: 'center' }}>
-              ⚠️ Practice more to reach the Safe Score Range!
+            <div style={{ background: isSafe ? '#dcfce7' : '#fff7ed', border: `1px solid ${isSafe ? '#86efac' : '#fed7aa'}`, borderRadius: 8, padding: '6px 12px', fontSize: 11, fontWeight: 800, color: isSafe ? '#15803d' : '#c2410c', marginTop: 14, textAlign: 'center' }}>
+              {isSafe ? '✓ Safe Score Range Achieved!' : '⚠️ Practice more to reach the Safe Score Range!'}
             </div>
           </div>
 
@@ -147,8 +211,8 @@ export default function SubjectTestResultPage() {
               <FaMedal />
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Your Rank (Out of All)</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>1</div>
-            <div style={{ fontSize: 11, color: '#64748b' }}>Out of 1 Test Takers</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>{result.rank || 1}</div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>Out of {result.totalTakers || 1} Test Takers</div>
           </div>
 
           {/* Card 3: Percentile */}
@@ -158,48 +222,50 @@ export default function SubjectTestResultPage() {
               <FaChartBar />
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>You scored better than</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#2563eb', margin: '2px 0' }}>{result.percentage}%ile</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: '#2563eb', margin: '2px 0' }}>{result.percentile !== undefined ? result.percentile : (result.percentage || 0)}%ile</div>
             <div style={{ fontSize: 11, color: '#64748b' }}>All of Test Takers</div>
           </div>
 
         </div>
 
-        {/* ── STATISTIC CARDS GRID (10 Cards exactly from Specs) ── */}
+        {/* ── STATISTIC CARDS GRID ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 28 }}>
           
           {/* 1. Score */}
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: isSafe ? '#f0fdf4' : '#fef2f2', color: isSafe ? '#16a34a' : '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
               <FaCheckCircle />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#16a34a' }}>Score</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{result.score}/{result.totalMarks}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 800, background: '#fef2f2', color: '#dc2626', padding: '1px 6px', borderRadius: 10 }}>Below Cutoff</span>
+              <div style={{ fontSize: 11, fontWeight: 800, color: isSafe ? '#16a34a' : '#dc2626' }}>Score</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{displayScore}/{result.totalMarks || totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 800, background: isSafe ? '#dcfce7' : '#fef2f2', color: isSafe ? '#15803d' : '#dc2626', padding: '1px 6px', borderRadius: 10 }}>
+                {isSafe ? 'Above Cutoff' : 'Below Cutoff'}
+              </span>
             </div>
           </div>
 
           {/* 2. Attempted */}
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fef2f2', color: '#991b1b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
               <FaBullseye />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b' }}>Attempted</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{attemptedCount}/{result.totalQuestions}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((attemptedCount / result.totalQuestions) * 100)}%</span>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#2563eb' }}>Attempted</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{attemptedCount}/{totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((attemptedCount / totalQs) * 100)}%</span>
             </div>
           </div>
 
           {/* 3. Correct */}
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
               <FaCheckCircle />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#2563eb' }}>Correct</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{result.correctCount}/{result.totalQuestions}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((result.correctCount / result.totalQuestions) * 100)}%</span>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#16a34a' }}>Correct</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{trueCorrectCount}/{totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((trueCorrectCount / totalQs) * 100)}%</span>
             </div>
           </div>
 
@@ -210,8 +276,8 @@ export default function SubjectTestResultPage() {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>InCorrect</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{result.incorrectCount}/{result.totalQuestions}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((result.incorrectCount / result.totalQuestions) * 100)}%</span>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{trueIncorrectCount}/{totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((trueIncorrectCount / totalQs) * 100)}%</span>
             </div>
           </div>
 
@@ -222,8 +288,8 @@ export default function SubjectTestResultPage() {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>Skipped</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{result.skippedCount}/{result.totalQuestions}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((result.skippedCount / result.totalQuestions) * 100)}%</span>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{trueSkippedCount}/{totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((trueSkippedCount / totalQs) * 100)}%</span>
             </div>
           </div>
 
@@ -234,53 +300,8 @@ export default function SubjectTestResultPage() {
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#c2410c' }}>Unseen</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{unseenCount}/{result.totalQuestions}</div>
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((unseenCount / result.totalQuestions) * 100)}%</span>
-            </div>
-          </div>
-
-          {/* 7. Accuracy */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f3ecfe', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-              <FaBullseye />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>Accuracy</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{result.accuracy}%</div>
-              <span style={{ fontSize: 9.5, fontWeight: 800, background: '#fef2f2', color: '#dc2626', padding: '1px 6px', borderRadius: 10 }}>Average</span>
-            </div>
-          </div>
-
-          {/* 8. Total Time */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fdf4ff', color: '#c026d3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-              <FaClock />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#c026d3' }}>Total Time</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{formatTime(result.timeTakenSec)}</div>
-            </div>
-          </div>
-
-          {/* 9. Utilized Time */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e0f7fa', color: '#0891b2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-              <FaClock />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#0891b2' }}>Utilized Time</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{formatTime(Math.round(result.timeTakenSec * 0.7))}</div>
-            </div>
-          </div>
-
-          {/* 10. Wasted Time */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#eff6ff', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-              <FaClock />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8' }}>Wasted Time</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{formatTime(Math.round(result.timeTakenSec * 0.3))}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>{unseenCount}/{totalQs}</div>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#64748b' }}>{Math.round((unseenCount / totalQs) * 100)}%</span>
             </div>
           </div>
 
@@ -312,15 +333,38 @@ export default function SubjectTestResultPage() {
             <div style={{ display: 'grid', gap: 20 }}>
               {result.solutions.map((q, idx) => {
                 const getOptLetter = (oIdx) => String.fromCharCode(65 + oIdx);
-                const correctOpt = q.options?.find(o => o.id === q.correctAnswer);
+
+                const checkOptMatch = (opt, val, oIdx) => {
+                  if (!val) return false;
+                  const vStr = String(val).trim().toLowerCase();
+                  const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
+                  const valIdx = letterMap[vStr];
+
+                  const optId = String(opt.id || '').trim().toLowerCase();
+                  const optLabel = String(opt.label || getOptLetter(oIdx)).trim().toLowerCase();
+                  const optText = String(opt.text || '').trim().toLowerCase();
+
+                  return (
+                    optId === vStr ||
+                    optLabel === vStr ||
+                    getOptLetter(oIdx).toLowerCase() === vStr ||
+                    (valIdx !== undefined && oIdx === valIdx) ||
+                    (optText !== '' && optText === vStr)
+                  );
+                };
+
+                const correctOpt = q.options?.find((o, oIdx) => checkOptMatch(o, q.correctAnswer, oIdx));
+
+                const qCorrect = isQuestionCorrect(q);
+                const qSkipped = isQuestionSkipped(q);
 
                 return (
-                  <div key={q._id || idx} style={{ border: `1.5px solid ${q.isCorrect ? '#bbf7d0' : q.isSkipped ? '#cbd5e1' : '#fecaca'}`, borderRadius: 12, padding: 20, background: q.isCorrect ? '#f0fdf4' : q.isSkipped ? '#f8fafc' : '#fef2f2' }}>
+                  <div key={q._id || idx} style={{ border: `1.5px solid ${qCorrect ? '#bbf7d0' : qSkipped ? '#cbd5e1' : '#fecaca'}`, borderRadius: 12, padding: 20, background: qCorrect ? '#f0fdf4' : qSkipped ? '#f8fafc' : '#fef2f2' }}>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 900, color: '#1d4ed8', background: '#eff6ff', padding: '3px 10px', borderRadius: 6 }}>Question {idx + 1}</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: q.isCorrect ? '#16a34a' : q.isSkipped ? '#64748b' : '#dc2626' }}>
-                        {q.isCorrect ? '✓ Correct' : q.isSkipped ? '○ Unattempted' : '✕ Incorrect'}
+                      <span style={{ fontSize: 12, fontWeight: 800, color: qCorrect ? '#16a34a' : qSkipped ? '#64748b' : '#dc2626' }}>
+                        {qCorrect ? '✓ Correct' : qSkipped ? '○ Unattempted' : '✕ Incorrect'}
                       </span>
                     </div>
 
@@ -331,8 +375,8 @@ export default function SubjectTestResultPage() {
                     {/* Options List with Color Highlights */}
                     <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
                       {q.options?.map((opt, oIdx) => {
-                        const isUserChoice = q.userAnswer === opt.id;
-                        const isCorrectChoice = q.correctAnswer === opt.id;
+                        const isUserChoice = checkOptMatch(opt, q.userAnswer, oIdx);
+                        const isCorrectChoice = checkOptMatch(opt, q.correctAnswer, oIdx);
 
                         let border = '#e2e8f0';
                         let bg = '#fff';
@@ -361,7 +405,8 @@ export default function SubjectTestResultPage() {
                               {getOptLetter(oIdx)}
                             </span>
                             <span>{opt.text}</span>
-                            {isCorrectChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>✓ Correct Answer</span>}
+                            {isCorrectChoice && isUserChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>✓ Your Choice (Correct)</span>}
+                            {isCorrectChoice && !isUserChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>✓ Correct Answer</span>}
                             {isUserChoice && !isCorrectChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#dc2626' }}>✕ Your Choice</span>}
                           </div>
                         );

@@ -6,6 +6,62 @@ const SubjectTestQuestionMap = require('../models/SubjectTestQuestionMap');
 const SubjectTestInstruction = require('../models/SubjectTestInstruction');
 const SubjectTestConfig      = require('../models/SubjectTestConfig');
 const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
+const Question = require('../models/Question');
+const MockTest = require('../models/MockTest');
+
+const syncQuestionDeletionWithTests = async (questionIds) => {
+  if (!Array.isArray(questionIds) || questionIds.length === 0) return;
+  try {
+    const maps = await SubjectTestQuestionMap.find({
+      $or: [{ questionId: { $in: questionIds } }, { _id: { $in: questionIds } }]
+    });
+    const affectedSubjectTestIds = [...new Set(maps.map(m => m.testId.toString()))];
+
+    await SubjectTestQuestionMap.deleteMany({
+      $or: [{ questionId: { $in: questionIds } }, { _id: { $in: questionIds } }]
+    });
+
+    for (const testId of affectedSubjectTestIds) {
+      const remainingCount = await SubjectTestQuestionMap.countDocuments({ testId });
+      const test = await SubjectTest.findById(testId);
+      if (test) {
+        if (remainingCount === 0) {
+          test.status = 'archived';
+          test.totalQuestions = 0;
+          test.totalMarks = 0;
+          await test.save();
+        } else {
+          test.totalQuestions = remainingCount;
+          test.totalMarks = remainingCount * (test.positiveMarks || 1);
+          await test.save();
+        }
+      }
+    }
+
+    const affectedMockTests = await MockTest.find({
+      $or: [
+        { 'questions.question': { $in: questionIds } },
+        { 'questions._id': { $in: questionIds } }
+      ]
+    });
+
+    for (const mt of affectedMockTests) {
+      mt.questions = mt.questions.filter(q => {
+        const qId = (q.question?._id || q.question || q._id).toString();
+        return !questionIds.some(id => id.toString() === qId);
+      });
+      mt.completedQuestions = mt.questions.length;
+      mt.totalQuestions = mt.questions.length;
+      mt.totalMarks = mt.questions.length * (mt.positiveMarks || 1);
+      if (mt.questions.length === 0) {
+        mt.status = 'archived';
+      }
+      await mt.save();
+    }
+  } catch (err) {
+    console.error('Error syncing question deletion with tests:', err);
+  }
+};
 
 /* ── Banner & Page Config ────────────────────────────────────────────────── */
 exports.getConfig = async (req, res, next) => {
@@ -536,18 +592,62 @@ exports.updateInstruction = async (req, res, next) => {
 /* ── Question Bank CRUD ─────────────────────────────────────────────────────── */
 exports.getQuestions = async (req, res, next) => {
   try {
-    const { subjectId, topicId, difficulty, search, status } = req.query;
-    const filter = { status: status || { $ne: 'archived' } };
-    if (subjectId) filter.subjectId = subjectId;
-    if (topicId) filter.topicId = topicId;
-    if (difficulty) filter.difficulty = difficulty;
-    if (search) filter.questionText = { $regex: search, $options: 'i' };
+    const { subjectId, topicId, topic, difficulty, search, status } = req.query;
+    
+    // Filter for SubjectTestQuestion model
+    const filterSTQ = { status: status || { $ne: 'archived' } };
+    if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) filterSTQ.subjectId = subjectId;
+    if (topicId && mongoose.Types.ObjectId.isValid(topicId)) filterSTQ.topicId = topicId;
+    if (difficulty) filterSTQ.difficulty = difficulty;
+    if (search) filterSTQ.questionText = { $regex: search, $options: 'i' };
 
-    const list = await SubjectTestQuestion.find(filter)
-      .populate('subjectId', 'name')
-      .populate('topicId', 'name')
-      .sort('-createdAt');
-    res.json({ success: true, data: list });
+    // Filter for Question model (Question Bank)
+    const filterQ = { status: status || { $ne: 'archived' } };
+    if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) filterQ.subject = subjectId;
+    if (topic) filterQ.topic = new RegExp(`^${topic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    if (difficulty) filterQ.difficulty = difficulty.toLowerCase();
+    if (search) filterQ.questionText = { $regex: search, $options: 'i' };
+
+    const [stqList, qList] = await Promise.all([
+      SubjectTestQuestion.find(filterSTQ).populate('subjectId', 'name').populate('topicId', 'name').sort('-createdAt'),
+      Question.find(filterQ).populate('subject', 'name').sort('-createdAt')
+    ]);
+
+    const formattedSTQ = stqList.map(q => ({
+      _id: q._id,
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      difficulty: q.difficulty || 'Moderate',
+      subjectId: q.subjectId?._id || q.subjectId,
+      subjectName: q.subjectId?.name || '',
+      topicName: q.topicId?.name || q.topicName || '',
+      sourceModel: 'SubjectTestQuestion'
+    }));
+
+    const formattedQ = qList.map(q => ({
+      _id: q._id,
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      difficulty: q.difficulty || 'Moderate',
+      subjectId: q.subject?._id || q.subject,
+      subjectName: q.subject?.name || '',
+      topicName: q.topic || '',
+      sourceModel: 'Question'
+    }));
+
+    const combined = [...formattedQ, ...formattedSTQ];
+    const uniqueMap = new Map();
+    combined.forEach(item => {
+      if (!uniqueMap.has(String(item._id))) {
+        uniqueMap.set(String(item._id), item);
+      }
+    });
+
+    res.json({ success: true, data: Array.from(uniqueMap.values()) });
   } catch (err) { next(err); }
 };
 
@@ -570,6 +670,9 @@ exports.updateQuestion = async (req, res, next) => {
 exports.deleteQuestion = async (req, res, next) => {
   try {
     const doc = await SubjectTestQuestion.findByIdAndUpdate(req.params.id, { status: 'archived' }, { new: true });
+    if (doc) {
+      await syncQuestionDeletionWithTests([doc._id]);
+    }
     res.json({ success: true, message: 'Question archived', data: doc });
   } catch (err) { next(err); }
 };
@@ -604,11 +707,21 @@ exports.addQuestionsToTest = async (req, res, next) => {
 
     for (let i = 0; i < questionIds.length; i++) {
       const qId = questionIds[i];
-      const exists = await SubjectTestQuestionMap.findOne({ testId, questionId: qId });
+      const exists = await SubjectTestQuestionMap.findOne({
+        testId,
+        $or: [{ questionId: qId }, { _id: qId }]
+      });
       if (!exists) {
+        let questionModel = 'SubjectTestQuestion';
+        const isGlobalQ = await Question.exists({ _id: qId });
+        if (isGlobalQ) {
+          questionModel = 'Question';
+        }
+
         await SubjectTestQuestionMap.create({
           testId,
           questionId: qId,
+          questionModel,
           order: existingCount + added + 1
         });
         added++;
@@ -624,7 +737,7 @@ exports.addQuestionsToTest = async (req, res, next) => {
       await test.save();
     }
 
-    res.json({ success: true, message: `Added ${added} questions to test`, totalQuestions: totalCount });
+    res.json({ success: true, message: `Added ${added} question(s) to test`, totalQuestions: totalCount });
   } catch (err) { next(err); }
 };
 
@@ -667,7 +780,10 @@ exports.autoSelectQuestions = async (req, res, next) => {
 exports.removeQuestionFromTest = async (req, res, next) => {
   try {
     const { testId, questionId } = req.params;
-    await SubjectTestQuestionMap.deleteOne({ testId, questionId });
+    await SubjectTestQuestionMap.deleteOne({
+      testId,
+      $or: [{ questionId }, { _id: questionId }]
+    });
 
     const totalCount = await SubjectTestQuestionMap.countDocuments({ testId });
     const test = await SubjectTest.findById(testId);
