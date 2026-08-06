@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   RiFontColor,
   RiLayoutGridLine,
@@ -49,7 +49,8 @@ export default function OdishaExams() {
   const [draggedSlideIdx, setDraggedSlideIdx] = useState(null);
   const [slideModal, setSlideModal] = useState(false);
   const [editingSlideIdx, setEditingSlideIdx] = useState(null);
-  const [slideForm, setSlideForm] = useState({ tag: '', title: '', desc: '', price: '', orig: '', cta: 'Get Admission' });
+  const [slideForm, setSlideForm] = useState({ tag: '', title: '', desc: '', price: '', orig: '', cta: 'Get Admission', bgColor: '', bgImage: '' });
+  const [bgImageUploading, setBgImageUploading] = useState(false);
 
   // Modal State
   const [examModal, setExamModal] = useState(false);
@@ -149,14 +150,43 @@ export default function OdishaExams() {
 
   const openAddSlide = () => {
     setEditingSlideIdx(null);
-    setSlideForm({ tag: '', title: '', desc: '', price: '', orig: '', cta: 'Get Admission' });
+    setSlideForm({ tag: '', title: '', desc: '', price: '', orig: '', cta: 'Get Admission', bgColor: '', bgImage: '' });
     setSlideModal(true);
   };
 
   const openEditSlide = (idx) => {
     setEditingSlideIdx(idx);
-    setSlideForm({ ...slides[idx] });
+    setSlideForm({ ...slides[idx], bgColor: slides[idx].bgColor || '', bgImage: slides[idx].bgImage || '' });
     setSlideModal(true);
+  };
+
+  // Handle slide banner image upload
+  const handleSlideImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setBgImageUploading(true);
+    try {
+      // Use raw axios with multipart header
+      const token = localStorage.getItem('token');
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${baseURL}/odisha-exams/upload-slide-image`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSlideForm(f => ({ ...f, bgImage: data.url }));
+      } else {
+        Swal.fire('Upload Failed', data.message || 'Image upload failed', 'error');
+      }
+    } catch (err) {
+      Swal.fire('Upload Error', 'Could not upload image. Please try again.', 'error');
+    } finally {
+      setBgImageUploading(false);
+    }
   };
 
   const saveSlide = () => {
@@ -344,10 +374,6 @@ export default function OdishaExams() {
           </button>
         ))}
       </div>
-
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-           TAB 1 â€” HOME PAGE AUTO-SCROLL BANNER SLIDES
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'slides' && (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 28, boxShadow: '0 2px 8px rgba(37,99,235,0.06)' }}>
 
@@ -374,7 +400,7 @@ export default function OdishaExams() {
                 disabled={savingSlides}
                 style={{ padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: savingSlides ? 0.7 : 1 }}
               >
-                {savingSlides ? 'â³ Saving...' : 'ðŸ’¾ Save Slides'}
+                {savingSlides ? 'Saving...' : 'Save Slides'}
               </button>
             </div>
           </div>
@@ -426,6 +452,13 @@ export default function OdishaExams() {
                       <span style={{ fontWeight: 800, fontSize: 13, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {slide.title}
                       </span>
+                      {/* Color / Image indicator badges */}
+                      {slide.bgColor && (
+                        <span title={`BG Color: ${slide.bgColor}`} style={{ width: 16, height: 16, borderRadius: 4, background: slide.bgColor, border: '1.5px solid #cbd5e1', flexShrink: 0, display: 'inline-block' }} />
+                      )}
+                      {slide.bgImage && (
+                        <img src={slide.bgImage} alt="thumb" style={{ width: 22, height: 16, objectFit: 'cover', borderRadius: 4, border: '1.5px solid #cbd5e1', flexShrink: 0 }} />
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
                       {slide.desc}
@@ -451,27 +484,49 @@ export default function OdishaExams() {
 
           {/* Live Preview Strip */}
           {slides.length > 0 && (
-            <div style={{ marginTop: 24, padding: '18px 22px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                ðŸŽ¬ Live Preview â€” Slide 1 of {slides.length}
-              </div>
-              {slides[0]?.tag && <span style={{ fontSize: 10, fontWeight: 800, background: '#1e40af', color: '#dbeafe', padding: '2px 8px', borderRadius: 20, letterSpacing: 0.5 }}>{slides[0].tag}</span>}
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '8px 0 4px' }}>{slides[0]?.title}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>{slides[0]?.desc}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {slides[0]?.orig && <span style={{ fontSize: 11, color: '#64748b', textDecoration: 'line-through' }}>{slides[0].orig}</span>}
-                {slides[0]?.price && <span style={{ fontSize: 17, fontWeight: 900, color: '#FFC93C' }}>{slides[0].price}</span>}
-                <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 14px', borderRadius: 8, background: '#2563eb', color: '#fff' }}>{slides[0]?.cta}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {slides.map((_, i) => (
-                  <span key={i} style={{ width: i === 0 ? 22 : 6, height: 6, borderRadius: 3, background: i === 0 ? '#2563eb' : 'rgba(255,255,255,0.25)', transition: 'all 0.3s' }} />
-                ))}
+            <div style={{
+              marginTop: 24, borderRadius: 14, overflow: 'hidden',
+              background: slides[0]?.bgColor || 'linear-gradient(135deg, #0f172a, #1e293b)',
+              position: 'relative',
+            }}>
+              {/* Background image — right-side illustration */}
+              {slides[0]?.bgImage && (
+                <img
+                  src={slides[0].bgImage}
+                  alt=""
+                  style={{
+                    position: 'absolute', top: 0, right: 0,
+                    height: '100%', width: '42%',
+                    objectFit: 'cover', objectPosition: 'center',
+                    opacity: 0.85,
+                    maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0))',
+                    WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0))',
+                  }}
+                />
+              )}
+              <div style={{ padding: '18px 22px', position: 'relative', zIndex: 1, maxWidth: slides[0]?.bgImage ? '60%' : '100%' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  🎬 Live Preview — Slide 1 of {slides.length}
+                </div>
+                {slides[0]?.tag && <span style={{ fontSize: 10, fontWeight: 800, background: '#1e40af', color: '#dbeafe', padding: '2px 8px', borderRadius: 20, letterSpacing: 0.5 }}>{slides[0].tag}</span>}
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '8px 0 4px' }}>{slides[0]?.title}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>{slides[0]?.desc}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {slides[0]?.orig && <span style={{ fontSize: 11, color: '#64748b', textDecoration: 'line-through' }}>{slides[0].orig}</span>}
+                  {slides[0]?.price && <span style={{ fontSize: 17, fontWeight: 900, color: '#FFC93C' }}>{slides[0].price}</span>}
+                  <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 14px', borderRadius: 8, background: '#2563eb', color: '#fff' }}>{slides[0]?.cta}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  {slides.map((_, i) => (
+                    <span key={i} style={{ width: i === 0 ? 22 : 6, height: 6, borderRadius: 3, background: i === 0 ? '#2563eb' : 'rgba(255,255,255,0.25)', transition: 'all 0.3s' }} />
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
+
 
       {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
            TAB 2 â€” EXAM SECTION BANNER SETTINGS
@@ -762,16 +817,136 @@ export default function OdishaExams() {
                 <input value={slideForm.cta} onChange={e => setSlideForm(f => ({ ...f, cta: e.target.value }))} placeholder="e.g. Grab It Now" style={{ width: '100%', padding: '10px 14px', borderRadius: 9, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700, boxSizing: 'border-box' }} />
               </div>
 
+              {/* ── Background Color Picker ── */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  🎨 Banner Background Color
+                  <span style={{ fontWeight: 400, textTransform: 'none', color: '#94a3b8', marginLeft: 6 }}>(gradient presets or custom)</span>
+                </label>
+                {/* Preset gradient swatches */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                  {[
+                    { label: 'Dark Navy',    value: 'linear-gradient(135deg, #0f172a, #1e293b)' },
+                    { label: 'Deep Blue',    value: 'linear-gradient(135deg, #1e3a5f, #1d4ed8)' },
+                    { label: 'Purple Dusk',  value: 'linear-gradient(135deg, #1e1b4b, #7c3aed)' },
+                    { label: 'Teal Ocean',   value: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)' },
+                    { label: 'Crimson',      value: 'linear-gradient(135deg, #450a0a, #991b1b)' },
+                    { label: 'Forest',       value: 'linear-gradient(135deg, #052e16, #166534)' },
+                    { label: 'Midnight',     value: 'linear-gradient(135deg, #020617, #0f172a)' },
+                    { label: 'Royal Gold',   value: 'linear-gradient(135deg, #1c1400, #78350f)' },
+                  ].map(preset => (
+                    <button
+                      key={preset.value}
+                      title={preset.label}
+                      onClick={() => setSlideForm(f => ({ ...f, bgColor: preset.value }))}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: preset.value,
+                        border: slideForm.bgColor === preset.value ? '2.5px solid #2563eb' : '2px solid #e2e8f0',
+                        cursor: 'pointer', flexShrink: 0,
+                        boxShadow: slideForm.bgColor === preset.value ? '0 0 0 3px rgba(37,99,235,0.25)' : 'none',
+                        transition: 'all 0.15s',
+                      }}
+                    />
+                  ))}
+                </div>
+                {/* Custom solid color */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>Custom solid color:</label>
+                  <input
+                    type="color"
+                    value={slideForm.bgColor?.startsWith('#') ? slideForm.bgColor : '#0f172a'}
+                    onChange={e => setSlideForm(f => ({ ...f, bgColor: e.target.value }))}
+                    style={{ width: 36, height: 32, border: '1.5px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', padding: 2 }}
+                  />
+                  {slideForm.bgColor && (
+                    <button
+                      onClick={() => setSlideForm(f => ({ ...f, bgColor: '' }))}
+                      style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      ✕ Clear
+                    </button>
+                  )}
+                  {slideForm.bgColor && (
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                      {slideForm.bgColor}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Banner Image Upload ── */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  🖼️ Banner Image
+                  <span style={{ fontWeight: 400, textTransform: 'none', color: '#94a3b8', marginLeft: 6 }}>(right-side illustration, optional)</span>
+                </label>
+                {slideForm.bgImage ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <img src={slideForm.bgImage} alt="Banner preview" style={{ width: 80, height: 52, objectFit: 'cover', borderRadius: 7, border: '1px solid #cbd5e1', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Image uploaded ✓</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slideForm.bgImage}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                      <label style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#2563eb', textAlign: 'center' }}>
+                        Change
+                        <input type="file" accept="image/*" onChange={handleSlideImageUpload} style={{ display: 'none' }} disabled={bgImageUploading} />
+                      </label>
+                      <button
+                        onClick={() => setSlideForm(f => ({ ...f, bgImage: '' }))}
+                        style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#ef4444' }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    gap: 8, padding: '20px 16px', border: '2px dashed #cbd5e1', borderRadius: 10,
+                    cursor: bgImageUploading ? 'wait' : 'pointer', background: '#f8fafc',
+                    transition: 'border-color 0.15s',
+                  }}>
+                    <RiImageLine fontSize={28} color="#94a3b8" />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      {bgImageUploading ? '⏳ Uploading...' : 'Click to upload banner image'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>PNG, JPG, WebP — max 50 MB</div>
+                    <input type="file" accept="image/*" onChange={handleSlideImageUpload} style={{ display: 'none' }} disabled={bgImageUploading} />
+                  </label>
+                )}
+              </div>
+
               {/* Mini Preview */}
-              <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Live Preview</div>
-                {slideForm.tag && <span style={{ fontSize: 10, fontWeight: 800, background: '#1e40af', color: '#dbeafe', padding: '2px 8px', borderRadius: 20 }}>{slideForm.tag}</span>}
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '6px 0 3px' }}>{slideForm.title || 'Slide Title'}</div>
-                <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6 }}>{slideForm.desc || 'Slide description...'}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {slideForm.orig && <span style={{ fontSize: 10, color: '#64748b', textDecoration: 'line-through' }}>{slideForm.orig}</span>}
-                  {slideForm.price && <span style={{ fontSize: 14, fontWeight: 900, color: '#FFC93C' }}>{slideForm.price}</span>}
-                  <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 6, background: '#2563eb', color: '#fff' }}>{slideForm.cta || 'CTA'}</span>
+              <div style={{
+                borderRadius: 12, overflow: 'hidden', position: 'relative',
+                background: slideForm.bgColor || 'linear-gradient(135deg, #0f172a, #1e293b)',
+              }}>
+                {slideForm.bgImage && (
+                  <img
+                    src={slideForm.bgImage}
+                    alt=""
+                    style={{
+                      position: 'absolute', top: 0, right: 0,
+                      height: '100%', width: '42%',
+                      objectFit: 'cover', objectPosition: 'center',
+                      opacity: 0.85,
+                      maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0))',
+                      WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0))',
+                    }}
+                  />
+                )}
+                <div style={{ padding: '14px 16px', position: 'relative', zIndex: 1, maxWidth: slideForm.bgImage ? '60%' : '100%' }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Live Preview</div>
+                  {slideForm.tag && <span style={{ fontSize: 10, fontWeight: 800, background: '#1e40af', color: '#dbeafe', padding: '2px 8px', borderRadius: 20 }}>{slideForm.tag}</span>}
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '6px 0 3px' }}>{slideForm.title || 'Slide Title'}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6 }}>{slideForm.desc || 'Slide description...'}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {slideForm.orig && <span style={{ fontSize: 10, color: '#64748b', textDecoration: 'line-through' }}>{slideForm.orig}</span>}
+                    {slideForm.price && <span style={{ fontSize: 14, fontWeight: 900, color: '#FFC93C' }}>{slideForm.price}</span>}
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 6, background: '#2563eb', color: '#fff' }}>{slideForm.cta || 'CTA'}</span>
+                  </div>
                 </div>
               </div>
             </div>

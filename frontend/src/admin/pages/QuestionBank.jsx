@@ -756,7 +756,7 @@ export default function QuestionBank() {
                     Explanation (Shown after exam submission)
                   </label>
                   <MathInput
-                    singleLine
+                    rows={4}
                     value={qBlock.explanation}
                     onChange={val => handleBlockChange(blockIdx, 'explanation', val)}
                     placeholder="Enter step-by-step explanation..."

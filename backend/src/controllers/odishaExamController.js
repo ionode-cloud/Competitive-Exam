@@ -1,4 +1,17 @@
 const OdishaExamConfig = require('../models/OdishaExamConfig');
+const { getFileUrl } = require('../middleware/upload');
+
+// Upload a banner image for a slide and return its public URL
+exports.uploadSlideBannerImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file received' });
+    }
+    const url = getFileUrl(req, req.file.path);
+    res.json({ success: true, url, message: 'Slide banner image uploaded successfully' });
+  } catch (err) { next(err); }
+};
+
 
 exports.getConfig = async (req, res, next) => {
   try {

@@ -91,14 +91,42 @@ function Dashboard() {
             </Link>
           ))}
         </div>
-        <div className="promo-banner" style={{ transition: 'all 0.5s ease-in-out' }}>
-          <span className="promo-tag" style={{ animation: 'fadeIn 0.5s' }}>{slide.tag}</span>
-          <h2 style={{ animation: 'fadeIn 0.5s' }}>{slide.title}</h2>
-          <p style={{ animation: 'fadeIn 0.5s' }}>{slide.desc}</p>
-          <div className="promo-price" style={{ animation: 'fadeIn 0.5s' }}>
+        <div
+          className="promo-banner"
+          style={{
+            transition: 'all 0.5s ease-in-out',
+            // Override CSS background if admin set a custom color
+            ...(slide.bgColor ? { background: slide.bgColor } : {}),
+          }}
+        >
+          {/* Right-side illustration image (if admin uploaded one) */}
+          {slide.bgImage && (
+            <img
+              src={slide.bgImage}
+              alt=""
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                height: '100%',
+                width: '45%',
+                objectFit: 'cover',
+                objectPosition: 'center',
+                opacity: 0.9,
+                maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 30%, rgba(0,0,0,0))',
+                WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 30%, rgba(0,0,0,0))',
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+          )}
+          <span className="promo-tag" style={{ animation: 'fadeIn 0.5s', position: 'relative', zIndex: 1 }}>{slide.tag}</span>
+          <h2 style={{ animation: 'fadeIn 0.5s', position: 'relative', zIndex: 1, maxWidth: slide.bgImage ? '58%' : undefined }}>{slide.title}</h2>
+          <p style={{ animation: 'fadeIn 0.5s', position: 'relative', zIndex: 1, maxWidth: slide.bgImage ? '55%' : undefined }}>{slide.desc}</p>
+          <div className="promo-price" style={{ animation: 'fadeIn 0.5s', position: 'relative', zIndex: 1 }}>
             <span>{slide.orig}</span>{slide.price}
           </div>
-          <a className="promo-cta" style={{ animation: 'fadeIn 0.5s' }}>{slide.cta}</a>
+          <a className="promo-cta" style={{ animation: 'fadeIn 0.5s', position: 'relative', zIndex: 1 }}>{slide.cta}</a>
           <div className="promo-dots">
             {promoSlides.map((_, i) => (
               <span
@@ -114,6 +142,7 @@ function Dashboard() {
     </div>
   );
 }
+
 
 /* ══════════════════════════════════════════════════════════
    SECTION HEADER HELPER

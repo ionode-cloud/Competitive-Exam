@@ -16,12 +16,14 @@ const odishaExamConfigSchema = new mongoose.Schema({
   // Home page auto-scroll banner slides (managed from Admin Panel)
   homeBannerSlides: {
     type: [{
-      tag:   { type: String, default: '' },
-      title: { type: String, default: '' },
-      desc:  { type: String, default: '' },
-      price: { type: String, default: '' },
-      orig:  { type: String, default: '' },
-      cta:   { type: String, default: 'Get Admission' },
+      tag:     { type: String, default: '' },
+      title:   { type: String, default: '' },
+      desc:    { type: String, default: '' },
+      price:   { type: String, default: '' },
+      orig:    { type: String, default: '' },
+      cta:     { type: String, default: 'Get Admission' },
+      bgColor: { type: String, default: '' },   // CSS gradient or hex color for slide bg
+      bgImage: { type: String, default: '' },   // URL of uploaded banner illustration image
     }],
     default: [
       { tag: 'MAINS QUANT BATCH', title: 'Saviour 4.0 — One Stop Solution', desc: '50+ live mains-level quant classes, topic-wise sessions, sectional tests + quizzes.', price: '₹499', orig: '₹1,999', cta: 'Grab It Now' },
