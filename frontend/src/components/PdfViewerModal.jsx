@@ -24,8 +24,29 @@ export default function PdfViewerModal({ pdf, onClose }) {
   // Viewer Controls State
   const [navpanes, setNavpanes] = useState(1); // 1 = show left thumbnail sidebar, 0 = hide
   const [zoomLevel, setZoomLevel] = useState(120); // Zoom percentage
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageInputVal, setPageInputVal] = useState('1');
+
+  // PDF Title / Key for persistence
+  const pdfKey = pdf?._id || pdf?.title || pdf?.pdfUrl || 'pdf';
+
+  // Restore saved page number on mount (persists across page refreshes)
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`pdf_last_page_${pdfKey}`);
+      return saved ? Math.max(1, parseInt(saved, 10)) : 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  const [pageInputVal, setPageInputVal] = useState(() => String(currentPage));
+
+  // Save current page number whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(`pdf_last_page_${pdfKey}`, String(currentPage));
+    } catch { /* silent */ }
+  }, [currentPage, pdfKey]);
+
 
   const timerRef = useRef(null);
   const modalContainerRef = useRef(null);
@@ -132,12 +153,18 @@ export default function PdfViewerModal({ pdf, onClose }) {
   if (!pdf) return null;
 
   const rawPdfUrl = pdf?.pdfUrl || pdf?.fileUrl || pdf?.url || '';
-  const fullPdfUrl = rawPdfUrl.startsWith('http://') || rawPdfUrl.startsWith('https://')
+  let fullPdfUrl = rawPdfUrl.startsWith('http://') || rawPdfUrl.startsWith('https://')
     ? rawPdfUrl
     : `${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')}${rawPdfUrl.startsWith('/') ? '' : '/'}${rawPdfUrl}`;
 
+  // Automatically upgrade HTTP to HTTPS when current page is HTTPS to prevent Mixed Content blocking
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && fullPdfUrl.startsWith('http://')) {
+    fullPdfUrl = fullPdfUrl.replace(/^http:\/\//i, 'https://');
+  }
+
   // Embedded PDF URL with left thumbnail pane (navpanes=1), scrollbar=1, zoom level & page jump enabled
   const iframeSrc = `${fullPdfUrl}#page=${currentPage}&zoom=${zoomLevel}&navpanes=${navpanes}&scrollbar=1&view=FitH`;
+
 
   return (
     <div

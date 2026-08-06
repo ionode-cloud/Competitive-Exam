@@ -56,7 +56,16 @@ export default function MaterialsPage() {
   const [totalCount, setTotalCount]     = useState(0);
 
   const [selectedMaterial, setSelectedMaterial] = useState(null);
-  const [activePdf, setActivePdf]               = useState(null);
+  const [activePdf, setActivePdf]               = useState(() => {
+    try {
+      const saved = localStorage.getItem('active_view_pdf');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed?.data || null;
+      }
+    } catch { /* silent */ }
+    return null;
+  });
   const [paymentMaterial, setPaymentMaterial]   = useState(null);
   const [unlockedIds, setUnlockedIds]           = useState([]);
 
@@ -127,7 +136,32 @@ export default function MaterialsPage() {
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
   /* ── actions ────────────────────────────────────────────── */
-  const handleOpenPdfModal = (m) => setActivePdf(m);
+  const cleanPdfData = (m) => {
+    if (!m) return null;
+    return {
+      _id: m._id,
+      title: m.title || m.name || m.category || 'PDF Document',
+      category: m.category || '',
+      pdfUrl: m.pdfUrl || m.fileUrl || m.url || '',
+      price: m.price || 0,
+      isFree: m.isFree || false,
+    };
+  };
+
+  const handleOpenPdfModal = (m) => {
+    const cleanData = cleanPdfData(m);
+    setActivePdf(cleanData);
+    try {
+      localStorage.setItem('active_view_pdf', JSON.stringify({ type: 'material', data: cleanData }));
+    } catch { /* silent */ }
+  };
+
+  const handleClosePdfModal = () => {
+    setActivePdf(null);
+    try {
+      localStorage.removeItem('active_view_pdf');
+    } catch { /* silent */ }
+  };
 
   const handleActionButtonClick = (m) => {
     const isUnlocked = m.isFree || unlockedIds.includes(m._id);
@@ -671,7 +705,7 @@ export default function MaterialsPage() {
 
       {/* ── PDF Full-Screen Viewer ────────────────────────── */}
       {activePdf && (
-        <PdfViewerModal pdf={activePdf} onClose={() => setActivePdf(null)} />
+        <PdfViewerModal pdf={activePdf} onClose={handleClosePdfModal} />
       )}
 
       {/* Spinner keyframe */}

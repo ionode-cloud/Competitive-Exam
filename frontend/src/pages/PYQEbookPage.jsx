@@ -42,11 +42,49 @@ export default function PYQEbookPage() {
 
   /* Modals */
   const [selectedBook, setSelectedBook]               = useState(null);
-  const [activePdf, setActivePdf]                     = useState(null);
+  const [activePdf, setActivePdf]                     = useState(() => {
+    try {
+      const saved = localStorage.getItem('active_view_pdf');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed?.data || null;
+      }
+    } catch { /* silent */ }
+    return null;
+  });
   const [paymentBook, setPaymentBook]                 = useState(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('razorpay');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess]           = useState(false);
+
+  const cleanPdfData = (book) => {
+    if (!book) return null;
+    return {
+      _id: book._id,
+      title: book.title || book.name || book.subjectName || 'PDF Document',
+      subjectName: book.subjectName || '',
+      pdfUrl: book.pdfUrl || book.fileUrl || book.url || '',
+      price: book.price || 0,
+      isFree: book.isFree || false,
+    };
+  };
+
+  const handleOpenPdf = (book) => {
+    const cleanData = cleanPdfData(book);
+    setActivePdf(cleanData);
+    try {
+      localStorage.setItem('active_view_pdf', JSON.stringify({ type: 'pyq', data: cleanData }));
+    } catch { /* silent */ }
+  };
+
+  const handleClosePdf = () => {
+    setActivePdf(null);
+    try {
+      localStorage.removeItem('active_view_pdf');
+    } catch { /* silent */ }
+  };
+
+
 
   useEffect(() => {
     if (urlQ) {
@@ -125,7 +163,7 @@ export default function PYQEbookPage() {
 
   const handleActionButtonClick = (book) => {
     if (checkUnlocked(book)) {
-      setActivePdf(book);
+      handleOpenPdf(book);
     } else {
       setPaymentBook(book);
       setPaymentSuccess(false);
@@ -196,7 +234,7 @@ export default function PYQEbookPage() {
           setTimeout(() => {
             setPaymentBook(null);
             setPaymentSuccess(false);
-            setActivePdf(book);
+            handleOpenPdf(book);
           }, 1000);
         },
         theme: { color: '#1957D6' },
@@ -233,7 +271,7 @@ export default function PYQEbookPage() {
         const book = paymentBook;
         setPaymentBook(null);
         setPaymentSuccess(false);
-        setActivePdf(book);
+        handleOpenPdf(book);
       }, 1000);
     }, 1500);
   };
@@ -678,7 +716,7 @@ export default function PYQEbookPage() {
 
       {/* ── PDF Full-Screen Viewer ────────────────────────── */}
       {activePdf && (
-        <PdfViewerModal pdf={activePdf} onClose={() => setActivePdf(null)} />
+        <PdfViewerModal pdf={activePdf} onClose={handleClosePdf} />
       )}
 
     </div>

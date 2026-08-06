@@ -40,6 +40,7 @@ connectDB().then(() => {
 });
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Dynamic allowed origins whitelist from environment variables and production/dev defaults
 const allowedOrigins = [

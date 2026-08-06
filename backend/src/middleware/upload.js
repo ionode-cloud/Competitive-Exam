@@ -60,5 +60,7 @@ exports.uploadMultiple = upload.fields([
 exports.getFileUrl = (req, filePath) => {
   if (!filePath) return null;
   const relative = filePath.replace(/\\/g, '/').split('uploads/')[1];
-  return `${req.protocol}://${req.get('host')}/uploads/${relative}`;
+  const protocol = (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
+  return `${protocol}://${req.get('host')}/uploads/${relative}`;
 };
+
