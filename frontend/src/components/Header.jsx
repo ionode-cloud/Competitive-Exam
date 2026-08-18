@@ -434,12 +434,15 @@ export default function Header() {
       try {
         const loggedUser = await authLogin(authForm.email, authForm.password);
         setAuthSuccess('Logged in successfully!');
-        const adminRoles = ['admin', 'superadmin', 'content_manager', 'question_creator', 'support'];
+        const adminRoles = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'];
         if (adminRoles.includes(loggedUser?.role)) {
           setShowAuthModal(false);
           setAuthSuccess('');
           setAuthForm({ name: '', email: '', phone: '', password: '', terms: false });
-          navigate('/admin/dashboard', { replace: true });
+          const firstTab = (loggedUser?.role === 'sub_admin' && Array.isArray(loggedUser?.permissions) && loggedUser.permissions.length > 0)
+            ? (loggedUser.permissions[0].startsWith('/admin') ? loggedUser.permissions[0] : `/admin/${loggedUser.permissions[0]}`)
+            : '/admin/dashboard';
+          navigate(firstTab, { replace: true });
           return;
         } else {
           setTimeout(() => {
@@ -469,13 +472,16 @@ export default function Header() {
         });
         const loggedUser = await authLogin(authForm.email, authForm.password);
         setAuthSuccess('Account created successfully!');
-        const adminRoles = ['admin', 'superadmin', 'content_manager', 'question_creator', 'support'];
-        if (adminRoles.includes(loggedUser.role)) {
+        const adminRoles = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'];
+        if (adminRoles.includes(loggedUser?.role)) {
           setTimeout(() => {
             setShowAuthModal(false);
             setAuthSuccess('');
             setAuthForm({ name: '', email: '', phone: '', password: '', terms: false });
-            navigate('/admin/dashboard');
+            const firstTab = (loggedUser?.role === 'sub_admin' && Array.isArray(loggedUser?.permissions) && loggedUser.permissions.length > 0)
+              ? (loggedUser.permissions[0].startsWith('/admin') ? loggedUser.permissions[0] : `/admin/${loggedUser.permissions[0]}`)
+              : '/admin/dashboard';
+            navigate(firstTab);
           }, 400);
         } else {
           setTimeout(() => {
@@ -523,9 +529,13 @@ export default function Header() {
                       {user.email || 'user@prephub.in'}
                     </div>
 
-                    {['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user?.role) ? (
+                    {['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(user?.role) ? (
                       <Link
-                        to="/admin/dashboard"
+                        to={
+                          (user?.role === 'sub_admin' && Array.isArray(user?.permissions) && user.permissions.length > 0)
+                            ? (user.permissions[0].startsWith('/admin') ? user.permissions[0] : `/admin/${user.permissions[0]}`)
+                            : '/admin/dashboard'
+                        }
                         onClick={() => setShowDropdown(false)}
                         style={{
                           padding: '12px 14px', fontSize: '13px', color: '#2563eb', fontWeight: 800,
@@ -533,7 +543,7 @@ export default function Header() {
                           background: '#eff6ff', textAlign: 'left'
                         }}
                       >
-                        <FaShieldAlt style={{ color: '#2563eb' }} /> Admin Dashboard
+                        <FaShieldAlt style={{ color: '#2563eb' }} /> {user.role === 'sub_admin' ? 'Sub Admin Panel' : 'Admin Dashboard'}
                       </Link>
                     ) : (
                       <>

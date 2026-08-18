@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaArrowLeft, FaCheckCircle, FaExclamationTriangle, FaShieldAlt, FaClock, FaClipboardList, FaAward } from 'react-icons/fa';
+import { MathRenderer } from '../admin/components/MathInput';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -15,6 +16,7 @@ export default function ExamInstructionPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [agree, setAgree] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [alreadyAttemptedInfo, setAlreadyAttemptedInfo] = useState(null);
 
   useEffect(() => {
     fetch(`${API_URL}/subject-tests/tests/${testId}/instructions`)
@@ -31,29 +33,79 @@ export default function ExamInstructionPage() {
       })
       .catch(() => setError('Could not connect to server'))
       .finally(() => setLoading(false));
+
+    // Check if current student has already completed an attempt for this test
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_URL}/subject-tests/user/attempted-tests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j.success && j.attemptDetails && j.attemptDetails[String(testId)]) {
+            let isAdmin = false;
+            try {
+              const user = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdmin = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(user.role);
+            } catch {}
+            if (!isAdmin) {
+              setAlreadyAttemptedInfo(j.attemptDetails[String(testId)]);
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, [testId]);
 
   const handleStartExam = async () => {
     if (!agree) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please log in to attend this examination');
+      navigate('/login');
+      return;
+    }
     setStarting(true);
 
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subject-tests/tests/${testId}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           selectedLanguage,
           isPreview: testId === 'demo'
         })
-      }).then(r => r.json());
+      }).then(r => {
+        if (r.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          return { success: false, isUnauthorized: true, message: 'Your session has expired. Please log in again.' };
+        }
+        return r.json();
+      });
+
+      if (res.isUnauthorized) {
+        alert(res.message || 'Please log in to start the exam');
+        navigate('/login');
+        return;
+      }
 
       if (res.requiresSubscription) {
         alert(res.message);
         navigate('/subscription');
+        return;
+      }
+
+      if (res.alreadyAttempted) {
+        alert(res.message || 'You have already attempted this exam. Each exam can only be attempted once.');
+        if (res.attemptId) {
+          navigate(`/subject-test/result/${res.attemptId}`);
+        } else {
+          navigate('/profile');
+        }
         return;
       }
 
@@ -113,7 +165,9 @@ export default function ExamInstructionPage() {
             <button onClick={() => navigate('/mock-test')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', padding: '8px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
               <FaArrowLeft /> Back
             </button>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{test.title}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+              <MathRenderer text={test.title} />
+            </h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 800, background: '#2563eb', padding: '4px 12px', borderRadius: 20 }}>
@@ -126,7 +180,9 @@ export default function ExamInstructionPage() {
         <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Subject Test Name</div>
-            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>{test.title}</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 2 }}>
+              <MathRenderer text={test.title} />
+            </div>
           </div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Duration</div>
@@ -178,18 +234,33 @@ export default function ExamInstructionPage() {
             </ul>
           </div>
 
+          {/* Already Attempted Warning Alert */}
+          {alreadyAttemptedInfo && (
+            <div style={{ background: '#fef3c7', border: '1.5px solid #fde68a', borderRadius: 12, padding: '16px 20px', marginBottom: 20, color: '#92400e', fontSize: 13.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <FaExclamationTriangle fontSize={22} style={{ flexShrink: 0, color: '#d97706' }} />
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800 }}>You have already attempted this exam!</div>
+                <div style={{ fontSize: 12.5, fontWeight: 500, color: '#b45309', marginTop: 2 }}>
+                  Only one attempt is allowed per candidate. You can view your previous result and solution explanations below.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Agreement Checkbox */}
-          <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', fontSize: 13.5, color: '#1e293b', fontWeight: 600, lineHeight: 1.5 }}>
-              <input
-                type="checkbox"
-                checked={agree}
-                onChange={e => setAgree(e.target.checked)}
-                style={{ width: 18, height: 18, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
-              />
-              <span>I have read all the instructions carefully.</span>
-            </label>
-          </div>
+          {!alreadyAttemptedInfo && (
+            <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', fontSize: 13.5, color: '#1e293b', fontWeight: 600, lineHeight: 1.5 }}>
+                <input
+                  type="checkbox"
+                  checked={agree}
+                  onChange={e => setAgree(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
+                />
+                <span>I have read all the instructions carefully.</span>
+              </label>
+            </div>
+          )}
 
           {/* Bottom Action Buttons */}
           <div style={{ display: 'flex', gap: 12 }}>
@@ -199,19 +270,34 @@ export default function ExamInstructionPage() {
             >
               Back
             </button>
-            <button
-              onClick={handleStartExam}
-              disabled={!agree || starting}
-              style={{
-                flex: 1, padding: '14px 24px', borderRadius: 10, border: 'none',
-                background: agree ? '#2563eb' : '#cbd5e1',
-                color: '#fff', fontWeight: 900, fontSize: 15, cursor: agree ? 'pointer' : 'not-allowed',
-                boxShadow: agree ? '0 4px 14px rgba(37, 99, 235, 0.35)' : 'none',
-                transition: 'all .2s'
-              }}
-            >
-              {starting ? 'Initializing Exam Engine…' : 'Start Test →'}
-            </button>
+            {alreadyAttemptedInfo ? (
+              <button
+                onClick={() => navigate(`/subject-test/result/${alreadyAttemptedInfo.attemptId}`)}
+                style={{
+                  flex: 1, padding: '14px 24px', borderRadius: 10, border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#fff', fontWeight: 900, fontSize: 15, cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  transition: 'all .2s'
+                }}
+              >
+                View Your Results & Review Solutions →
+              </button>
+            ) : (
+              <button
+                onClick={handleStartExam}
+                disabled={!agree || starting}
+                style={{
+                  flex: 1, padding: '14px 24px', borderRadius: 10, border: 'none',
+                  background: agree ? '#2563eb' : '#cbd5e1',
+                  color: '#fff', fontWeight: 900, fontSize: 15, cursor: agree ? 'pointer' : 'not-allowed',
+                  boxShadow: agree ? '0 4px 14px rgba(37, 99, 235, 0.35)' : 'none',
+                  transition: 'all .2s'
+                }}
+              >
+                {starting ? 'Initializing Exam Engine…' : 'Start Test →'}
+              </button>
+            )}
           </div>
         </div>
 

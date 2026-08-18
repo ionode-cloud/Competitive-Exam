@@ -17,7 +17,7 @@ import {
 
 import { getSocket } from '../utils/socket';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const defaultCategories = [
   { icon: <FaLandmark />, label: 'OSSSC', color: '#7C3AED', bg: '#F3ECFE', exams: [] },

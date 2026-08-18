@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import AdminHeader from '../components/AdminHeader';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminLayout() {
   const { user, loading, isAdmin } = useAuth();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
   if (loading) {
@@ -21,6 +22,19 @@ export default function AdminLayout() {
 
   if (!user) return <Navigate to="/?login=true" replace />;
   if (!isAdmin()) return <Navigate to="/" replace />;
+
+  // Enforce tab-level permission security for Sub Admin accounts
+  if (user?.role === 'sub_admin') {
+    const perms = Array.isArray(user.permissions) ? user.permissions : [];
+    if (perms.length > 0) {
+      const currentTab = location.pathname.replace('/admin/', '').split('/')[0] || 'dashboard';
+      const isPermitted = perms.includes(currentTab) || perms.includes(`/admin/${currentTab}`) || perms.includes(location.pathname);
+      if (!isPermitted) {
+        const firstAllowed = perms[0]?.startsWith('/admin') ? perms[0] : `/admin/${perms[0]}`;
+        return <Navigate to={firstAllowed || '/admin/dashboard'} replace />;
+      }
+    }
+  }
 
   const toggle = () => setCollapsed(prev => !prev);
 

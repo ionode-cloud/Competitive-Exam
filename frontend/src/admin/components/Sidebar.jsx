@@ -5,33 +5,48 @@ import {
   RiBarChartLine, RiBellLine, RiLogoutBoxLine,
   RiMenuLine, RiShieldLine, RiGraduationCapLine,
   RiArrowRightSLine, RiFolderSettingsLine, RiFileList2Line, RiVipCrownLine, RiBookmarkLine,
-  RiMailLine
+  RiMailLine, RiTrophyLine
 } from 'react-icons/ri';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 
-const navItems = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: RiDashboardLine },
-  { to: '/admin/exams', label: 'Odisha Exams', icon: RiShieldLine },
-  { to: '/admin/manage-mock-tests', label: 'Manage MockTest', icon: RiFolderSettingsLine },
-  { to: '/admin/subject-tests', label: 'Subject Test', icon: RiBookmarkLine },
-  { to: '/admin/question-bank', label: 'Question Bank', icon: RiQuestionLine },
-  { to: '/admin/subjects', label: 'Subjects', icon: RiBookOpenLine },
-  { to: '/admin/ebooks', label: 'PYQ E-Books', icon: RiBookLine },
-  { to: '/admin/materials', label: 'Materials', icon: RiFileList2Line },
-  { to: '/admin/subscriptions', label: 'Subscriptions', icon: RiVipCrownLine },
-  { to: '/admin/students', label: 'Students', icon: RiUserLine },
-  { to: '/admin/orders', label: 'Orders', icon: RiShoppingCartLine },
-  { to: '/admin/payments', label: 'Payments', icon: RiMoneyDollarCircleLine },
-  { to: '/admin/contacts', label: 'Contact Messages', icon: RiMailLine },
-  { to: '/admin/reports', label: 'Reports', icon: RiBarChartLine },
-  { to: '/admin/notifications', label: 'Notifications', icon: RiBellLine },
-  { to: '/admin/credentials', label: 'Admin Credentials', icon: RiShieldUserLine }
+export const navItems = [
+  { id: 'dashboard', to: '/admin/dashboard', label: 'Dashboard', icon: RiDashboardLine },
+  { id: 'exams', to: '/admin/exams', label: 'Odisha Exams', icon: RiShieldLine },
+  { id: 'manage-mock-tests', to: '/admin/manage-mock-tests', label: 'Manage MockTest', icon: RiFolderSettingsLine },
+  { id: 'subject-tests', to: '/admin/subject-tests', label: 'Subject Test', icon: RiBookmarkLine },
+  { id: 'question-bank', to: '/admin/question-bank', label: 'Question Bank', icon: RiQuestionLine },
+  { id: 'subjects', to: '/admin/subjects', label: 'Subjects', icon: RiBookOpenLine },
+  { id: 'ebooks', to: '/admin/ebooks', label: 'PYQ E-Books', icon: RiBookLine },
+  { id: 'materials', to: '/admin/materials', label: 'Materials', icon: RiFileList2Line },
+  { id: 'subscriptions', to: '/admin/subscriptions', label: 'Subscriptions', icon: RiVipCrownLine },
+  { id: 'students', to: '/admin/students', label: 'Students', icon: RiUserLine },
+  { id: 'rankings', to: '/admin/rankings', label: 'Rankings', icon: RiTrophyLine },
+  { id: 'orders', to: '/admin/orders', label: 'Orders', icon: RiShoppingCartLine },
+  { id: 'payments', to: '/admin/payments', label: 'Payments', icon: RiMoneyDollarCircleLine },
+  { id: 'contacts', to: '/admin/contacts', label: 'Contact Messages', icon: RiMailLine },
+  { id: 'reports', to: '/admin/reports', label: 'Reports', icon: RiBarChartLine },
+  { id: 'notifications', to: '/admin/notifications', label: 'Notifications', icon: RiBellLine },
+  { id: 'credentials', to: '/admin/credentials', label: 'Admin Credentials', icon: RiShieldUserLine }
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Filter tabs for Sub Admin according to assigned permissions
+  const visibleNavItems = navItems.filter(item => {
+    // Admin / Superadmin has unrestricted access
+    if (!user || user.role === 'admin' || user.role === 'superadmin') {
+      return true;
+    }
+    // Sub Admin: check user.permissions
+    if (user.role === 'sub_admin') {
+      const perms = Array.isArray(user.permissions) ? user.permissions : [];
+      return perms.includes(item.id) || perms.includes(item.to);
+    }
+    return true;
+  });
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -95,7 +110,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
         {/* Navigation */}
         <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 px-2 space-y-0.5 scrollbar-thin">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {visibleNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

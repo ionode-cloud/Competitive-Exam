@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { RiAddLine, RiEditLine, RiDeleteBin2Line, RiFileCopyLine, RiUploadLine, RiCloseLine, RiArrowLeftLine, RiBookOpenLine, RiFolderLine, RiArrowRightSLine, RiQuestionLine } from 'react-icons/ri';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { RiAddLine, RiEditLine, RiDeleteBin2Line, RiFileCopyLine, RiUploadLine, RiCloseLine, RiArrowLeftLine, RiBookOpenLine, RiFolderLine, RiArrowRightSLine, RiQuestionLine, RiImageLine } from 'react-icons/ri';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import api from '../api/axios';
 import DataTable from '../components/DataTable';
-import MathInput from '../components/MathInput';
+import MathInput, { MathRenderer } from '../components/MathInput';
 
 const diffBadge = (d) => {
   const map = { easy: 'admin-badge-green', moderate: 'admin-badge-yellow', difficult: 'admin-badge-red' };
@@ -13,6 +13,7 @@ const diffBadge = (d) => {
 
 const createEmptyQuestionBlock = () => ({
   questionText: '',
+  questionImage: '',
   options: [
     { label: 'A', text: '' },
     { label: 'B', text: '' },
@@ -21,6 +22,7 @@ const createEmptyQuestionBlock = () => ({
   ],
   correctAnswer: 'A',
   explanation: '',
+  explanationImage: '',
 });
 
 export default function QuestionBank() {
@@ -40,6 +42,7 @@ export default function QuestionBank() {
   const [editing, setEditing] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [blockImageUploading, setBlockImageUploading] = useState({}); // { blockIdx_field: true/false }
 
   // Top Bar Common Configuration State
   const [topMeta, setTopMeta] = useState({
@@ -146,9 +149,11 @@ export default function QuestionBank() {
     });
     setQuestionBlocks([{
       questionText: q.questionText || '',
+      questionImage: q.questionImage || '',
       options: q.options && q.options.length === 4 ? q.options : createEmptyQuestionBlock().options,
       correctAnswer: q.correctAnswer || 'A',
       explanation: q.explanation || '',
+      explanationImage: q.explanationImage || '',
     }]);
     setViewMode('form');
   };
@@ -180,6 +185,34 @@ export default function QuestionBank() {
     });
   };
 
+  // Upload image for a block field (questionImage or explanationImage)
+  const handleImageUpload = async (blockIdx, field, file) => {
+    if (!file) return;
+    const key = `${blockIdx}_${field}`;
+    setBlockImageUploading(prev => ({ ...prev, [key]: true }));
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const { data } = await api.post('/questions/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (data.success && data.url) {
+        handleBlockChange(blockIdx, field, data.url);
+        toast.success('Image uploaded successfully!');
+      } else {
+        toast.error('Image upload failed');
+      }
+    } catch {
+      toast.error('Image upload failed');
+    } finally {
+      setBlockImageUploading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleRemoveImage = (blockIdx, field) => {
+    handleBlockChange(blockIdx, field, '');
+  };
+
   const handleSubmitAll = async (e) => {
     if (e) e.preventDefault();
     if (!topMeta.subject) return toast.error('Please select a Subject');
@@ -205,9 +238,11 @@ export default function QuestionBank() {
         const payload = questionBlocks.map(q => ({
           ...topMeta,
           questionText: q.questionText,
+          questionImage: q.questionImage || '',
           options: q.options,
           correctAnswer: q.correctAnswer,
           explanation: q.explanation,
+          explanationImage: q.explanationImage || '',
         }));
 
         await api.post('/questions', payload.length === 1 ? payload[0] : payload);
@@ -297,7 +332,7 @@ export default function QuestionBank() {
       key: 'questionText', label: 'Question Statement', render: r => (
         <div className="max-w-md">
           <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2">
-            {r.questionText}
+            <MathRenderer text={r.questionText} />
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {r.topic && <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 font-semibold">Topic: {r.topic}</span>}
@@ -710,6 +745,48 @@ export default function QuestionBank() {
                 />
               </div>
 
+              {/* Question Image Upload */}
+              <div className="p-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-blue-950/10 space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400">
+                  <RiImageLine className="w-4 h-4" /> Question Image <span className="font-normal text-slate-400">(optional — shown with question in exam)</span>
+                </label>
+                {qBlock.questionImage ? (
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={qBlock.questionImage}
+                      alt="Question"
+                      className="h-24 w-auto rounded-lg object-contain border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(blockIdx, 'questionImage')}
+                      className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-bold px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    >
+                      <RiCloseLine className="w-4 h-4" /> Remove Image
+                    </button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                    {blockImageUploading[`${blockIdx}_questionImage`] ? (
+                      <span className="animate-pulse">Uploading...</span>
+                    ) : (
+                      <><RiUploadLine className="w-4 h-4" /> Upload Image (JPG, PNG, WebP)</>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      disabled={blockImageUploading[`${blockIdx}_questionImage`]}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(blockIdx, 'questionImage', file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               {/* Options Grid */}
               <div className="space-y-2 pt-2">
                 <label className="admin-label text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -762,6 +839,48 @@ export default function QuestionBank() {
                     placeholder="Enter step-by-step explanation..."
                   />
                 </div>
+              </div>
+
+              {/* Explanation Image Upload */}
+              <div className="p-3 rounded-xl border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/10 space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+                  <RiImageLine className="w-4 h-4" /> Explanation Image <span className="font-normal text-slate-400">(optional — shown with explanation after submission)</span>
+                </label>
+                {qBlock.explanationImage ? (
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={qBlock.explanationImage}
+                      alt="Explanation"
+                      className="h-24 w-auto rounded-lg object-contain border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(blockIdx, 'explanationImage')}
+                      className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-bold px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    >
+                      <RiCloseLine className="w-4 h-4" /> Remove Image
+                    </button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 text-xs font-semibold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
+                    {blockImageUploading[`${blockIdx}_explanationImage`] ? (
+                      <span className="animate-pulse">Uploading...</span>
+                    ) : (
+                      <><RiUploadLine className="w-4 h-4" /> Upload Explanation Image (JPG, PNG, WebP)</>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      disabled={blockImageUploading[`${blockIdx}_explanationImage`]}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(blockIdx, 'explanationImage', file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
             </div>

@@ -1,5 +1,6 @@
 const Question = require('../models/Question');
 const Subject = require('../models/Subject');
+const { getFileUrl } = require('../middleware/upload');
 const Chapter = require('../models/Chapter');
 const SubChapter = require('../models/SubChapter');
 const XLSX = require('xlsx');
@@ -293,6 +294,18 @@ exports.moveQuestions = async (req, res, next) => {
     if (subChapter) updateData.subChapter = subChapter;
     await Question.updateMany({ _id: { $in: ids } }, updateData);
     res.json({ success: true, message: `${ids.length} questions moved` });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Upload image for question or explanation
+// @route   POST /api/questions/upload-image
+exports.uploadQuestionImage = async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No image file uploaded' });
+    const imageUrl = getFileUrl(req, req.file.path);
+    res.json({ success: true, url: imageUrl });
   } catch (err) {
     next(err);
   }

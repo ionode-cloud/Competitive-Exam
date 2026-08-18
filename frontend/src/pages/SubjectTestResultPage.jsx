@@ -13,6 +13,7 @@ import {
   FaKey
 } from 'react-icons/fa';
 import { getSocket } from '../utils/socket';
+import { MathRenderer } from '../admin/components/MathInput';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -368,8 +369,20 @@ export default function SubjectTestResultPage() {
                       </span>
                     </div>
 
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 16, lineHeight: 1.5 }}>
-                      {q.questionText}
+                    {/* Question Text & Image — Side by Side */}
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.6 }}>
+                        <MathRenderer text={q.questionText} />
+                      </div>
+                      {q.questionImage && (
+                        <div style={{ flexShrink: 0, maxWidth: '35%', display: 'flex', justifyContent: 'center' }}>
+                          <img
+                            src={q.questionImage}
+                            alt="Question Diagram"
+                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', padding: 4 }}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Options List with Color Highlights */}
@@ -389,22 +402,27 @@ export default function SubjectTestResultPage() {
                         } else if (isUserChoice && !isCorrectChoice) {
                           border = '#dc2626';
                           bg = '#fee2e2';
-                          color = '#b91c1c';
+                          color = '#991b1b';
                         }
 
                         return (
                           <div
-                            key={opt.id || oIdx}
+                            key={opt.id || opt.label || oIdx}
                             style={{
-                              padding: '12px 16px', borderRadius: 8, border: `2px solid ${border}`,
-                              background: bg, color, fontSize: 13.5, fontWeight: (isUserChoice || isCorrectChoice) ? 800 : 500,
+                              border: `1.5px solid ${border}`,
+                              background: bg,
+                              color,
+                              padding: '10px 14px',
+                              borderRadius: 8,
+                              fontSize: 13.5,
+                              fontWeight: (isCorrectChoice || isUserChoice) ? 700 : 500,
                               display: 'flex', alignItems: 'center', gap: 10
                             }}
                           >
                             <span style={{ width: 22, height: 22, borderRadius: '50%', background: isCorrectChoice ? '#16a34a' : (isUserChoice ? '#dc2626' : '#cbd5e1'), color: '#fff', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                               {getOptLetter(oIdx)}
                             </span>
-                            <span>{opt.text}</span>
+                            <span><MathRenderer text={opt.text} /></span>
                             {isCorrectChoice && isUserChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>✓ Your Choice (Correct)</span>}
                             {isCorrectChoice && !isUserChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>✓ Correct Answer</span>}
                             {isUserChoice && !isCorrectChoice && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#dc2626' }}>✕ Your Choice</span>}
@@ -414,13 +432,29 @@ export default function SubjectTestResultPage() {
                     </div>
 
                     {/* Correct Answer & Explanation Footer */}
-                    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 14, fontSize: 13, color: '#334155', lineHeight: 1.6 }}>
-                      <div style={{ marginBottom: 6, fontWeight: 800, color: '#16a34a' }}>
-                        Correct Answer: <span>{correctOpt ? correctOpt.text : q.correctAnswer}</span>
+                    <div style={{ background: '#fff', borderRadius: 10, border: '1.5px solid #e2e8f0', padding: 16, fontSize: 13, color: '#334155', lineHeight: 1.6, boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+                      <div style={{ marginBottom: 10, fontWeight: 800, color: '#16a34a', fontSize: 13.5 }}>
+                        Correct Answer: <span style={{ color: '#15803d' }}><MathRenderer text={correctOpt ? correctOpt.text : q.correctAnswer} /></span>
                       </div>
-                      <div>
-                        <strong style={{ color: '#0f172a' }}>Explanation: </strong>
-                        <span>{q.explanation || 'Explanation not available.'}</span>
+                      
+                      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 260 }}>
+                          <strong style={{ color: '#0f172a', display: 'block', marginBottom: 4 }}>💡 Step-by-Step Explanation:</strong>
+                          <div style={{ color: '#334155', lineHeight: 1.65 }}>
+                            <MathRenderer text={q.explanation || 'Explanation not available.'} />
+                          </div>
+                        </div>
+
+                        {q.explanationImage && (
+                          <div style={{ flexShrink: 0, maxWidth: '38%', minWidth: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <img
+                              src={q.explanationImage}
+                              alt="Explanation Diagram"
+                              style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', padding: 4 }}
+                            />
+                            <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600 }}>Explanation Diagram</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

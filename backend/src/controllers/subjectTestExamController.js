@@ -115,7 +115,7 @@ const ensureTestQuestions = async (test) => {
   }
 };
 
-/* ── Public 2-Level Tree (Categories -> Topics -> Tests) ─────────────────────── */
+/* ── Public Hierarchy Tree (Category -> Subject -> Topic -> Tests) ───────────── */
 exports.getPublicSubjectTree = async (req, res, next) => {
   try {
     const categories = await SubjectTestSubject.find({ isActive: { $ne: false }, status: { $ne: 'inactive' } }).sort('displayOrder createdAt');
@@ -126,13 +126,14 @@ exports.getPublicSubjectTree = async (req, res, next) => {
         const allPublished = await SubjectTest.find({ status: 'published' })
           .populate('categoryId', 'name color icon')
           .populate('subjectId', 'name color icon')
+          .populate('topicId', 'name')
           .sort('createdAt');   // sort ascending so first created = first test
 
         // Filter tests belonging to this Subject Category
         const catTests = allPublished.filter(t => {
-          if (t.subjectId?.name && isSubjectCategoryMatch(t.subjectId.name, cat.name)) return true;
           const tCatId = t.categoryId ? String(t.categoryId._id || t.categoryId) : null;
           if (tCatId && tCatId === String(cat._id)) return true;
+          if (t.subjectId?.name && isSubjectCategoryMatch(t.subjectId.name, cat.name)) return true;
           if (t.subjectId && String(t.subjectId._id || t.subjectId) === String(cat._id)) return true;
           return false;
         });
@@ -143,21 +144,36 @@ exports.getPublicSubjectTree = async (req, res, next) => {
         // The FIRST test in this category is always free (index 0 after ascending sort)
         const firstFreeTestId = catTests.length > 0 ? String(catTests[0]._id) : null;
 
-        // Group tests under topics
-        const topicMap = new Map();
-
-        if (Array.isArray(cat.topics)) {
-          cat.topics.forEach(tName => {
-            const nameStr = typeof tName === 'string' ? tName : tName.name;
-            if (nameStr) topicMap.set(nameStr, []);
-          });
-        }
+        // Group tests strictly by Subject -> Topic -> Test
+        const subjectsMap = new Map();
 
         catTests.forEach(t => {
-          const tName = t.topicName || 'General Practice';
-          if (!topicMap.has(tName)) topicMap.set(tName, []);
+          const subjObj = (t.subjectId && typeof t.subjectId === 'object') ? t.subjectId : null;
+          const sId = subjObj?._id ? String(subjObj._id) : (t.subjectId ? String(t.subjectId) : String(cat._id));
+          const sName = subjObj?.name || cat.name || 'General Subject';
+
+          if (!subjectsMap.has(sId)) {
+            subjectsMap.set(sId, {
+              _id: sId,
+              name: sName,
+              topicsMap: new Map()
+            });
+          }
+
+          const subjData = subjectsMap.get(sId);
+          const tName = t.topicName || (t.topicId?.name) || 'General Practice';
+          const tId = t.topicId?._id ? String(t.topicId._id) : (t.topicId ? String(t.topicId) : tName);
+
+          if (!subjData.topicsMap.has(tName)) {
+            subjData.topicsMap.set(tName, {
+              _id: tId,
+              name: tName,
+              tests: []
+            });
+          }
+
           const isFreeTest = String(t._id) === firstFreeTestId;
-          topicMap.get(tName).push({
+          subjData.topicsMap.get(tName).tests.push({
             _id: t._id,
             title: t.title,
             qs: t.totalQuestions,
@@ -169,13 +185,49 @@ exports.getPublicSubjectTree = async (req, res, next) => {
             free: isFreeTest,                                      // strictly 1st test in category is free
             isFreeTest,                                      // explicit flag for UI
             categoryId: cat._id,                            // for purchase lookups on client
+            subjectId: sId,
+            topicName: tName,
             accessType: t.accessType,
             price: t.price || 49,
             status: t.status,
           });
         });
 
-        const topicsArray = Array.from(topicMap.entries()).map(([tName, tList]) => ({
+        const subjectsArray = Array.from(subjectsMap.values()).map(subj => {
+          const topicsArray = Array.from(subj.topicsMap.values());
+          return {
+            _id: subj._id,
+            name: subj.name,
+            topics: topicsArray,
+            totalTests: topicsArray.reduce((acc, top) => acc + top.tests.length, 0)
+          };
+        });
+
+        // Also build flat topicsArray for backwards compatibility
+        const topicMap = new Map();
+        catTests.forEach(t => {
+          const tName = t.topicName || (t.topicId?.name) || 'General Practice';
+          if (!topicMap.has(tName)) topicMap.set(tName, []);
+          const isFreeTest = String(t._id) === firstFreeTestId;
+          topicMap.get(tName).push({
+            _id: t._id,
+            title: t.title,
+            qs: t.totalQuestions,
+            mins: t.duration,
+            marks: t.totalMarks,
+            positiveMarks: t.positiveMarks,
+            negativeMarks: t.negativeMarks,
+            diff: t.difficulty,
+            free: isFreeTest,
+            isFreeTest,
+            categoryId: cat._id,
+            accessType: t.accessType,
+            price: t.price || 49,
+            status: t.status,
+          });
+        });
+
+        const flatTopicsArray = Array.from(topicMap.entries()).map(([tName, tList]) => ({
           _id: tName,
           name: tName,
           tests: tList
@@ -191,7 +243,8 @@ exports.getPublicSubjectTree = async (req, res, next) => {
           desc: cat.description,
           categoryPrice: cat.price || 0,    // category subscription price
           firstFreeTestId,
-          topics: topicsArray
+          subjects: subjectsArray,
+          topics: flatTopicsArray
         };
       })
     );
@@ -315,8 +368,30 @@ exports.startExamAttempt = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'This test is currently not published' });
     }
 
-    // 1. Premium Access Check (if not preview)
-    if (test.accessType === 'Premium' && !isPreview) {
+    // Admin role bypass — admins/superadmin can attempt any test without payment or repeat restrictions
+    const ADMIN_ROLES = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'];
+    const isAdminUser = ADMIN_ROLES.includes(req.user?.role);
+
+    // 0. Single-Attempt Enforcement for Regular Students (free or purchased tests can only be attempted 1 time)
+    if (!isAdminUser && !isPreview) {
+      const completedAttempt = await SubjectTestAttempt.findOne({
+        userId,
+        testId: test._id,
+        status: 'completed'
+      }).sort('-createdAt').lean();
+
+      if (completedAttempt) {
+        return res.status(403).json({
+          success: false,
+          alreadyAttempted: true,
+          attemptId: completedAttempt._id,
+          message: 'You have already attempted this exam. Each exam can only be attempted once.'
+        });
+      }
+    }
+
+    // 1. Premium Access Check (if not preview and not admin)
+    if (test.accessType === 'Premium' && !isPreview && !isAdminUser) {
       const activeSub = await UserSubscription.findOne({
         userId,
         status: 'active',
@@ -331,8 +406,8 @@ exports.startExamAttempt = async (req, res, next) => {
       }
     }
 
-    // 2. Category-Based Access Gate (if not preview and not MockTest)
-    if (!isPreview && !isMockTest) {
+    // 2. Category-Based Access Gate (if not preview and not MockTest and not admin)
+    if (!isPreview && !isMockTest && !isAdminUser) {
       const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
 
       // Resolve the category for this test
@@ -922,6 +997,7 @@ exports.getExamAttemptResult = async (req, res, next) => {
         userAnswer: userAns,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation || '',
+        explanationImage: q.explanationImage || '',
         isCorrect,
         isSkipped,
         marks: isCorrect ? posMark : (isSkipped ? 0 : -negMark)
@@ -1044,5 +1120,404 @@ exports.getMyAttempts = async (req, res, next) => {
     });
 
     res.json({ success: true, data: formatted });
+  } catch (err) { next(err); }
+};
+
+/* ── Get Logged-in Student Completed Attempted Test IDs ──────────────────── */
+exports.getUserAttemptedTestIds = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const completedAttempts = await SubjectTestAttempt.find({
+      userId,
+      status: 'completed'
+    }).select('testId _id score percentage accuracy timeTakenSec createdAt').sort('-createdAt').lean();
+
+    const attemptedMap = {};
+    const testIds = [];
+
+    completedAttempts.forEach(a => {
+      const tIdStr = String(a.testId || '');
+      if (tIdStr && !attemptedMap[tIdStr]) {
+        testIds.push(tIdStr);
+        attemptedMap[tIdStr] = {
+          attemptId: a._id,
+          score: a.score,
+          percentage: a.percentage,
+          accuracy: a.accuracy,
+          timeTakenSec: a.timeTakenSec,
+          date: a.createdAt
+        };
+      }
+    });
+
+    res.json({
+      success: true,
+      data: testIds,
+      attemptDetails: attemptedMap
+    });
+  } catch (err) { next(err); }
+};
+
+/* ── Get Student Live Rank & Leaderboard ──────────────────────────────────── */
+exports.getMyRankAndLeaderboard = async (req, res, next) => {
+  try {
+    const currentUserId = String(req.user._id);
+    const ADMIN_ROLES = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'];
+
+    // Fetch all completed attempts across the entire platform
+    const rawAttempts = await SubjectTestAttempt.find({ status: 'completed' })
+      .select('userId testId score percentage accuracy correctCount incorrectCount skippedCount timeTakenSec createdAt')
+      .populate('userId', 'name email phone avatar role isBanned')
+      .lean();
+
+    // Exclude admin accounts from student ranking calculations
+    const allAttempts = rawAttempts.filter(a => a.userId && !ADMIN_ROLES.includes(a.userId.role));
+
+    // Map all tests for metadata
+    const testIds = [...new Set(allAttempts.map(a => String(a.testId)).filter(Boolean))];
+    const [bankTests, mockTests] = await Promise.all([
+      SubjectTest.find({ _id: { $in: testIds } }).select('title subjectId totalMarks positiveMarks').lean(),
+      require('../models/MockTest').find({ _id: { $in: testIds } }).select('name title totalMarks positiveMarks examination').lean()
+    ]);
+
+    const testInfoMap = new Map();
+    bankTests.forEach(t => testInfoMap.set(String(t._id), { title: t.title, type: 'Subject Test' }));
+    mockTests.forEach(m => testInfoMap.set(String(m._id), { title: m.name || m.title, type: 'Mock Test' }));
+
+    // 1. Overall Student Aggregation
+    const studentStatsMap = new Map();
+
+    allAttempts.forEach(a => {
+      if (!a.userId) return;
+      const uId = String(a.userId._id || a.userId);
+      const prev = studentStatsMap.get(uId) || {
+        userId: uId,
+        name: a.userId.name || 'Candidate',
+        email: a.userId.email || '',
+        avatar: a.userId.avatar || '',
+        totalScore: 0,
+        totalAttempts: 0,
+        percentageSum: 0,
+        accuracySum: 0,
+        totalCorrect: 0,
+        totalIncorrect: 0,
+        totalTimeTakenSec: 0,
+        lastAttemptDate: a.createdAt
+      };
+
+      prev.totalScore += Number(a.score || 0);
+      prev.totalAttempts += 1;
+      prev.percentageSum += Number(a.percentage || 0);
+      prev.accuracySum += Number(a.accuracy || 0);
+      prev.totalCorrect += Number(a.correctCount || 0);
+      prev.totalIncorrect += Number(a.incorrectCount || 0);
+      prev.totalTimeTakenSec += Number(a.timeTakenSec || 0);
+      if (new Date(a.createdAt) > new Date(prev.lastAttemptDate)) {
+        prev.lastAttemptDate = a.createdAt;
+      }
+
+      studentStatsMap.set(uId, prev);
+    });
+
+    // Format & calculate averages
+    const allRankedStudents = Array.from(studentStatsMap.values()).map(s => ({
+      userId: s.userId,
+      name: s.name,
+      email: s.email,
+      avatar: s.avatar,
+      totalScore: Number(s.totalScore.toFixed(2)),
+      totalAttempts: s.totalAttempts,
+      avgPercentage: s.totalAttempts > 0 ? Number((s.percentageSum / s.totalAttempts).toFixed(1)) : 0,
+      avgAccuracy: s.totalAttempts > 0 ? Number((s.accuracySum / s.totalAttempts).toFixed(1)) : 0,
+      totalCorrect: s.totalCorrect,
+      totalIncorrect: s.totalIncorrect,
+      totalTimeTakenSec: s.totalTimeTakenSec,
+      lastAttemptDate: s.lastAttemptDate,
+      isCurrentUser: s.userId === currentUserId
+    }));
+
+    // Sort by: totalScore DESC, avgAccuracy DESC, totalCorrect DESC, totalTimeTakenSec ASC
+    allRankedStudents.sort((a, b) => {
+      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+      if (b.avgAccuracy !== a.avgAccuracy) return b.avgAccuracy - a.avgAccuracy;
+      if (b.totalCorrect !== a.totalCorrect) return b.totalCorrect - a.totalCorrect;
+      return a.totalTimeTakenSec - b.totalTimeTakenSec;
+    });
+
+    // Assign ranks and badges
+    allRankedStudents.forEach((st, idx) => {
+      st.rank = idx + 1;
+      if (st.rank === 1) st.badge = '🥇 Gold Champion';
+      else if (st.rank === 2) st.badge = '🥈 Silver Star';
+      else if (st.rank === 3) st.badge = '🥉 Bronze Elite';
+      else if (st.rank <= 10) st.badge = '🌟 Top 10 Performer';
+      else if (st.rank <= 15) st.badge = '⚡ Top 15 Aspirant';
+      else if (st.rank <= 50) st.badge = '🎯 Aspirant Master';
+      else st.badge = '📝 Candidate';
+    });
+
+    // Find current student's overall rank
+    const myRankEntry = allRankedStudents.find(s => s.userId === currentUserId);
+    const totalStudentsRanked = allRankedStudents.length;
+    const myRank = myRankEntry ? myRankEntry.rank : null;
+    const myPercentile = (myRank && totalStudentsRanked > 0)
+      ? Math.max(1, Number((((totalStudentsRanked - myRank + 1) / totalStudentsRanked) * 100).toFixed(1)))
+      : 0;
+    const myTopPercentage = (myRank && totalStudentsRanked > 0)
+      ? Number(((myRank / totalStudentsRanked) * 100).toFixed(1))
+      : 0;
+
+    // 2. Exam-wise Rank for Current Student
+    const myAttempts = allAttempts.filter(a => a.userId && String(a.userId._id || a.userId) === currentUserId);
+    const myExamRanks = myAttempts.map(myA => {
+      const tIdStr = String(myA.testId);
+      const testAttempts = allAttempts.filter(a => String(a.testId) === tIdStr);
+
+      // Sort attempts for this specific test
+      testAttempts.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+        return (a.timeTakenSec || 0) - (b.timeTakenSec || 0);
+      });
+
+      const examRank = testAttempts.findIndex(a => String(a._id) === String(myA._id)) + 1;
+      const tMeta = testInfoMap.get(tIdStr) || { title: 'Practice Exam', type: 'Test' };
+
+      return {
+        attemptId: myA._id,
+        testId: tIdStr,
+        testTitle: tMeta.title,
+        testType: tMeta.type,
+        score: myA.score || 0,
+        accuracy: myA.accuracy || 0,
+        percentage: myA.percentage || 0,
+        rank: examRank || 1,
+        totalCandidates: testAttempts.length,
+        date: myA.createdAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        myRank: myRank || '—',
+        totalStudentsRanked,
+        percentile: myPercentile,
+        topPercentage: myTopPercentage,
+        isInTop15: myRank ? myRank <= 15 : false,
+        myStats: myRankEntry || {
+          rank: '—',
+          totalScore: 0,
+          totalAttempts: 0,
+          avgPercentage: 0,
+          avgAccuracy: 0,
+          totalCorrect: 0,
+          totalIncorrect: 0,
+          badge: 'Candidate'
+        },
+        myExamRanks,
+        topLeaderboard: allRankedStudents.slice(0, 15)
+      }
+    });
+  } catch (err) { next(err); }
+};
+
+/* ── Admin: Comprehensive Rankings & Performance Dashboard ───────────────── */
+exports.getAdminRankings = async (req, res, next) => {
+  try {
+    const { testId, search = '', sortBy = 'score' } = req.query;
+    const ADMIN_ROLES = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'];
+
+    // Get all completed attempts
+    const filter = { status: 'completed' };
+    if (testId && testId !== 'all') {
+      filter.testId = testId;
+    }
+
+    const rawAttempts = await SubjectTestAttempt.find(filter)
+      .populate('userId', 'name email phone avatar role isBanned createdAt')
+      .populate('testId', 'title name subjectId')
+      .sort('-score -accuracy')
+      .lean();
+
+    // Exclude admin/staff accounts from student rankings
+    const attempts = rawAttempts.filter(a => a.userId && !ADMIN_ROLES.includes(a.userId.role));
+
+    // Get all tests list for dropdown filter
+    const [subjTests, mockTests] = await Promise.all([
+      SubjectTest.find({ status: 'published' }).select('title _id').lean(),
+      require('../models/MockTest').find({ status: 'published' }).select('name title _id').lean()
+    ]);
+
+    const allTestsList = [
+      ...subjTests.map(t => ({ _id: t._id, title: t.title, type: 'Subject Test' })),
+      ...mockTests.map(m => ({ _id: m._id, title: m.name || m.title, type: 'Mock Test' }))
+    ];
+
+    // If specific test selected: Rank candidate attempts for that test
+    if (testId && testId !== 'all') {
+      let filtered = attempts.filter(a => a.userId);
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        filtered = filtered.filter(a =>
+          a.userId?.name?.toLowerCase().includes(q) ||
+          a.userId?.email?.toLowerCase().includes(q) ||
+          a.userId?.phone?.includes(q)
+        );
+      }
+
+      filtered.sort((a, b) => {
+        if (sortBy === 'time') return (a.timeTakenSec || 0) - (b.timeTakenSec || 0);
+        if (sortBy === 'accuracy') return (b.accuracy || 0) - (a.accuracy || 0);
+        if (sortBy === 'recent') return new Date(b.createdAt) - new Date(a.createdAt);
+        return (b.score || 0) - (a.score || 0);
+      });
+
+      const ranked = filtered.map((a, idx) => ({
+        rank: idx + 1,
+        attemptId: a._id,
+        user: {
+          _id: a.userId._id,
+          name: a.userId.name || 'Candidate',
+          email: a.userId.email || '',
+          phone: a.userId.phone || '',
+          avatar: a.userId.avatar || ''
+        },
+        testTitle: a.testId?.title || a.testId?.name || 'Exam',
+        score: a.score || 0,
+        percentage: a.percentage || 0,
+        accuracy: a.accuracy || 0,
+        correctCount: a.correctCount || 0,
+        incorrectCount: a.incorrectCount || 0,
+        skippedCount: a.skippedCount || 0,
+        timeTakenSec: a.timeTakenSec || 0,
+        date: a.createdAt
+      }));
+
+      const avgScore = ranked.length > 0 ? (ranked.reduce((acc, r) => acc + r.score, 0) / ranked.length).toFixed(1) : 0;
+      const topScore = ranked.length > 0 ? ranked[0].score : 0;
+
+      return res.json({
+        success: true,
+        data: {
+          mode: 'test_specific',
+          stats: {
+            totalCandidates: ranked.length,
+            averageScore: Number(avgScore),
+            highestScore: topScore,
+            topCandidate: ranked[0] || null
+          },
+          testsList: allTestsList,
+          rankings: ranked
+        }
+      });
+    }
+
+    // Overall Platform-Wide Aggregation
+    const studentMap = new Map();
+
+    attempts.forEach(a => {
+      if (!a.userId) return;
+      const uId = String(a.userId._id);
+      const prev = studentMap.get(uId) || {
+        user: {
+          _id: uId,
+          name: a.userId.name || 'Candidate',
+          email: a.userId.email || '',
+          phone: a.userId.phone || '',
+          avatar: a.userId.avatar || '',
+          joinedAt: a.userId.createdAt
+        },
+        totalScore: 0,
+        totalAttempts: 0,
+        percentageSum: 0,
+        accuracySum: 0,
+        totalCorrect: 0,
+        totalIncorrect: 0,
+        totalSkipped: 0,
+        totalTimeTakenSec: 0,
+        lastActive: a.createdAt,
+        exams: []
+      };
+
+      prev.totalScore += Number(a.score || 0);
+      prev.totalAttempts += 1;
+      prev.percentageSum += Number(a.percentage || 0);
+      prev.accuracySum += Number(a.accuracy || 0);
+      prev.totalCorrect += Number(a.correctCount || 0);
+      prev.totalIncorrect += Number(a.incorrectCount || 0);
+      prev.totalSkipped += Number(a.skippedCount || 0);
+      prev.totalTimeTakenSec += Number(a.timeTakenSec || 0);
+      if (new Date(a.createdAt) > new Date(prev.lastActive)) {
+        prev.lastActive = a.createdAt;
+      }
+      prev.exams.push({
+        title: a.testId?.title || a.testId?.name || 'Test',
+        score: a.score || 0,
+        date: a.createdAt
+      });
+
+      studentMap.set(uId, prev);
+    });
+
+    let overallList = Array.from(studentMap.values()).map(s => ({
+      user: s.user,
+      totalScore: Number(s.totalScore.toFixed(2)),
+      totalAttempts: s.totalAttempts,
+      avgPercentage: s.totalAttempts > 0 ? Number((s.percentageSum / s.totalAttempts).toFixed(1)) : 0,
+      avgAccuracy: s.totalAttempts > 0 ? Number((s.accuracySum / s.totalAttempts).toFixed(1)) : 0,
+      totalCorrect: s.totalCorrect,
+      totalIncorrect: s.totalIncorrect,
+      totalSkipped: s.totalSkipped,
+      totalTimeTakenSec: s.totalTimeTakenSec,
+      lastActive: s.lastActive,
+      recentExams: s.exams.slice(-3)
+    }));
+
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      overallList = overallList.filter(s =>
+        s.user.name?.toLowerCase().includes(q) ||
+        s.user.email?.toLowerCase().includes(q) ||
+        s.user.phone?.includes(q)
+      );
+    }
+
+    // Sort
+    overallList.sort((a, b) => {
+      if (sortBy === 'accuracy') return b.avgAccuracy - a.avgAccuracy;
+      if (sortBy === 'attempts') return b.totalAttempts - a.totalAttempts;
+      if (sortBy === 'recent') return new Date(b.lastActive) - new Date(a.lastActive);
+      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+      return b.avgAccuracy - a.avgAccuracy;
+    });
+
+    overallList.forEach((st, idx) => {
+      st.rank = idx + 1;
+      if (st.rank === 1) st.badge = '🥇 Gold Champion';
+      else if (st.rank === 2) st.badge = '🥈 Silver Star';
+      else if (st.rank === 3) st.badge = '🥉 Bronze Elite';
+      else if (st.rank <= 10) st.badge = '🌟 Top 10';
+      else st.badge = '🎯 Aspirant';
+    });
+
+    const totalStudents = overallList.length;
+    const avgPlatformScore = totalStudents > 0 ? (overallList.reduce((acc, s) => acc + s.totalScore, 0) / totalStudents).toFixed(1) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        mode: 'overall',
+        stats: {
+          totalRankedStudents: totalStudents,
+          totalCompletedAttempts: attempts.length,
+          averagePlatformScore: Number(avgPlatformScore),
+          topPerformer: overallList[0] || null
+        },
+        testsList: allTestsList,
+        rankings: overallList
+      }
+    });
   } catch (err) { next(err); }
 };

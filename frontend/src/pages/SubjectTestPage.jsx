@@ -15,6 +15,7 @@ import {
   FaLock,
   FaUnlock
 } from 'react-icons/fa';
+import { MathRenderer } from '../admin/components/MathInput';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -48,8 +49,20 @@ export default function SubjectTestPage() {
 
   // Purchased Categories & Modal State
   const [purchasedCatIds, setPurchasedCatIds] = useState([]);
+  const [attemptedTestIds, setAttemptedTestIds] = useState([]);
+  const [attemptedDetails, setAttemptedDetails] = useState({});
   const [processingId, setProcessingId] = useState(null);
   const [paymentModalCat, setPaymentModalCat] = useState(null);
+
+  // Check if current logged-in user is admin (bypasses all payments)
+  const loggedInUserStr = localStorage.getItem('user');
+  let userIsAdmin = false;
+  if (loggedInUserStr) {
+    try {
+      const parsed = JSON.parse(loggedInUserStr);
+      userIsAdmin = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(parsed.role);
+    } catch { /* silent */ }
+  }
 
   const handleCategoryCheckout = async (category) => {
     const token = localStorage.getItem('token');
@@ -144,16 +157,38 @@ export default function SubjectTestPage() {
       })
       .catch(() => {});
 
-    // Fetch user purchased categories
+    // Fetch user purchased categories & completed attempts
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${API_URL}/subject-tests/purchases/status`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-        .then(r => r.json())
+        .then(r => {
+          if (r.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            return { success: false };
+          }
+          return r.json();
+        })
         .then(j => {
           if (j.success && Array.isArray(j.data)) {
             setPurchasedCatIds(j.data);
+          }
+        })
+        .catch(() => {});
+
+      fetch(`${API_URL}/subject-tests/user/attempted-tests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => {
+          if (r.status === 401) return { success: false };
+          return r.json();
+        })
+        .then(j => {
+          if (j.success && Array.isArray(j.data)) {
+            setAttemptedTestIds(j.data);
+            setAttemptedDetails(j.attemptDetails || {});
           }
         })
         .catch(() => {});
@@ -173,6 +208,15 @@ export default function SubjectTestPage() {
             desc: cat.desc || cat.description || 'Subject practice & mock tests',
             categoryPrice: cat.categoryPrice || 0,
             firstFreeTestId: cat.firstFreeTestId,
+            subjects: (cat.subjects || []).map(s => ({
+              _id: s._id,
+              name: typeof s.name === 'string' ? s.name : 'Subject',
+              topics: (s.topics || []).map(t => ({
+                _id: t._id || t.name,
+                name: typeof t.name === 'string' ? t.name : 'Topic',
+                tests: t.tests || []
+              }))
+            })),
             topics: (cat.topics || []).map(t => ({
               _id: t._id || t.name,
               name: typeof t.name === 'string' ? t.name : 'Topic',
@@ -186,12 +230,13 @@ export default function SubjectTestPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const [activeSubject, setActiveSubject] = useState(0);
-  const [activeTopic, setActiveTopic] = useState(null);
+  const [activeSubject, setActiveSubject] = useState(0); // active category index
+  const [activeSubjectSub, setActiveSubjectSub] = useState(null); // active subject index
+  const [activeTopic, setActiveTopic] = useState(null); // active topic index
 
   const rawSubParam = searchParams.get('sub') ?? searchParams.get('cat') ?? searchParams.get('catId') ?? searchParams.get('subject') ?? '';
 
-  // Re-sync active subject index whenever URL param or subjectList changes
+  // Re-sync active category index whenever URL param or subjectList changes
   useEffect(() => {
     if (!subjectList.length) return;
 
@@ -200,6 +245,7 @@ export default function SubjectTestPage() {
       const idIdx = subjectList.findIndex(s => String(s._id) === rawSubParam);
       if (idIdx !== -1) {
         setActiveSubject(idIdx);
+        setActiveSubjectSub(null);
         setActiveTopic(null);
         return;
       }
@@ -212,6 +258,7 @@ export default function SubjectTestPage() {
       });
       if (nameIdx !== -1) {
         setActiveSubject(nameIdx);
+        setActiveSubjectSub(null);
         setActiveTopic(null);
         return;
       }
@@ -220,6 +267,7 @@ export default function SubjectTestPage() {
       const num = parseInt(rawSubParam, 10);
       if (!isNaN(num) && num >= 0 && num < subjectList.length) {
         setActiveSubject(num);
+        setActiveSubjectSub(null);
         setActiveTopic(null);
         return;
       }
@@ -227,10 +275,12 @@ export default function SubjectTestPage() {
   }, [rawSubParam, subjectList]);
 
   const sub = subjectList[activeSubject] || subjectList[0];
-  const topic = activeTopic !== null && sub?.topics ? sub.topics[activeTopic] : null;
+  const selectedSubject = activeSubjectSub !== null && sub?.subjects ? sub.subjects[activeSubjectSub] : null;
+  const topic = activeTopic !== null && selectedSubject?.topics ? selectedSubject.topics[activeTopic] : null;
 
   const handleSubjectChange = (i) => {
     setActiveSubject(i);
+    setActiveSubjectSub(null);
     setActiveTopic(null);
   };
 
@@ -277,9 +327,9 @@ export default function SubjectTestPage() {
         ) : (
           <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-            {/* Sidebar — Subjects */}
+            {/* Sidebar — Categories */}
             <div className="responsive-sidebar">
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, marginBottom: 10 }}>SUBJECTS</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, marginBottom: 10 }}>CATEGORIES</div>
               {subjectList.map((s, i) => (
                 <button key={i} onClick={() => handleSubjectChange(i)} style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
@@ -300,7 +350,7 @@ export default function SubjectTestPage() {
             {/* Main Panel */}
             <div style={{ flex: 1, minWidth: 0 }}>
 
-              {/* Subject Header */}
+              {/* Subject Category Header */}
               <div className="subject-header-responsive" style={{
                 background: sub.bg, border: `1.5px solid ${sub.color}33`,
                 borderRadius: 14, marginBottom: 16, padding: '16px 20px',
@@ -327,7 +377,7 @@ export default function SubjectTestPage() {
                     )}
                   </div>
                   <p style={{ margin: '0 0 6px', fontSize: 12.5, color: sub.color, opacity: .85 }}>
-                    {topic ? `${topic.name}` : sub.desc}
+                    {topic ? `${selectedSubject?.name} › ${topic.name}` : selectedSubject ? `${selectedSubject.name}` : sub.desc}
                   </p>
                   <div style={{ fontSize: 11.5, color: 'var(--text)', opacity: .9, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ color: '#0F9D58', fontWeight: 800 }}>• 1st Test is 100% Free for everyone.</span>
@@ -353,15 +403,19 @@ export default function SubjectTestPage() {
                   )}
 
                   <div style={{ textAlign: 'right', minWidth: 44 }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: sub.color, lineHeight: 1 }}>{topic ? topic.tests.length : (sub.topics?.length || 0)}</div>
-                    <div style={{ fontSize: 11, color: sub.color, opacity: .7, marginTop: 2 }}>{topic ? 'Tests' : 'Topics'}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: sub.color, lineHeight: 1 }}>
+                      {topic ? topic.tests.length : selectedSubject ? (selectedSubject.topics?.length || 0) : (sub.subjects?.length || 0)}
+                    </div>
+                    <div style={{ fontSize: 11, color: sub.color, opacity: .7, marginTop: 2 }}>
+                      {topic ? 'Tests' : selectedSubject ? 'Topics' : 'Subjects'}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Breadcrumb / Back button */}
-              {topic && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13 }}>
+              {topic ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, flexWrap: 'wrap' }}>
                   <button onClick={() => setActiveTopic(null)} style={{
                     background: sub.bg, border: `1px solid ${sub.color}44`,
                     borderRadius: 8, cursor: 'pointer',
@@ -371,32 +425,89 @@ export default function SubjectTestPage() {
                     <FaArrowLeft fontSize={11} /> Back to Topics
                   </button>
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>›</span>
+                  <span
+                    onClick={() => setActiveTopic(null)}
+                    style={{ color: sub.color, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                  >
+                    {selectedSubject?.name}
+                  </span>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>›</span>
                   <span style={{ color: 'var(--muted)', fontWeight: 600, fontSize: 13 }}>{topic.name}</span>
                 </div>
-              )}
+              ) : selectedSubject ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13 }}>
+                  <button onClick={() => { setActiveSubjectSub(null); setActiveTopic(null); }} style={{
+                    background: sub.bg, border: `1px solid ${sub.color}44`,
+                    borderRadius: 8, cursor: 'pointer',
+                    color: sub.color, fontWeight: 700, fontSize: 13, padding: '5px 12px',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <FaArrowLeft fontSize={11} /> Back to Subjects
+                  </button>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>›</span>
+                  <span style={{ color: 'var(--muted)', fontWeight: 600, fontSize: 13 }}>{selectedSubject.name}</span>
+                </div>
+              ) : null}
 
-              {/* Topics Grid */}
-              {!topic && (
+              {/* Level 1: Subjects Grid (shown when category is selected, before choosing subject) */}
+              {!selectedSubject && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(195px, 1fr))', gap: 9 }}>
-                  {(sub.topics || []).map((t, j) => (
-                    <button key={j} onClick={() => setActiveTopic(j)} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '13px 15px', borderRadius: 10,
-                      background: 'var(--card)', border: '1px solid var(--line)',
-                      cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                      gap: 8, width: '100%',
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = sub.color + '66'; e.currentTarget.style.boxShadow = `0 2px 10px ${sub.color}18`; e.currentTarget.style.background = sub.bg; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.background = 'var(--card)'; }}
-                    >
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', flex: 1, lineHeight: 1.3 }}>{t.name}</span>
-                      <span style={{ color: sub.color, fontWeight: 900, fontSize: 14, flexShrink: 0, display: 'flex', alignItems: 'center' }}><FaChevronRight /></span>
-                    </button>
-                  ))}
+                  {(sub.subjects || []).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13, gridColumn: '1 / -1' }}>
+                      No subjects found under this category yet.
+                    </div>
+                  ) : (
+                    (sub.subjects || []).map((s, j) => (
+                      <button key={j} onClick={() => { setActiveSubjectSub(j); setActiveTopic(null); }} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '13px 15px', borderRadius: 10,
+                        background: 'var(--card)', border: '1px solid var(--line)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                        gap: 8, width: '100%',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = sub.color + '66'; e.currentTarget.style.boxShadow = `0 2px 10px ${sub.color}18`; e.currentTarget.style.background = sub.bg; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.background = 'var(--card)'; }}
+                      >
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', flex: 1, lineHeight: 1.3 }}>
+                          <MathRenderer text={s.name} />
+                        </span>
+                        <span style={{ color: sub.color, fontWeight: 900, fontSize: 14, flexShrink: 0, display: 'flex', alignItems: 'center' }}><FaChevronRight /></span>
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
 
-              {/* Tests List */}
+              {/* Level 2: Topics Grid (shown when subject is selected, before choosing topic) */}
+              {selectedSubject && !topic && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(195px, 1fr))', gap: 9 }}>
+                  {(selectedSubject.topics || []).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13, gridColumn: '1 / -1' }}>
+                      No topics found under this subject yet.
+                    </div>
+                  ) : (
+                    (selectedSubject.topics || []).map((t, j) => (
+                      <button key={j} onClick={() => setActiveTopic(j)} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '13px 15px', borderRadius: 10,
+                        background: 'var(--card)', border: '1px solid var(--line)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                        gap: 8, width: '100%',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = sub.color + '66'; e.currentTarget.style.boxShadow = `0 2px 10px ${sub.color}18`; e.currentTarget.style.background = sub.bg; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.background = 'var(--card)'; }}
+                      >
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', flex: 1, lineHeight: 1.3 }}>
+                          <MathRenderer text={t.name} />
+                        </span>
+                        <span style={{ color: sub.color, fontWeight: 900, fontSize: 14, flexShrink: 0, display: 'flex', alignItems: 'center' }}><FaChevronRight /></span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Level 3: Tests List (shown when topic is selected) */}
               {topic && (
                 <div style={{ display: 'grid', gap: 14 }}>
                   {topic.tests.length === 0 ? (
@@ -406,15 +517,20 @@ export default function SubjectTestPage() {
                   ) : (
                     topic.tests.map((test, j) => {
                       const isFirstFree = test.isFreeTest || test.free || String(test._id) === String(sub.firstFreeTestId);
-                      const isCatPurchased = purchasedCatIds.some(id => String(id) === String(sub._id) || String(id) === String(test.categoryId));
+                      const isCatPurchased = purchasedCatIds.some(id => String(id) === String(sub._id) || String(id) === String(test.categoryId)) || userIsAdmin;
                       const isUnlocked = isFirstFree || isCatPurchased;
+                      const isAlreadyAttempted = !userIsAdmin && attemptedTestIds.includes(String(test._id));
                       const catPriceVal = sub.categoryPrice || test.price || 500;
 
                       return (
-                        <div key={j} className="responsive-test-card" style={{ borderLeft: `4px solid ${sub.color}` }}>
+                        <div key={j} className="responsive-test-card" style={{ borderLeft: `4px solid ${isAlreadyAttempted ? '#94a3b8' : sub.color}` }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                              {isFirstFree ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                              {isAlreadyAttempted ? (
+                                <span style={{ fontSize: 10, fontWeight: 800, color: '#475569', background: '#e2e8f0', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  ✓ ALREADY ATTEMPTED
+                                </span>
+                              ) : isFirstFree ? (
                                 <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20 }}>FREE (1st Test)</span>
                               ) : isCatPurchased ? (
                                 <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -427,14 +543,36 @@ export default function SubjectTestPage() {
                               )}
                               <span style={{ fontSize: 10, fontWeight: 700, color: diffColors[test.diff] || '#0F9D58', background: (diffColors[test.diff] || '#0F9D58') + '18', padding: '2px 8px', borderRadius: 20 }}>{test.diff}</span>
                             </div>
-                            <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>{test.title}</h3>
+                            <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>
+                              <MathRenderer text={test.title} />
+                            </h3>
                             <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)' }}>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FaFileAlt /> {test.qs} Questions</span>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FaClock /> {test.mins} Minutes</span>
                             </div>
                           </div>
 
-                          {isUnlocked ? (
+                          {isAlreadyAttempted ? (
+                            <button
+                              onClick={() => {
+                                const aId = attemptedDetails[String(test._id)]?.attemptId;
+                                if (aId) {
+                                  navigate(`/subject-test/result/${aId}`);
+                                } else {
+                                  navigate('/profile');
+                                }
+                              }}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700,
+                                color: '#334155', background: '#f1f5f9', border: '1.5px solid #cbd5e1',
+                                padding: '9px 18px', borderRadius: 9, cursor: 'pointer',
+                                whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
+                              }}
+                              title="You have already completed this exam"
+                            >
+                              View Result →
+                            </button>
+                          ) : isUnlocked ? (
                             <button onClick={() => navigate(`/subject-test/instructions/${test._id}`)} style={{
                               display: 'inline-block', fontSize: 13, fontWeight: 700,
                               color: '#fff', background: sub.color, border: 'none',
@@ -468,8 +606,8 @@ export default function SubjectTestPage() {
         )}
       </div>
 
-      {/* ── CATEGORY ACCESS PAYMENT MODAL ── */}
-      {paymentModalCat && (
+      {/* ── CATEGORY ACCESS PAYMENT MODAL ── (hidden for admin) */}
+      {paymentModalCat && !userIsAdmin && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.75)',
           backdropFilter: 'blur(4px)', zIndex: 4000,

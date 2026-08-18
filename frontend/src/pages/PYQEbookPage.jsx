@@ -40,6 +40,14 @@ export default function PYQEbookPage() {
     catch { return []; }
   });
 
+  // Check if current logged-in user is admin (bypasses all payment gates)
+  const userIsAdmin = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('user') || '{}');
+      return ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(parsed.role);
+    } catch { return false; }
+  })();
+
   /* Modals */
   const [selectedBook, setSelectedBook]               = useState(null);
   const [activePdf, setActivePdf]                     = useState(() => {
@@ -154,6 +162,7 @@ export default function PYQEbookPage() {
 
   const checkUnlocked = (book) => {
     if (book.isFree || book.price === 0) return true;
+    if (userIsAdmin) return true;
     return unlockedIds.includes(book._id);
   };
 
@@ -620,8 +629,8 @@ export default function PYQEbookPage() {
         );
       })()}
 
-      {/* ── Payment Modal (MaterialsPage Layout) ────────────────────────── */}
-      {paymentBook && (
+      {/* ── Payment Modal (MaterialsPage Layout) (hidden for admin) ────────────────────────── */}
+      {paymentBook && !userIsAdmin && (
         <div
           style={{
             position: 'fixed', inset: 0,

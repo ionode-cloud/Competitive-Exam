@@ -9,8 +9,8 @@ import {
   RiCheckboxCircleLine, RiArrowLeftLine, RiEditLine, RiQuestionLine
 } from 'react-icons/ri';
 import toast from 'react-hot-toast';
-import api from '../api/axios';
 import Modal from '../components/Modal';
+import { MathRenderer } from '../components/MathInput';
 
 function SortableQuestion({ item, onRemove, onEdit }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -30,7 +30,7 @@ function SortableQuestion({ item, onRemove, onEdit }) {
       </button>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
-          {q.questionText || 'Question text unavailable'}
+          <MathRenderer text={q.questionText || 'Question text unavailable'} />
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
           <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 font-semibold">
@@ -687,7 +687,7 @@ export default function CreateMockTest() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
-                    {q.questionText}
+                    <MathRenderer text={q.questionText} />
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
                     <span className="admin-badge-gray">{q.difficulty}</span>

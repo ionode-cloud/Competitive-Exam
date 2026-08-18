@@ -3,12 +3,13 @@ const router = express.Router();
 const ctrl = require('../controllers/questionController');
 const { protect } = require('../middleware/auth');
 const { adminOnly, questionCreator } = require('../middleware/rbac');
-const { uploadImport } = require('../middleware/upload');
+const { uploadImport, uploadImage } = require('../middleware/upload');
 
 router.delete('/bulk', protect, questionCreator, ctrl.bulkDelete);
 router.patch('/bulk-publish', protect, questionCreator, ctrl.bulkPublish);
 router.post('/import', protect, questionCreator, uploadImport, ctrl.importQuestions);
 router.get('/export-template', protect, adminOnly, ctrl.exportTemplate);
+router.post('/upload-image', protect, questionCreator, uploadImage, ctrl.uploadQuestionImage);
 router.patch('/move', protect, questionCreator, ctrl.moveQuestions);
 router.get('/', protect, adminOnly, ctrl.getQuestions);
 router.get('/:id', protect, adminOnly, ctrl.getQuestion);

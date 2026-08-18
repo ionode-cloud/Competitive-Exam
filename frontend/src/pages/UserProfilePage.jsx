@@ -33,10 +33,15 @@ export default function UserProfilePage() {
   const [activeTab, setActiveTab] = useState(activeTabParam);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
 
-  // Redirect admin users directly to admin dashboard
+  // Redirect admin & sub_admin users directly to admin panel
   useEffect(() => {
-    if (user && ['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user.role)) {
-      navigate('/admin/dashboard', { replace: true });
+    if (user && ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(user.role)) {
+      if (user.role === 'sub_admin' && Array.isArray(user.permissions) && user.permissions.length > 0) {
+        const firstTab = user.permissions[0].startsWith('/admin') ? user.permissions[0] : `/admin/${user.permissions[0]}`;
+        navigate(firstTab, { replace: true });
+      } else {
+        navigate('/admin/dashboard', { replace: true });
+      }
     }
   }, [user, navigate]);
 
@@ -83,6 +88,15 @@ export default function UserProfilePage() {
   const [attendedExams, setAttendedExams] = useState(user?.attendedExams || []);
   const [scoreBoardData, setScoreBoardData] = useState(user?.scoreBoardData || []);
   const [purchases, setPurchases] = useState(user?.purchases || []);
+  const [rankingData, setRankingData] = useState({
+    myRank: '—',
+    totalStudentsRanked: 0,
+    percentile: 0,
+    myStats: { totalScore: 0, totalAttempts: 0, avgPercentage: 0, avgAccuracy: 0, totalCorrect: 0, totalIncorrect: 0 },
+    myExamRanks: [],
+    topLeaderboard: []
+  });
+  const [rankLoading, setRankLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -121,7 +135,19 @@ export default function UserProfilePage() {
         }
       })
       .catch(() => {});
-  }, []);
+
+    // Fetch live dynamic ranking & leaderboard
+    setRankLoading(true);
+    fetch(`${API_BASE}/subject-tests/rankings/my-rank`, { headers })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && j.data) {
+          setRankingData(j.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRankLoading(false));
+  }, [activeTab]);
 
   const leaderboardTop = user?.rank ? (user?.leaderboard || []) : [];
 
@@ -540,61 +566,291 @@ export default function UserProfilePage() {
 
         {/* TAB 3: MY RANK */}
         {activeTab === 'rank' && (
-          <div>
-            {leaderboardTop.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#F59E0B', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    <FaTrophy /> Student Leaderboard &amp; Ranking
-                  </div>
-                  <h3 style={{ fontSize: '20px', fontWeight: 850, margin: '6px 0 4px', color: 'var(--ink)' }}>
-                    Your Rank: #{user?.rank || '—'}
-                  </h3>
-                  <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 20px' }}>
-                    Based on overall accuracy, test completion rate, and speed across all mock tests.
-                  </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Top Rank Highlight Card */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              border: '1.5px solid #334155',
+              borderRadius: '20px',
+              padding: '28px 24px',
+              color: '#fff',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.3)'
+            }}>
+              <div style={{ position: 'absolute', right: -20, top: -20, opacity: 0.08, fontSize: 180, pointerEvents: 'none' }}>
+                <FaTrophy />
+              </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {leaderboardTop.map((lb, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', borderRadius: '12px',
-                        background: lb.isCurrentUser ? '#FEF3C7' : '#F8FAFC',
-                        border: lb.isCurrentUser ? '1.5px solid #F59E0B' : '1px solid var(--line)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{
-                            width: '36px', height: '36px', borderRadius: '50%',
-                            background: lb.isCurrentUser ? '#F59E0B' : '#0F172A', color: '#fff',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800
-                          }}>
-                            {lb.avatar || 'ST'}
-                          </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '4px 12px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: 0.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <FaCrown /> Student Performance Rank
+                  </span>
+                  <h2 style={{ fontSize: 26, fontWeight: 900, margin: '10px 0 4px', color: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    Overall Rank: <span style={{ color: '#fbbf24', fontSize: 32 }}>#{rankingData.myRank || '—'}</span>
+                    {rankingData.totalStudentsRanked > 0 && (
+                      <span style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8' }}>
+                        / {rankingData.totalStudentsRanked} Candidates
+                      </span>
+                    )}
+                  </h2>
+                  <p style={{ fontSize: 13, color: '#cbd5e1', margin: 0 }}>
+                    {rankingData.myRank && rankingData.myRank !== '—' ? (
+                      <span>You are ranked in the <strong style={{ color: '#38bdf8' }}>Top {rankingData.topPercentage}%</strong> among all active candidates based on cumulative test scores and accuracy.</span>
+                    ) : (
+                      <span>Ranked against all participating students based on cumulative test scores and accuracy.</span>
+                    )}
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '12px 18px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Overall Standing</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#38bdf8', marginTop: 2 }}>
+                      {rankingData.topPercentage > 0 ? `Top ${rankingData.topPercentage}%` : '—'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '12px 18px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Percentile</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#10b981', marginTop: 2 }}>{rankingData.percentile || 0}%ile</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Metrics Bar */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Total Score</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#38bdf8', marginTop: 2 }}>{rankingData.myStats?.totalScore || 0} pts</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Average Accuracy</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#34d399', marginTop: 2 }}>{rankingData.myStats?.avgAccuracy || 0}%</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Tests Attempted</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#a78bfa', marginTop: 2 }}>{rankingData.myStats?.totalAttempts || 0}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Correct Answers</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#4ade80', marginTop: 2 }}>{rankingData.myStats?.totalCorrect || 0}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Side-by-Side: Left: Exam-Wise Rankings | Right: Top 15 Leaderboard ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 24, alignItems: 'start' }}>
+              {/* LEFT COLUMN: Exam-Wise Rankings */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <h3 style={{ fontSize: 17, fontWeight: 850, margin: 0, color: 'var(--ink)' }}>
+                      📝 Your Exam-Wise Rankings
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: '3px 0 0' }}>
+                      Your individual rank and performance in each completed exam.
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '3px 10px', borderRadius: 20 }}>
+                    {rankingData.myExamRanks?.length || 0} Attempts
+                  </span>
+                </div>
+
+                {rankingData.myExamRanks && rankingData.myExamRanks.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '600px', overflowY: 'auto', paddingRight: 4 }}>
+                    {rankingData.myExamRanks.map((er, idx) => (
+                      <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                           <div>
-                            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{lb.name}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{lb.badge} • {lb.exam}</div>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 10, textTransform: 'uppercase' }}>
+                              {er.testType}
+                            </span>
+                            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a', lineHeight: 1.3, marginTop: 4 }}>
+                              {er.testTitle}
+                            </div>
                           </div>
+                          <span style={{
+                            fontSize: 12, fontWeight: 900,
+                            color: er.rank === 1 ? '#d97706' : (er.rank === 2 ? '#475569' : (er.rank === 3 ? '#c2410c' : '#2563eb')),
+                            background: er.rank === 1 ? '#fef3c7' : '#f1f5f9',
+                            border: er.rank <= 3 ? '1px solid currentColor' : '1px solid #cbd5e1',
+                            padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0
+                          }}>
+                            {er.rank === 1 ? '🥇 Rank #1' : (er.rank === 2 ? '🥈 Rank #2' : (er.rank === 3 ? '🥉 Rank #3' : `Rank #${er.rank}`))} / {er.totalCandidates}
+                          </span>
                         </div>
-                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#10B981' }}>
-                          {lb.score} / 100
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, borderTop: '1px solid #e2e8f0', paddingTop: 8, flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ fontWeight: 800, color: '#10b981' }}>Score: {er.score} pts</span>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>Accuracy: {er.accuracy}%</span>
+                          <button
+                            onClick={() => navigate(`/subject-test/result/${er.attemptId}`)}
+                            style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                          >
+                            View Result →
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--muted)' }}>
+                    <FaClipboardList style={{ fontSize: 38, color: '#cbd5e1', marginBottom: 10 }} />
+                    <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>No Exam Attempts Yet</h4>
+                    <p style={{ fontSize: 12.5, margin: '0 0 16px' }}>Take your first mock test or subject test to see your exam rankings here!</p>
+                    <button onClick={() => navigate('/mock-test')} style={{ padding: '8px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
+                      Take a Test →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: Top 15 Candidates Leaderboard */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <h3 style={{ fontSize: 17, fontWeight: 850, margin: 0, color: 'var(--ink)' }}>
+                      🏆 Top 15 Candidates Leaderboard
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: '3px 0 0' }}>
+                      Top 15 highest performing students platform-wide.
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', background: '#f1f5f9', padding: '3px 10px', borderRadius: 20 }}>
+                    Top 15 Rankers
+                  </span>
                 </div>
+
+                {rankingData.topLeaderboard && rankingData.topLeaderboard.length > 0 ? (
+                  <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--muted)', width: 60 }}>Rank</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--muted)' }}>Candidate</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--muted)' }}>Score</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--muted)' }}>Accuracy</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 800, color: 'var(--muted)' }}>Badge</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rankingData.topLeaderboard.map((st, idx) => (
+                          <tr key={idx} style={{
+                            borderBottom: '1px solid var(--line)',
+                            background: st.isCurrentUser ? '#fef3c7' : 'transparent',
+                            fontWeight: st.isCurrentUser ? 700 : 500
+                          }}>
+                            <td style={{ padding: '10px 12px' }}>
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 26, height: 26, borderRadius: '50%',
+                                fontWeight: 900, fontSize: 11,
+                                background: st.rank === 1 ? '#fef3c7' : (st.rank === 2 ? '#f1f5f9' : (st.rank === 3 ? '#ffedd5' : '#f8fafc')),
+                                color: st.rank === 1 ? '#d97706' : (st.rank === 2 ? '#475569' : (st.rank === 3 ? '#c2410c' : '#64748b')),
+                                border: st.rank <= 3 ? '1.5px solid currentColor' : '1px solid #e2e8f0'
+                              }}>
+                                {st.rank === 1 ? '🥇' : (st.rank === 2 ? '🥈' : (st.rank === 3 ? '🥉' : `#${st.rank}`))}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{
+                                  width: 28, height: 28, borderRadius: '50%',
+                                  background: st.isCurrentUser ? '#f59e0b' : '#1e293b', color: '#fff',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0
+                                }}>
+                                  {(st.name || 'ST').substring(0, 2).toUpperCase()}
+                                </div>
+                                <div className="truncate" style={{ maxWidth: 120 }}>
+                                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }} className="truncate">
+                                    {st.name}
+                                  </div>
+                                  {st.isCurrentUser && (
+                                    <span style={{ fontSize: 9, color: '#d97706', background: '#fff', padding: '1px 5px', borderRadius: 6, border: '1px solid #fcd34d', fontWeight: 800 }}>
+                                      YOU
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 12px', fontWeight: 900, color: '#10b981', fontSize: 13 }}>
+                              {st.totalScore}
+                            </td>
+                            <td style={{ padding: '10px 12px', fontWeight: 800, color: '#2563eb' }}>
+                              {st.avgAccuracy}%
+                            </td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: st.rank <= 3 ? '#d97706' : '#64748b', background: '#f8fafc', padding: '2px 6px', borderRadius: 8, border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+                                {st.badge}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {/* If user is NOT in the Top 15, show their position row with rank % */}
+                        {!rankingData.isInTop15 && rankingData.myStats?.totalAttempts > 0 && (
+                          <>
+                            <tr style={{ background: '#f8fafc', borderBottom: '1px dashed #cbd5e1' }}>
+                              <td colSpan={5} style={{ padding: '6px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 10.5, fontWeight: 700 }}>
+                                ••• Your Current Position (Beyond Top 15) •••
+                              </td>
+                            </tr>
+                            <tr style={{ background: '#fef3c7', borderBottom: '2px solid #f59e0b', fontWeight: 700 }}>
+                              <td style={{ padding: '10px 12px' }}>
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: 28, height: 28, borderRadius: '50%',
+                                  fontWeight: 900, fontSize: 11,
+                                  background: '#f59e0b', color: '#fff', border: '1px solid #d97706'
+                                }}>
+                                  #{rankingData.myRank}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div style={{
+                                    width: 28, height: 28, borderRadius: '50%',
+                                    background: '#f59e0b', color: '#fff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0
+                                  }}>
+                                    {(rankingData.myStats?.name || 'ME').substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>
+                                      {rankingData.myStats?.name || 'You'} <span style={{ fontSize: 9, color: '#d97706', background: '#fff', padding: '1px 5px', borderRadius: 6, border: '1px solid #fcd34d' }}>YOU</span>
+                                    </div>
+                                    <div style={{ fontSize: 10, color: '#d97706', fontWeight: 800 }}>
+                                      Top {rankingData.topPercentage}% ({rankingData.percentile}%ile)
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '10px 12px', fontWeight: 900, color: '#10b981', fontSize: 13 }}>
+                                {rankingData.myStats?.totalScore || 0}
+                              </td>
+                              <td style={{ padding: '10px 12px', fontWeight: 800, color: '#2563eb' }}>
+                                {rankingData.myStats?.avgAccuracy || 0}%
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: '#d97706', background: '#fff', padding: '2px 6px', borderRadius: 8, border: '1px solid #fcd34d' }}>
+                                  {rankingData.myStats?.badge || 'Candidate'}
+                                </span>
+                              </td>
+                            </tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--muted)' }}>
+                    <FaTrophy style={{ fontSize: 36, color: '#f59e0b', opacity: 0.6, marginBottom: 8 }} />
+                    <p style={{ margin: 0, fontSize: 12.5 }}>No student attempts recorded yet. Attempt a test to appear on the leaderboard!</p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '16px', padding: '40px 24px', textAlign: 'center', color: 'var(--muted)' }}>
-                <FaTrophy style={{ fontSize: 44, color: '#F59E0B', marginBottom: 12, opacity: 0.7 }} />
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>No Leaderboard Rank Yet</h3>
-                <p style={{ fontSize: 13, margin: '0 0 20px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto' }}>
-                  Attempt mock tests to earn scores, compete with candidates across Odisha, and get your real-time leaderboard ranking!
-                </p>
-                <button onClick={() => navigate('/mock-test')} style={{ padding: '10px 20px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-                  Start a Test &amp; Earn Rank →
-                </button>
-              </div>
-            )}
+            </div>
           </div>
         )}
 

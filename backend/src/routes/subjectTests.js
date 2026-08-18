@@ -13,6 +13,8 @@ router.get('/tests/:testId/instructions', examCtrl.getTestInstructions);
 
 /* ── PROTECTED STUDENT EXAM ENDPOINTS ───────────────────────────────────────── */
 router.get('/user/my-attempts', protect, examCtrl.getMyAttempts);
+router.get('/user/attempted-tests', protect, examCtrl.getUserAttemptedTestIds);
+router.get('/rankings/my-rank', protect, examCtrl.getMyRankAndLeaderboard);
 router.post('/tests/:testId/start', protect, examCtrl.startExamAttempt);
 router.get('/attempts/:attemptId', protect, examCtrl.getExamAttempt);
 router.post('/attempts/:attemptId/answer', protect, examCtrl.saveAnswer);
@@ -20,6 +22,7 @@ router.post('/attempts/:attemptId/submit', protect, examCtrl.submitExamAttempt);
 router.get('/attempts/:attemptId/result', protect, examCtrl.getExamAttemptResult);
 
 /* ── ADMIN MANAGEMENT ENDPOINTS (Require Admin Authorization) ───────────────── */
+router.get('/rankings/admin', protect, adminOnly, examCtrl.getAdminRankings);
 // Banner & Settings Config
 router.get('/config/admin', protect, adminOnly, adminCtrl.getConfig);
 router.put('/config', protect, adminOnly, adminCtrl.updateConfig);

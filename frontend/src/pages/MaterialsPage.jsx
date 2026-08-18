@@ -77,6 +77,14 @@ export default function MaterialsPage() {
   // Sync URL category param
   useEffect(() => { setActive(urlCat); }, [urlCat]);
 
+  // Check if current logged-in user is admin (bypasses all payment gates)
+  const userIsAdmin = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('user') || '{}');
+      return ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(parsed.role);
+    } catch { return false; }
+  })();
+
   // Fetch categories from API
   const fetchCategories = useCallback(async () => {
     try {
@@ -164,7 +172,7 @@ export default function MaterialsPage() {
   };
 
   const handleActionButtonClick = (m) => {
-    const isUnlocked = m.isFree || unlockedIds.includes(m._id);
+    const isUnlocked = m.isFree || unlockedIds.includes(m._id) || userIsAdmin;
     if (isUnlocked) {
       // increment download count (fire-and-forget)
       fetch(`${API_URL}/materials/${m._id}/download`, { method: 'PATCH' }).catch(() => {});
@@ -374,7 +382,7 @@ export default function MaterialsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
             {materials.map(m => {
               const style     = getStyle(m.category);
-              const isUnlocked = m.isFree || unlockedIds.includes(m._id);
+              const isUnlocked = m.isFree || unlockedIds.includes(m._id) || userIsAdmin;
               return (
                 <div
                   key={m._id}
@@ -470,7 +478,7 @@ export default function MaterialsPage() {
       {selectedMaterial && (() => {
         const sm = selectedMaterial;
         const st = sm.style || getStyle(sm.category);
-        const isUnlocked = sm.isFree || unlockedIds.includes(sm._id);
+        const isUnlocked = sm.isFree || unlockedIds.includes(sm._id) || userIsAdmin;
         return (
           <div
             style={{
@@ -609,8 +617,8 @@ export default function MaterialsPage() {
         );
       })()}
 
-      {/* ── Payment Modal ─────────────────────────────────── */}
-      {paymentMaterial && (
+      {/* ── Payment Modal (hidden for admin) ─────────────────────────────────── */}
+      {paymentMaterial && !userIsAdmin && (
         <div
           style={{
             position: 'fixed', inset: 0,

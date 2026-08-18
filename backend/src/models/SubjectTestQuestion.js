@@ -17,6 +17,7 @@ const subjectTestQuestionSchema = new mongoose.Schema({
   defaultMarks: { type: Number, default: 1 },
   defaultNegativeMarks: { type: Number, default: 0.25 },
   explanation: { type: String, default: '' },
+  explanationImage: { type: String, default: '' },
   difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Medium' },
   language: { type: String, default: 'en' }, // 'en', 'or', 'hi'
   status: { type: String, enum: ['active', 'inactive', 'archived'], default: 'active' },

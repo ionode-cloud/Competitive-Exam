@@ -12,6 +12,7 @@ import {
 } from 'react-icons/ri';
 
 import { getSocket } from '../../utils/socket';
+import { MathRenderer } from '../components/MathInput';
 
 export default function ManageMockTest() {
   // Top View Mode: 'tests' or 'categories'
@@ -1173,7 +1174,9 @@ export default function ManageMockTest() {
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, gap: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontWeight: 800, color: '#2563eb', marginRight: 6 }}>Q{idx + 1}.</span>
-                            <span style={{ fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>{qObj.questionText || 'Question text'}</span>
+                            <span style={{ fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>
+                              <MathRenderer text={qObj.questionText || 'Question text'} />
+                            </span>
                           </div>
                           <button
                             type="button"
@@ -1285,7 +1288,9 @@ export default function ManageMockTest() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{q.questionText || 'Question'}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              <MathRenderer text={q.questionText || 'Question'} />
+                            </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                               {subjName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#eff6ff', color: '#2563eb' }}>{subjName}</span>}
                               {topName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#f3ecfe', color: '#7c3aed' }}>{topName}</span>}

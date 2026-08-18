@@ -11,6 +11,7 @@ import {
   FaCompress,
   FaSearchPlus,
   FaSearchMinus,
+  FaExclamationTriangle,
 } from 'react-icons/fa';
 
 export default function PdfViewerModal({ pdf, onClose }) {
@@ -20,6 +21,18 @@ export default function PdfViewerModal({ pdf, onClose }) {
   // PDF Loading Progress State (0% to 100%)
   const [progress, setProgress] = useState(0);
   const [loadingPdf, setLoadingPdf] = useState(true);
+
+  // Strict Mode Alert State
+  const [strictAlert, setStrictAlert] = useState(null);
+  const alertTimeoutRef = useRef(null);
+
+  const showStrictAlert = (msg) => {
+    setStrictAlert(msg);
+    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
+    alertTimeoutRef.current = setTimeout(() => {
+      setStrictAlert(null);
+    }, 2500);
+  };
 
   // Viewer Controls State
   const [navpanes, setNavpanes] = useState(1); // 1 = show left thumbnail sidebar, 0 = hide
@@ -50,6 +63,8 @@ export default function PdfViewerModal({ pdf, onClose }) {
 
   const timerRef = useRef(null);
   const modalContainerRef = useRef(null);
+  const lastWheelTimeRef = useRef(0);
+  const touchStartYRef = useRef(null);
 
   // 1. Mobile screen detector
   useEffect(() => {
@@ -67,30 +82,104 @@ export default function PdfViewerModal({ pdf, onClose }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 2. Block Keyboard Shortcuts & Right Click (Prevent Save, Print, Download & Inspect)
+  // 2. Strict Mode Restrictions (Right-Click, Double-Click, and Ctrl+S/Cmd+S inside PDF viewer)
   useEffect(() => {
+    const el = modalContainerRef.current;
+    if (!el) return;
+
+    // Disable Right-Click context menu inside PDF Viewer
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showStrictAlert("Right-click is disabled in Strict Mode.");
+    };
+
+    // Detect Double-Click inside PDF Viewer
+    const handleDblClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showStrictAlert("Double-click is disabled in Strict Mode.");
+    };
+
+    // Detect Ctrl+S / Cmd+S (Save) & Block shortcuts while PDF viewer is open
     const handleKeyDown = (e) => {
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        ['p', 'P', 's', 'S', 'u', 'U'].includes(e.key)
-      ) {
+      const isSave = (e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S' || e.keyCode === 83);
+      if (isSave) {
         e.preventDefault();
         e.stopPropagation();
+        showStrictAlert("Saving the PDF is disabled in Strict Mode.");
+        return;
+      }
+
+      // Also prevent Print (Ctrl+P / Cmd+P) or View Source (Ctrl+U)
+      if ((e.ctrlKey || e.metaKey) && ['p', 'P', 'u', 'U'].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Keyboard Arrow & Page Navigation
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        setCurrentPage((p) => {
+          const next = p + 1;
+          setPageInputVal(String(next));
+          return next;
+        });
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        setCurrentPage((p) => {
+          const prev = Math.max(1, p - 1);
+          setPageInputVal(String(prev));
+          return prev;
+        });
       }
     };
 
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-    };
-
+    el.addEventListener('contextmenu', handleContextMenu, true);
+    el.addEventListener('dblclick', handleDblClick, true);
     window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('contextmenu', handleContextMenu, true);
 
     return () => {
+      el.removeEventListener('contextmenu', handleContextMenu, true);
+      el.removeEventListener('dblclick', handleDblClick, true);
       window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('contextmenu', handleContextMenu, true);
+      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
     };
   }, []);
+
+  const handleOverlayWheel = (e) => {
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 220) return;
+    if (e.deltaY > 20) {
+      lastWheelTimeRef.current = now;
+      handlePageSelect(currentPage + 1);
+    } else if (e.deltaY < -20) {
+      lastWheelTimeRef.current = now;
+      handlePageSelect(Math.max(1, currentPage - 1));
+    }
+  };
+
+  const handleOverlayTouchStart = (e) => {
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      showStrictAlert("Double-click is disabled in Strict Mode.");
+    } else if (e.touches.length === 1) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleOverlayTouchEnd = (e) => {
+    if (touchStartYRef.current !== null && e.changedTouches.length === 1) {
+      const diff = touchStartYRef.current - e.changedTouches[0].clientY;
+      if (diff > 45) {
+        handlePageSelect(currentPage + 1);
+      } else if (diff < -45) {
+        handlePageSelect(Math.max(1, currentPage - 1));
+      }
+      touchStartYRef.current = null;
+    }
+  };
 
   // 3. Smooth 0% -> 100% Loader simulation with safety fallback
   useEffect(() => {
@@ -170,11 +259,13 @@ export default function PdfViewerModal({ pdf, onClose }) {
     <div
       ref={modalContainerRef}
       onContextMenu={(e) => e.preventDefault()}
+      className="pdf-viewer-root"
       style={{
         position: 'fixed', inset: 0, background: '#0f172a', zIndex: 100000,
         display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh',
-        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        userSelect: 'none', WebkitUserSelect: 'none',
         overflow: 'hidden',
+        touchAction: 'pan-x pan-y pinch-zoom',
       }}
     >
       {/* ── RESPONSIVE TOP HEADER BAR (EXACT DESIGN AS SCREENSHOT) ── */}
@@ -262,28 +353,26 @@ export default function PdfViewerModal({ pdf, onClose }) {
             </button>
           </div>
 
-          {/* Zoom Level Controller */}
-          {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#1e293b', padding: '3px 8px', borderRadius: 8, border: '1px solid #334155' }}>
-              <button
-                onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
-                title="Zoom Out"
-                style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: 11, padding: 2 }}
-              >
-                <FaSearchMinus />
-              </button>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', padding: '0 4px', minWidth: 40, textAlign: 'center' }}>
-                {zoomLevel}%
-              </span>
-              <button
-                onClick={() => setZoomLevel((z) => Math.min(250, z + 15))}
-                title="Zoom In"
-                style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: 11, padding: 2 }}
-              >
-                <FaSearchPlus />
-              </button>
-            </div>
-          )}
+          {/* Zoom Level Controller (available on both Mobile & Desktop) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: '#1e293b', padding: '3px 6px', borderRadius: 8, border: '1px solid #334155' }}>
+            <button
+              onClick={() => setZoomLevel((z) => Math.max(50, z - 15))}
+              title="Zoom Out"
+              style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: isMobile ? 10 : 11, padding: 3 }}
+            >
+              <FaSearchMinus />
+            </button>
+            <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, color: '#38bdf8', padding: '0 2px', minWidth: isMobile ? 32 : 40, textAlign: 'center' }}>
+              {zoomLevel}%
+            </span>
+            <button
+              onClick={() => setZoomLevel((z) => Math.min(300, z + 15))}
+              title="Zoom In"
+              style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: isMobile ? 10 : 11, padding: 3 }}
+            >
+              <FaSearchPlus />
+            </button>
+          </div>
         </div>
 
         {/* Right Side: Protected View & Close */}
@@ -329,12 +418,70 @@ export default function PdfViewerModal({ pdf, onClose }) {
 
       {/* ── MAIN PDF EMBED AREA (EXACT LAYOUT AS SCREENSHOT) ── */}
       <div
+        className="pdf-iframe-container"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showStrictAlert("Right-click is disabled in Strict Mode.");
+        }}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showStrictAlert("Double-click is disabled in Strict Mode.");
+        }}
         style={{
           flex: 1, width: '100%', height: `calc(100vh - ${isMobile ? 48 : 52}px)`,
           background: '#1e293b', position: 'relative', overflow: 'hidden',
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x pan-y pinch-zoom',
         }}
       >
+        {/* ── STRICT MODE ALERT NOTIFICATION OVERLAY ── */}
+        {strictAlert && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+              background: 'rgba(15, 23, 42, 0.96)',
+              border: '1.5px solid #ef4444',
+              borderRadius: 10,
+              padding: '10px 18px',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              color: '#f87171',
+              fontSize: 13,
+              fontWeight: 700,
+              animation: 'strictSlideDown 0.25s ease-out',
+              pointerEvents: 'auto',
+              maxWidth: '92vw',
+            }}
+          >
+            <FaExclamationTriangle style={{ flexShrink: 0, fontSize: 15, color: '#ef4444' }} />
+            <span>{strictAlert}</span>
+            <button
+              onClick={() => setStrictAlert(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px 4px',
+                marginLeft: 4,
+              }}
+            >
+              <FaTimes fontSize={12} />
+            </button>
+          </div>
+        )}
+
         {/* 0-100% PERCENTAGE COUNTER PROGRESS OVERLAY */}
         {loadingPdf && (
           <div
@@ -450,21 +597,64 @@ export default function PdfViewerModal({ pdf, onClose }) {
           Protected
         </div>
 
+        {/* Full-Coverage PDF Security Interaction Guard (Intercepts Right-Click & Double-Click Before Reaching Browser PDF Plugin) */}
+        <div
+          className="pdf-security-guard"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showStrictAlert("Right-click is disabled in Strict Mode.");
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showStrictAlert("Double-click is disabled in Strict Mode.");
+          }}
+          onWheel={handleOverlayWheel}
+          onTouchStart={handleOverlayTouchStart}
+          onTouchEnd={handleOverlayTouchEnd}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 15,
+            background: 'rgba(0, 0, 0, 0.001)',
+            cursor: 'default',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+          }}
+        />
+
         {/* Embedded PDF Viewer iFrame (Matches Screenshot Layout) */}
         <iframe
           key={`${fullPdfUrl}_page_${currentPage}_zoom_${zoomLevel}_nav_${navpanes}`}
           src={iframeSrc}
           title={pdf.title}
           onLoad={handleIframeLoaded}
+          allow="fullscreen"
           style={{
             width: '100%', height: '100%', border: 'none',
             background: '#1e293b', WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-x pan-y pinch-zoom',
           }}
         />
       </div>
 
-      {/* Anti-Print Styles */}
+      {/* Anti-Print & Touch Styles */}
       <style>{`
+        .pdf-viewer-root, .pdf-iframe-container {
+          touch-action: pan-x pan-y pinch-zoom !important;
+          -webkit-touch-callout: none;
+        }
+        @keyframes strictSlideDown {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+          }
+        }
         @media print {
           html, body, iframe, div {
             display: none !important;

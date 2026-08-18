@@ -38,6 +38,7 @@ import Subscription     from './admin/pages/Subscription';
 import SubscriptionsManager from './admin/pages/SubscriptionsManager';
 import SubjectTestsManager  from './admin/pages/SubjectTestsManager';
 import ContactMessages     from './admin/pages/ContactMessages';
+import StudentRankings     from './admin/pages/StudentRankings';
 
 // Student Exam Engine
 import ExamInstructionPage   from './pages/ExamInstructionPage';
@@ -85,6 +86,7 @@ export default function App() {
               <Route path="materials"    element={<Materials />} />
               <Route path="material-categories" element={<MaterialCategories />} />
               <Route path="students" element={<Students />} />
+              <Route path="rankings" element={<StudentRankings />} />
               <Route path="credentials" element={<AdminCredentials />} />
               <Route path="orders" element={<Orders />} />
               <Route path="payments" element={<Payments />} />
@@ -103,6 +105,7 @@ export default function App() {
             <Route path="/subject-test/instructions/:testId" element={<UserLayout><ExamInstructionPage /></UserLayout>} />
             <Route path="/subject-test/exam/:attemptId" element={<SubjectTestExamPage />} />
             <Route path="/subject-test/result/:attemptId" element={<UserLayout><SubjectTestResultPage /></UserLayout>} />
+            <Route path="/subject-test/results/:attemptId" element={<UserLayout><SubjectTestResultPage /></UserLayout>} />
             <Route path="/mock-test" element={<UserLayout><MockTestPage /></UserLayout>} />
             <Route path="/pyq-ebook" element={<UserLayout><PYQEbookPage /></UserLayout>} />
             <Route path="/materials" element={<UserLayout><MaterialsPage /></UserLayout>} />

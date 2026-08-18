@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RiAddLine, RiEditLine, RiDeleteBin2Line, RiShieldUserLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
+import {
+  RiAddLine, RiEditLine, RiDeleteBin2Line, RiShieldUserLine,
+  RiEyeLine, RiEyeOffLine, RiCheckboxCircleLine, RiCheckLine, RiCloseLine
+} from 'react-icons/ri';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -20,6 +23,26 @@ const roleDisplayName = (role) => {
   return role?.replace('_', ' ') || 'Admin';
 };
 
+export const ALL_ADMIN_TABS = [
+  { id: 'dashboard', label: 'Dashboard', group: 'Overview' },
+  { id: 'exams', label: 'Odisha Exams', group: 'Exams & Tests' },
+  { id: 'manage-mock-tests', label: 'Manage MockTest', group: 'Exams & Tests' },
+  { id: 'subject-tests', label: 'Subject Test', group: 'Exams & Tests' },
+  { id: 'question-bank', label: 'Question Bank', group: 'Exams & Tests' },
+  { id: 'subjects', label: 'Subjects', group: 'Exams & Tests' },
+  { id: 'ebooks', label: 'PYQ E-Books', group: 'Content & Material' },
+  { id: 'materials', label: 'Materials', group: 'Content & Material' },
+  { id: 'subscriptions', label: 'Subscriptions', group: 'Commerce & Orders' },
+  { id: 'students', label: 'Students', group: 'Users & Performance' },
+  { id: 'rankings', label: 'Rankings', group: 'Users & Performance' },
+  { id: 'orders', label: 'Orders', group: 'Commerce & Orders' },
+  { id: 'payments', label: 'Payments', group: 'Commerce & Orders' },
+  { id: 'contacts', label: 'Contact Messages', group: 'Support' },
+  { id: 'reports', label: 'Reports', group: 'Analytics' },
+  { id: 'notifications', label: 'Notifications', group: 'Communication' },
+  { id: 'credentials', label: 'Admin Credentials', group: 'System' }
+];
+
 export default function AdminCredentials() {
   const { user: currentUser } = useAuth();
   const [admins, setAdmins] = useState([]);
@@ -33,8 +56,9 @@ export default function AdminCredentials() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [selectedPermissions, setSelectedPermissions] = useState([]);
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       name: '',
       email: '',
@@ -43,6 +67,8 @@ export default function AdminCredentials() {
       isActive: true,
     }
   });
+
+  const selectedRole = watch('role');
 
   const fetchAdmins = useCallback(async () => {
     setLoading(true);
@@ -66,6 +92,7 @@ export default function AdminCredentials() {
   const openCreateModal = () => {
     setEditingAdmin(null);
     setShowPassword(true);
+    setSelectedPermissions(ALL_ADMIN_TABS.map(t => t.id));
     reset({ name: '', email: '', password: '', role: 'admin', isActive: true });
     setModalOpen(true);
   };
@@ -73,6 +100,8 @@ export default function AdminCredentials() {
   const openEditModal = (adminItem) => {
     setEditingAdmin(adminItem);
     setShowPassword(false);
+    const existingPerms = Array.isArray(adminItem.permissions) ? adminItem.permissions : [];
+    setSelectedPermissions(existingPerms.length > 0 ? existingPerms : ALL_ADMIN_TABS.map(t => t.id));
     reset({
       name: adminItem.name,
       email: adminItem.email,
@@ -83,10 +112,33 @@ export default function AdminCredentials() {
     setModalOpen(true);
   };
 
+  const togglePermission = (tabId) => {
+    setSelectedPermissions(prev =>
+      prev.includes(tabId) ? prev.filter(id => id !== tabId) : [...prev, tabId]
+    );
+  };
+
+  const selectAllPermissions = () => {
+    setSelectedPermissions(ALL_ADMIN_TABS.map(t => t.id));
+  };
+
+  const clearAllPermissions = () => {
+    setSelectedPermissions([]);
+  };
+
   const onSubmit = async (values) => {
     try {
+      if (values.role === 'sub_admin' && selectedPermissions.length === 0) {
+        toast.error('Please select at least one tab permission for the Sub Admin');
+        return;
+      }
+
+      const payload = {
+        ...values,
+        permissions: values.role === 'sub_admin' ? selectedPermissions : ALL_ADMIN_TABS.map(t => t.id)
+      };
+
       if (editingAdmin) {
-        const payload = { ...values };
         if (!payload.password) delete payload.password;
         await api.put(`/students/admins/${editingAdmin._id}`, payload);
         toast.success('Admin credentials updated successfully!');
@@ -95,7 +147,7 @@ export default function AdminCredentials() {
           toast.error('Password is required for new admin');
           return;
         }
-        await api.post('/students/admins/create', values);
+        await api.post('/students/admins/create', payload);
         toast.success('New admin user created successfully!');
       }
       setModalOpen(false);
@@ -165,6 +217,39 @@ export default function AdminCredentials() {
       )
     },
     {
+      key: 'permissions',
+      label: 'Tab Access Permissions',
+      render: r => {
+        if (r.role === 'admin' || r.role === 'superadmin') {
+          return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              👑 Full Access (All Tabs)
+            </span>
+          );
+        }
+        const count = r.permissions?.length || 0;
+        return (
+          <div className="flex flex-col gap-1">
+            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 w-max">
+              ✓ {count} of {ALL_ADMIN_TABS.length} Tabs Allowed
+            </span>
+            {count > 0 && (
+              <div className="flex flex-wrap gap-1 max-w-[220px]">
+                {r.permissions.slice(0, 3).map(p => (
+                  <span key={p} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded">
+                    {ALL_ADMIN_TABS.find(t => t.id === p)?.label || p}
+                  </span>
+                ))}
+                {count > 3 && (
+                  <span className="text-[10px] text-slate-400 font-bold">+{count - 3} more</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
+    },
+    {
       key: 'password',
       label: 'Password',
       render: r => {
@@ -225,7 +310,7 @@ export default function AdminCredentials() {
             <RiShieldUserLine className="w-6 h-6 text-primary-600" /> Admin Credentials
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Create and manage Admin and Sub Admin login credentials
+            Create and manage Admin and Sub Admin login credentials with tab-level permissions
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -263,7 +348,7 @@ export default function AdminCredentials() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingAdmin ? `Edit Admin: ${editingAdmin.name}` : 'Create New Admin User'}
-        size="md"
+        size="lg"
         footer={
           <>
             <button type="button" onClick={() => setModalOpen(false)} className="admin-btn-secondary">
@@ -281,38 +366,119 @@ export default function AdminCredentials() {
         }
       >
         <form id="admin-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="admin-label">Admin Name *</label>
-            <input
-              {...register('name', { required: 'Admin name is required' })}
-              className="admin-input"
-              placeholder="e.g. john"
-            />
-            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="admin-label">Admin Name *</label>
+              <input
+                {...register('name', { required: 'Admin name is required' })}
+                className="admin-input"
+                placeholder="e.g. john"
+              />
+              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+            </div>
+
+            <div>
+              <label className="admin-label">Admin ID / Email *</label>
+              <input
+                {...register('email', {
+                  required: 'Admin ID / Email is required',
+                  pattern: { value: /^\S+@\S+\.\S+$/, message: 'Invalid email format' }
+                })}
+                type="email"
+                className="admin-input"
+                placeholder="admin@examplatform.com"
+              />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            </div>
           </div>
 
-          <div>
-            <label className="admin-label">Admin ID / Email *</label>
-            <input
-              {...register('email', {
-                required: 'Admin ID / Email is required',
-                pattern: { value: /^\S+@\S+\.\S+$/, message: 'Invalid email format' }
-              })}
-              type="email"
-              className="admin-input"
-              placeholder="admin@examplatform.com"
-            />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="admin-label">Role *</label>
+              <select {...register('role', { required: 'Role is required' })} className="admin-input font-bold">
+                <option value="admin">Admin (Full Access to Everything)</option>
+                <option value="sub_admin">Sub Admin (Access to Selected Tabs Only)</option>
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {selectedRole === 'admin'
+                  ? '👑 Admin can view and manage all tabs without restriction.'
+                  : '🔒 Sub Admin can only view and manage checked tabs below.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="admin-label">Status</label>
+              <select {...register('isActive')} className="admin-input">
+                <option value={true}>Active</option>
+                <option value={false}>Disabled</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="admin-label">Role *</label>
-            <select {...register('role', { required: 'Role is required' })} className="admin-input">
-              <option value="admin">Admin</option>
-              <option value="sub_admin">Sub Admin</option>
-            </select>
-            <p className="text-[11px] text-slate-400 mt-1">Select role access level for this user</p>
-          </div>
+          {/* ── SubAdmin Tab Permissions Checklist ── */}
+          {selectedRole === 'sub_admin' ? (
+            <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <label className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider block">
+                    Allowed Tab Permissions ({selectedPermissions.length} of {ALL_ADMIN_TABS.length} selected)
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Check the tabs you want this Sub Admin to access in the admin panel.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllPermissions}
+                    className="text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-md"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllPermissions}
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-700 bg-slate-200/60 dark:bg-slate-700 px-2.5 py-1 rounded-md"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid of Tabs with Checkboxes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 border border-slate-200/80 dark:border-slate-700/80 rounded-lg bg-white dark:bg-slate-900">
+                {ALL_ADMIN_TABS.map(tab => {
+                  const isChecked = selectedPermissions.includes(tab.id);
+                  return (
+                    <label
+                      key={tab.id}
+                      onClick={() => togglePermission(tab.id)}
+                      className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer text-xs font-semibold select-none transition-all ${
+                        isChecked
+                          ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-transparent'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}} // Handled by label click
+                        className="rounded text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                      />
+                      <span className="truncate">{tab.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
+              <RiCheckboxCircleLine className="text-blue-600 w-5 h-5 flex-shrink-0" />
+              <span>
+                <strong>Full Privileges:</strong> Users with role <strong>Admin</strong> have access to all tabs, exams, subscriptions, and financial records automatically.
+              </span>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -351,16 +517,9 @@ export default function AdminCredentials() {
             </div>
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
-
-          <div>
-            <label className="admin-label">Status</label>
-            <select {...register('isActive')} className="admin-input">
-              <option value={true}>Active</option>
-              <option value={false}>Disabled</option>
-            </select>
-          </div>
         </form>
       </Modal>
     </div>
   );
 }
+

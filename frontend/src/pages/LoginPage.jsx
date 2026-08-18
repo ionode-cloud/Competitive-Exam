@@ -21,8 +21,11 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       // Route based on role
-      if (['admin', 'superadmin', 'content_manager', 'question_creator', 'support'].includes(user.role)) {
-        navigate('/admin/dashboard');
+      if (['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(user.role)) {
+        const firstTab = (user.role === 'sub_admin' && Array.isArray(user.permissions) && user.permissions.length > 0)
+          ? (user.permissions[0].startsWith('/admin') ? user.permissions[0] : `/admin/${user.permissions[0]}`)
+          : '/admin/dashboard';
+        navigate(firstTab, { replace: true });
       } else {
         navigate('/');
       }

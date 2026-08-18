@@ -16,6 +16,7 @@ import {
   FaUnlock
 } from 'react-icons/fa';
 import { getSocket } from '../utils/socket';
+import { MathRenderer } from '../admin/components/MathInput';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -32,30 +33,56 @@ export default function MockTestPage() {
 
   // User Purchased Categories & Payment Modal State
   const [purchasedCatIds, setPurchasedCatIds] = useState([]);
+  const [attemptedTestIds, setAttemptedTestIds] = useState([]);
+  const [attemptedDetails, setAttemptedDetails] = useState({});
   const [processingId, setProcessingId]       = useState(null);
   const [paymentModalCat, setPaymentModalCat] = useState(null);
 
-  // Check if current logged-in user is premium
+  // Check if current logged-in user is premium OR admin (admin bypasses all payments)
   const loggedInUserStr = localStorage.getItem('user');
   let userIsPremium = false;
+  let userIsAdmin = false;
   if (loggedInUserStr) {
     try {
       const parsed = JSON.parse(loggedInUserStr);
       userIsPremium = Boolean(parsed.isPremium || parsed.isSubscribed || (parsed.purchases && parsed.purchases.length > 0));
+      userIsAdmin = ['admin', 'superadmin', 'sub_admin', 'content_manager', 'question_creator', 'support'].includes(parsed.role);
     } catch { /* silent */ }
   }
 
-  // Fetch purchased categories for logged in student
+  // Fetch purchased categories & completed attempts for logged in student
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${API_URL}/subject-tests/purchases/status`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-        .then(r => r.json())
+        .then(r => {
+          if (r.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            return { success: false };
+          }
+          return r.json();
+        })
         .then(j => {
           if (j.success && Array.isArray(j.data)) {
             setPurchasedCatIds(j.data);
+          }
+        })
+        .catch(() => {});
+
+      fetch(`${API_URL}/subject-tests/user/attempted-tests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => {
+          if (r.status === 401) return { success: false };
+          return r.json();
+        })
+        .then(j => {
+          if (j.success && Array.isArray(j.data)) {
+            setAttemptedTestIds(j.data);
+            setAttemptedDetails(j.attemptDetails || {});
           }
         })
         .catch(() => {});
@@ -350,7 +377,7 @@ export default function MockTestPage() {
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: cat.color }}>{cat.category}</h2>
-                  {purchasedCatIds.some(id => String(id) === String(cat._id)) || userIsPremium ? (
+                  {purchasedCatIds.some(id => String(id) === String(cat._id)) || userIsPremium || userIsAdmin ? (
                     <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       <FaUnlock fontSize={10} /> Category Unlocked
                     </span>
@@ -501,15 +528,20 @@ export default function MockTestPage() {
                 ) : (
                   getFilteredTests(topic.tests).map((test, j) => {
                     const isFirstFree = j === 0 || test.free || test.pricingType === 'free' || test.accessType === 'Free';
-                    const isCatPurchased = purchasedCatIds.some(id => String(id) === String(cat._id)) || userIsPremium;
+                    const isCatPurchased = purchasedCatIds.some(id => String(id) === String(cat._id)) || userIsPremium || userIsAdmin;
                     const isUnlocked = isFirstFree || isCatPurchased;
+                    const isAlreadyAttempted = !userIsAdmin && attemptedTestIds.includes(String(test._id));
                     const catPriceVal = cat.categoryPrice || 199;
 
                     return (
-                      <div key={test._id || j} className="responsive-test-card" style={{ borderLeft: `4px solid ${test.marks === 100 ? '#7C3AED' : cat.color}` }}>
+                      <div key={test._id || j} className="responsive-test-card" style={{ borderLeft: `4px solid ${isAlreadyAttempted ? '#94a3b8' : (test.marks === 100 ? '#7C3AED' : cat.color)}` }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                            {isFirstFree ? (
+                            {isAlreadyAttempted ? (
+                              <span style={{ fontSize: 10, fontWeight: 800, color: '#475569', background: '#e2e8f0', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                ✓ ALREADY ATTEMPTED
+                              </span>
+                            ) : isFirstFree ? (
                               <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20 }}>FREE (1st Test)</span>
                             ) : isCatPurchased ? (
                               <span style={{ fontSize: 10, fontWeight: 800, color: '#0F9D58', background: '#E8F8EE', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -531,7 +563,9 @@ export default function MockTestPage() {
                             </span>
                             <span style={{ fontSize: 10, fontWeight: 700, color: diffColors[test.diff] || '#0F9D58', background: (diffColors[test.diff] || '#0F9D58') + '18', padding: '2px 8px', borderRadius: 20 }}>{test.diff}</span>
                           </div>
-                          <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>{test.title}</h3>
+                          <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>
+                            <MathRenderer text={test.title} />
+                          </h3>
                           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FaClipboardList /> {test.qs} Questions</span>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FaCheckCircle /> {test.marks} Total Marks</span>
@@ -539,7 +573,19 @@ export default function MockTestPage() {
                           </div>
                         </div>
 
-                        {isUnlocked ? (
+                        {isAlreadyAttempted ? (
+                          <Link
+                            to={attemptedDetails[String(test._id)]?.attemptId ? `/subject-test/result/${attemptedDetails[String(test._id)].attemptId}` : '/profile'}
+                            style={{
+                              display: 'inline-block', fontSize: 13, fontWeight: 700,
+                              color: '#334155', background: '#f1f5f9', border: '1.5px solid #cbd5e1',
+                              padding: '9px 18px', borderRadius: 9,
+                              whiteSpace: 'nowrap', flexShrink: 0, textDecoration: 'none'
+                            }}
+                          >
+                            View Result →
+                          </Link>
+                        ) : isUnlocked ? (
                           <Link to={`/subject-test/instructions/${test._id}`} style={{
                             display: 'inline-block', fontSize: 13, fontWeight: 700,
                             color: '#fff', background: isFirstFree ? '#0F9D58' : (test.marks === 100 ? '#7C3AED' : cat.color),
@@ -572,8 +618,8 @@ export default function MockTestPage() {
         </div>
       </div>
 
-      {/* ── CATEGORY ACCESS PAYMENT MODAL ── */}
-      {paymentModalCat && (
+      {/* ── CATEGORY ACCESS PAYMENT MODAL ── (hidden for admin) */}
+      {paymentModalCat && !userIsAdmin && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.75)',
           backdropFilter: 'blur(4px)', zIndex: 4000,

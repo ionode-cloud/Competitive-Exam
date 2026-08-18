@@ -9,6 +9,7 @@ import {
   RiCalculatorLine, RiGlobeLine, RiDeleteBin2Line,
   RiDragMove2Line, RiArrowUpLine, RiArrowDownLine
 } from 'react-icons/ri';
+import { MathRenderer } from '../components/MathInput';
 
 export default function SubjectTestsManager() {
   // Top View Mode: 'tests' or 'categories'
@@ -1216,7 +1217,9 @@ export default function SubjectTestsManager() {
                       <div key={mq.mapId || mq._id || idx} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 10, fontWeight: 800, color: '#2563eb' }}>#{idx + 1} Question</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>{mq.questionText}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>
+                            <MathRenderer text={mq.questionText} />
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -1318,7 +1321,9 @@ export default function SubjectTestsManager() {
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{q.questionText}</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                              <MathRenderer text={q.questionText} />
+                            </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                               {q.subjectName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#eff6ff', color: '#2563eb' }}>{q.subjectName}</span>}
                               {q.topicName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#f3ecfe', color: '#7c3aed' }}>{q.topicName}</span>}

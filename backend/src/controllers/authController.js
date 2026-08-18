@@ -90,6 +90,7 @@ exports.login = async (req, res, next) => {
         role: user.role,
         avatar: user.avatar,
         isAdmin: user.isAdmin(),
+        permissions: user.permissions || [],
       },
     });
   } catch (err) {

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaClock, FaInfoCircle, FaBookmark, FaUserAlt, FaTimes } from 'react-icons/fa';
+import { MathRenderer } from '../admin/components/MathInput';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5303/api';
 
@@ -258,18 +259,43 @@ export default function SubjectTestExamPage() {
             </div>
           </div>
 
-          {/* Question Text & Image */}
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 24, flex: 1, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.6, marginBottom: 20 }}>
-              {currentQ.questionText}
+          {/* Question Text & Image — Side by Side */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 24, flex: 1, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Top Row: Question Text (left) + Image (right) */}
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+
+              {/* Question Text — left column */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.7 }}>
+                  <MathRenderer text={currentQ.questionText} />
+                </div>
+              </div>
+
+              {/* Question Image — right column (only when image exists) */}
+              {currentQ.questionImage && (
+                <div style={{ flexShrink: 0, maxWidth: '42%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                  <img
+                    src={currentQ.questionImage}
+                    alt="Question Diagram"
+                    style={{
+                      width: '100%', maxHeight: 260,
+                      objectFit: 'contain',
+                      borderRadius: 10,
+                      border: '1.5px solid #e2e8f0',
+                      background: '#f8fafc',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
-            {currentQ.questionImage && (
-              <img src={currentQ.questionImage} alt="Question Diagram" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginBottom: 20, border: '1px solid #e2e8f0' }} />
-            )}
+            {/* Divider */}
+            <div style={{ borderTop: '1.5px solid #f1f5f9' }} />
 
-            {/* Option Cards */}
-            <div style={{ display: 'grid', gap: 12 }}>
+            {/* Options — full width bottom row */}
+            <div style={{ display: 'grid', gap: 10 }}>
               {currentQ.options?.map((opt, oIdx) => {
                 const optionLetter = opt.label || String.fromCharCode(65 + oIdx);
                 const optValue = opt.id || opt.label || optionLetter;
@@ -282,16 +308,16 @@ export default function SubjectTestExamPage() {
                     style={{
                       border: `2px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
                       background: isSelected ? '#eff6ff' : '#fff',
-                      borderRadius: 10, padding: '14px 18px', cursor: 'pointer',
+                      borderRadius: 10, padding: '13px 18px', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: 14, transition: 'all 0.15s',
-                      boxShadow: isSelected ? '0 4px 12px rgba(37,99,235,0.12)' : 'none'
+                      boxShadow: isSelected ? '0 4px 12px rgba(37,99,235,0.12)' : 'none',
                     }}
                   >
                     <div style={{ width: 26, height: 26, borderRadius: '50%', border: `2px solid ${isSelected ? '#2563eb' : '#94a3b8'}`, background: isSelected ? '#2563eb' : '#fff', color: isSelected ? '#fff' : '#475569', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {optionLetter}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: isSelected ? 800 : 500, color: isSelected ? '#1e293b' : '#334155' }}>
-                      {opt.text}
+                      <MathRenderer text={opt.text} />
                     </div>
                   </div>
                 );

@@ -1,17 +1,101 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 /**
- * MathRenderer - renders question/option/explanation text in all pages.
- * Unicode math (x², √3, π) renders natively - no conversion needed.
+ * Parses text containing <b>, <u>, <i>, <strong>, <em>, <br>, \n, **bold**, and __underline__
+ * into safe React elements with native bold & underline styling.
  */
-export function MathRenderer({ text, className = '' }) {
+export function parseFormattedText(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  // Normalize HTML entities and markdown syntax
+  const processed = text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/__([^_]+)__/g, '<u>$1</u>');
+
+  // Tokenize by any HTML tag <...> or newline
+  const tagRegex = /(<[^>]+>|\n)/gi;
+  const parts = processed.split(tagRegex);
+
+  let isBold = false;
+  let isUnderline = false;
+  let isItalic = false;
+
+  const elements = [];
+
+  parts.forEach((part, idx) => {
+    if (!part) return;
+
+    if (part.startsWith('<') && part.endsWith('>')) {
+      const lower = part.toLowerCase().trim();
+      if (lower.startsWith('<b') || lower.startsWith('<strong')) {
+        isBold = true;
+      } else if (lower.startsWith('</b') || lower.startsWith('</strong')) {
+        isBold = false;
+      } else if (lower.startsWith('<u')) {
+        isUnderline = true;
+      } else if (lower.startsWith('</u')) {
+        isUnderline = false;
+      } else if (lower.startsWith('<i') || lower.startsWith('<em')) {
+        isItalic = true;
+      } else if (lower.startsWith('</i') || lower.startsWith('</em')) {
+        isItalic = false;
+      } else if (lower.startsWith('<br')) {
+        elements.push(<br key={`br-${idx}`} />);
+      } else if (lower.includes('bold') || lower.includes('700') || lower.includes('800')) {
+        isBold = true;
+      } else if (lower.includes('underline')) {
+        isUnderline = true;
+      } else if (lower.includes('italic')) {
+        isItalic = true;
+      }
+      // Any other tag is consumed without printing raw code
+      return;
+    }
+
+    if (part === '\n') {
+      elements.push(<br key={`br-${idx}`} />);
+      return;
+    }
+
+    const style = {};
+    if (isBold) style.fontWeight = 'bold';
+    if (isUnderline) style.textDecoration = 'underline';
+    if (isItalic) style.fontStyle = 'italic';
+
+    if (isBold || isUnderline || isItalic) {
+      elements.push(
+        <span key={`f-${idx}`} style={style}>
+          {part}
+        </span>
+      );
+    } else {
+      elements.push(part);
+    }
+  });
+
+  return elements;
+}
+
+/**
+ * MathRenderer - renders question/option/explanation text in all pages with
+ * native math symbols (x², √3, π) and bold (<b>) / underline (<u>) / italic (<i>) tags.
+ */
+export function MathRenderer({ text, className = '', style = {} }) {
   if (!text) return null;
   return (
-    <span className={className} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-      {text}
+    <span className={className} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', ...style }}>
+      {parseFormattedText(text)}
     </span>
   );
 }
+
+export const FormattedText = MathRenderer;
 
 const MATH_SYMBOLS = [
   { label: 'x²', insert: '²', title: 'Power 2' },
@@ -52,6 +136,26 @@ const MATH_SYMBOLS = [
   { label: '∥', insert: '∥', title: 'Parallel' },
 ];
 
+/**
+ * Clean & normalize rich text HTML for database storage
+ */
+function cleanHtmlOutput(html) {
+  if (!html) return '';
+  // Convert empty content or <br> to empty string
+  const stripped = html.replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/gi, ' ').trim();
+  if (!stripped) return '';
+  return html
+    .replace(/<div>/gi, '<br>')
+    .replace(/<\/div>/gi, '')
+    .replace(/<p>/gi, '')
+    .replace(/<\/p>/gi, '<br>')
+    .replace(/<strong>/gi, '<b>')
+    .replace(/<\/strong>/gi, '</b>')
+    .replace(/<em>/gi, '<i>')
+    .replace(/<\/em>/gi, '</i>')
+    .replace(/(<br\s*\/?>)+$/i, ''); // trim trailing br
+}
+
 export default function MathInput({
   value = '',
   onChange,
@@ -61,76 +165,207 @@ export default function MathInput({
   singleLine = false,
   defaultShowToolbar = false,
 }) {
-  const [showToolbar, setShowToolbar] = useState(defaultShowToolbar);
-  const inputRef = useRef(null);
+  const [showMathToolbar, setShowMathToolbar] = useState(defaultShowToolbar);
+  const [isRawMode, setIsRawMode] = useState(false);
+  const [activeStyles, setActiveStyles] = useState({ bold: false, underline: false, italic: false });
+  const editorRef = useRef(null);
 
-  // Smart paste handler: text/plain preserves Unicode (x², π, √)
-  const handlePaste = useCallback((e) => {
-    e.preventDefault();
-    const cd = e.clipboardData || window.clipboardData;
-    let text = cd.getData('text/plain');
-    if (!text) {
-      const html = cd.getData('text/html');
-      if (html) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        text = tmp.textContent || tmp.innerText || '';
+  // Sync external `value` prop into the contentEditable div when it changes externally
+  useEffect(() => {
+    if (!editorRef.current || isRawMode) return;
+    const currentHtml = editorRef.current.innerHTML;
+    if (value !== currentHtml && (value || currentHtml !== '')) {
+      editorRef.current.innerHTML = value || '';
+    }
+  }, [value, isRawMode]);
+
+  // Update active state of Bold/Underline/Italic buttons based on current selection
+  const checkActiveStyles = useCallback(() => {
+    try {
+      setActiveStyles({
+        bold: document.queryCommandState('bold'),
+        underline: document.queryCommandState('underline'),
+        italic: document.queryCommandState('italic'),
+      });
+    } catch { /* silent */ }
+  }, []);
+
+  // Format execution (Bold, Underline, Italic)
+  const execFormat = useCallback((command) => {
+    if (isRawMode) {
+      // Raw HTML mode fallback
+      const tag = command === 'bold' ? 'b' : (command === 'underline' ? 'u' : 'i');
+      const el = editorRef.current;
+      if (!el) return;
+      const start = el.selectionStart ?? value.length;
+      const end = el.selectionEnd ?? value.length;
+      const selected = value.slice(start, end);
+      const openTag = `<${tag}>`;
+      const closeTag = `</${tag}>`;
+      const replacement = selected ? `${openTag}${selected}${closeTag}` : `${openTag}text${closeTag}`;
+      const newVal = value.slice(0, start) + replacement + value.slice(end);
+      onChange(newVal);
+      return;
+    }
+
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false, null);
+    checkActiveStyles();
+    const clean = cleanHtmlOutput(editorRef.current.innerHTML);
+    onChange(clean);
+  }, [isRawMode, value, onChange, checkActiveStyles]);
+
+  // Insert Math Symbol at cursor
+  const insertSymbol = useCallback((symbol) => {
+    if (isRawMode) {
+      const el = editorRef.current;
+      if (!el) return;
+      const start = el.selectionStart ?? value.length;
+      const end = el.selectionEnd ?? value.length;
+      const newVal = value.slice(0, start) + symbol + value.slice(end);
+      onChange(newVal);
+      return;
+    }
+
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand('insertText', false, symbol);
+    const clean = cleanHtmlOutput(editorRef.current.innerHTML);
+    onChange(clean);
+  }, [isRawMode, value, onChange]);
+
+  // Handle contentEditable user input
+  const handleInput = useCallback((e) => {
+    const rawHtml = e.currentTarget.innerHTML;
+    const clean = cleanHtmlOutput(rawHtml);
+    onChange(clean);
+    checkActiveStyles();
+  }, [onChange, checkActiveStyles]);
+
+  // Handle KeyDown shortcuts (Ctrl+B, Ctrl+U, Ctrl+I, Enter in single-line mode)
+  const handleKeyDown = useCallback((e) => {
+    if (singleLine && e.key === 'Enter') {
+      e.preventDefault();
+      return;
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase();
+      if (key === 'b') {
+        e.preventDefault();
+        execFormat('bold');
+      } else if (key === 'u') {
+        e.preventDefault();
+        execFormat('underline');
+      } else if (key === 'i') {
+        e.preventDefault();
+        execFormat('italic');
       }
     }
-    if (!text) return;
-    const el = inputRef.current;
-    const start = el ? (el.selectionStart ?? value.length) : value.length;
-    const end = el ? (el.selectionEnd ?? value.length) : value.length;
-    const newVal = value.slice(0, start) + text + value.slice(end);
-    onChange(newVal);
-    requestAnimationFrame(() => {
-      if (inputRef.current) {
-        const pos = start + text.length;
-        inputRef.current.setSelectionRange(pos, pos);
-        inputRef.current.focus();
-      }
-    });
-  }, [value, onChange]);
+  }, [singleLine, execFormat]);
 
-  const insertSymbol = useCallback((symbol) => {
-    const el = inputRef.current;
-    const start = el ? (el.selectionStart ?? value.length) : value.length;
-    const end = el ? (el.selectionEnd ?? value.length) : value.length;
-    const newVal = value.slice(0, start) + symbol + value.slice(end);
-    onChange(newVal);
-    requestAnimationFrame(() => {
-      if (inputRef.current) {
-        const pos = start + symbol.length;
-        inputRef.current.setSelectionRange(pos, pos);
-        inputRef.current.focus();
-      }
-    });
-  }, [value, onChange]);
+  // Clean paste handler: preserve unicode & formatting
+  const handlePaste = useCallback((e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (!text) return;
+    document.execCommand('insertText', false, text);
+    if (editorRef.current) {
+      const clean = cleanHtmlOutput(editorRef.current.innerHTML);
+      onChange(clean);
+    }
+  }, [onChange]);
+
+  const isEmpty = !value || value === '<br>' || value.trim() === '';
+  const minHeightPx = singleLine ? 40 : Math.max(76, rows * 26);
 
   return (
     <div className="space-y-1.5">
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowToolbar((v) => !v)}
-          className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Σ {showToolbar ? 'Hide' : 'Show'} Math Symbols
-        </button>
+      {/* ── Action Formatting Bar: Bold, Underline, Italic & Math Symbols ── */}
+      <div className="flex items-center justify-between gap-2 flex-wrap pb-0.5">
+        <div className="flex items-center gap-1.5">
+          {/* Bold Button */}
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); execFormat('bold'); }}
+            title="Bold (Ctrl+B) — Changes font to bold directly in editor"
+            className={`px-3 py-1 rounded-md text-xs font-black border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+              activeStyles.bold
+                ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-600 dark:border-blue-500'
+                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 dark:hover:bg-blue-950/40'
+            }`}
+          >
+            <span className="font-extrabold text-sm leading-none">B</span>
+            <span className="text-[11px] font-bold">Bold</span>
+          </button>
+
+          {/* Underline Button */}
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); execFormat('underline'); }}
+            title="Underline (Ctrl+U) — Changes font to underline directly in editor"
+            className={`px-3 py-1 rounded-md text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+              activeStyles.underline
+                ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-600 dark:border-blue-500'
+                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 dark:hover:bg-blue-950/40'
+            }`}
+          >
+            <span className="font-bold underline text-sm leading-none">U</span>
+            <span className="text-[11px] font-bold">Underline</span>
+          </button>
+
+          {/* Italic Button */}
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); execFormat('italic'); }}
+            title="Italic (Ctrl+I) — Changes font to italic directly in editor"
+            className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-xs ${
+              activeStyles.italic
+                ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-600 dark:border-blue-500'
+                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 dark:hover:bg-blue-950/40'
+            }`}
+          >
+            <span className="italic font-serif text-sm leading-none">I</span>
+            <span className="text-[11px] font-semibold hidden sm:inline">Italic</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Math Symbols Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowMathToolbar((v) => !v)}
+            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer border border-transparent hover:border-blue-200"
+          >
+            <span className="font-mono font-bold">Σ</span> {showMathToolbar ? 'Hide Symbols' : 'Math Symbols'}
+          </button>
+
+          {/* Raw Code Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsRawMode((v) => !v)}
+            title="Switch between Visual Rich Text and Raw HTML mode"
+            className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+          >
+            {isRawMode ? '👁 Visual' : '</> HTML'}
+          </button>
+        </div>
       </div>
 
-      {showToolbar && (
+      {/* ── Expandable Math Symbols Bar ── */}
+      {showMathToolbar && (
         <div className="flex flex-wrap items-center gap-1 p-2 bg-gradient-to-r from-slate-50 to-blue-50/40 dark:from-slate-800/80 dark:to-blue-950/20 rounded-lg border border-slate-200 dark:border-slate-700">
           <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1 flex-shrink-0 self-center">
-            Insert:
+            Symbols:
           </span>
           {MATH_SYMBOLS.map((s) => (
             <button
               key={s.label + s.insert}
               type="button"
               title={s.title}
-              onClick={() => insertSymbol(s.insert)}
-              className="px-1.5 py-0.5 rounded text-sm font-bold border transition-all bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 dark:hover:bg-blue-900/30 dark:hover:text-blue-300 min-w-[28px] text-center"
+              onMouseDown={(e) => { e.preventDefault(); insertSymbol(s.insert); }}
+              className="px-1.5 py-0.5 rounded text-sm font-bold border transition-all bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 dark:hover:bg-blue-900/30 dark:hover:text-blue-300 min-w-[28px] text-center shadow-xs cursor-pointer"
             >
               {s.label}
             </button>
@@ -138,25 +373,41 @@ export default function MathInput({
         </div>
       )}
 
-      {singleLine ? (
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onPaste={handlePaste}
-          className="admin-input text-sm w-full"
-          placeholder={placeholder}
-          required={required}
-        />
+      {/* ── WYSIWYG ContentEditable Rich Text Area (Font changes live) ── */}
+      {!isRawMode ? (
+        <div className="relative">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onKeyUp={checkActiveStyles}
+            onMouseUp={checkActiveStyles}
+            onPaste={handlePaste}
+            style={{ minHeight: `${minHeightPx}px` }}
+            className={`admin-input text-sm p-3 leading-relaxed w-full outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all ${
+              singleLine ? 'overflow-x-auto whitespace-nowrap' : 'overflow-y-auto'
+            }`}
+          />
+          {/* Placeholder overlay when editor is empty */}
+          {isEmpty && (
+            <div
+              onClick={() => editorRef.current && editorRef.current.focus()}
+              className="absolute top-3 left-3 text-slate-400 dark:text-slate-500 text-sm pointer-events-none select-none"
+            >
+              {placeholder}
+            </div>
+          )}
+        </div>
       ) : (
+        /* Raw HTML text edit mode */
         <textarea
-          ref={inputRef}
+          ref={editorRef}
           rows={rows}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onPaste={handlePaste}
-          className="admin-input text-sm p-3 leading-relaxed w-full"
+          className="admin-input font-mono text-xs p-3 leading-relaxed w-full"
           placeholder={placeholder}
           required={required}
         />
