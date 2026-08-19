@@ -10,6 +10,7 @@ import {
   RiDragMove2Line, RiArrowUpLine, RiArrowDownLine
 } from 'react-icons/ri';
 import { MathRenderer } from '../components/MathInput';
+import { getSocket } from '../../utils/socket';
 
 export default function SubjectTestsManager() {
   // Top View Mode: 'tests' or 'categories'
@@ -49,10 +50,22 @@ export default function SubjectTestsManager() {
   const [testModal, setTestModal] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
   const [testForm, setTestForm] = useState({
-    subjectId: '', topicId: '', topicName: '', title: '', code: '', description: '',
-    testType: 'practice', difficulty: 'Medium', accessType: 'Free',
-    duration: 25, positiveMarks: 1, negativeMarks: 0.25,
-    status: 'draft'
+    categoryId: '',
+    subjectId: '',
+    topicId: '',
+    topicName: '',
+    subTopic: '',
+    title: '',
+    code: '',
+    description: '',
+    testType: 'practice',
+    difficulty: 'Medium',
+    accessType: 'Free',
+    duration: 25,
+    startTime: '',
+    positiveMarks: 1,
+    negativeMarks: 0.25,
+    status: 'published'
   });
 
   // Subject / Category Modal State
@@ -86,6 +99,7 @@ export default function SubjectTestsManager() {
   // Available Question Bank Modal Filter States
   const [mapSubjectFilter, setMapSubjectFilter] = useState('');
   const [mapTopicFilter, setMapTopicFilter] = useState('');
+  const [mapSubTopicFilter, setMapSubTopicFilter] = useState('');
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [availableBankQs, setAvailableBankQs] = useState([]);
   const [loadingBankQs, setLoadingBankQs] = useState(false);
@@ -143,7 +157,25 @@ export default function SubjectTestsManager() {
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData]);
+    const socket = getSocket();
+    const handleTestsUpdate = () => {
+      fetchTests();
+    };
+    const handleSubjectsUpdate = () => {
+      fetchSubjects();
+    };
+    socket.on('subject_tests_updated', handleTestsUpdate);
+    socket.on('subjects_updated', handleSubjectsUpdate);
+    socket.on('subject_categories_updated', handleSubjectsUpdate);
+    socket.on('attempt_submitted', handleTestsUpdate);
+
+    return () => {
+      socket.off('subject_tests_updated', handleTestsUpdate);
+      socket.off('subjects_updated', handleSubjectsUpdate);
+      socket.off('subject_categories_updated', handleSubjectsUpdate);
+      socket.off('attempt_submitted', handleTestsUpdate);
+    };
+  }, [fetchAllData, fetchTests, fetchSubjects]);
 
   // Load test details for mapping
   const loadTestForMapping = async (id) => {
@@ -303,6 +335,7 @@ export default function SubjectTestsManager() {
       subjectId: '',
       topicId: '',
       topicName: '',
+      subTopic: '',
       title: '',
       code: '',
       description: '',
@@ -310,6 +343,7 @@ export default function SubjectTestsManager() {
       difficulty: 'Medium',
       accessType: 'Free',
       duration: 25,
+      startTime: '',
       price: 49,
       status: 'published'
     });
@@ -323,6 +357,7 @@ export default function SubjectTestsManager() {
       subjectId: t.subjectId?._id || t.subjectId || '',
       topicId: t.topicId?._id || t.topicId || '',
       topicName: t.topicId?.name || t.topicName || '',
+      subTopic: t.subTopic || '',
       title: t.title || '',
       code: t.code || '',
       description: t.description || '',
@@ -330,27 +365,35 @@ export default function SubjectTestsManager() {
       difficulty: t.difficulty || 'Medium',
       accessType: t.accessType || 'Free',
       duration: t.duration || 25,
+      startTime: t.startTime ? new Date(t.startTime).toISOString().slice(0, 16) : (t.startExamTime ? new Date(t.startExamTime).toISOString().slice(0, 16) : ''),
       price: t.price || 49,
-      status: t.status || 'draft'
+      status: t.status || 'published'
     });
     setTestModal(true);
   };
 
   const saveTest = async () => {
-    if (!testForm.categoryId || !testForm.subjectId || (!testForm.topicId && !testForm.topicName) || !testForm.title.trim()) {
-      return Swal.fire('Error', 'Subject Test Category, Subject, Topic, and Test Title are required', 'error');
+    if (!testForm.categoryId || !testForm.subjectId || (!testForm.topicId && !testForm.topicName)) {
+      return Swal.fire('Error', 'Subject Test Category, Subject, and Topic are required', 'error');
     }
     try {
-      const payload = { ...testForm };
+      const computedTitle = (testForm.subTopic || testForm.title || testForm.topicName || 'Subject Practice Test').trim();
+      const payload = {
+        ...testForm,
+        title: computedTitle,
+        subTopic: (testForm.subTopic || '').trim(),
+        startTime: testForm.startTime ? new Date(testForm.startTime).toISOString() : undefined,
+        startExamTime: testForm.startTime ? new Date(testForm.startTime).toISOString() : undefined,
+      };
       if (payload.topicId && !/^[0-9a-fA-F]{24}$/.test(payload.topicId)) {
         delete payload.topicId;
       }
       if (editingTest) {
         await api.put(`/subject-tests/tests/${editingTest._id}`, payload);
-        Swal.fire('Success', 'Test updated successfully', 'success');
+        Swal.fire('Success', 'Subject test updated successfully', 'success');
       } else {
         await api.post('/subject-tests/tests', payload);
-        Swal.fire('Success', 'Test created successfully', 'success');
+        Swal.fire('Success', 'Subject test created successfully', 'success');
       }
       setTestModal(false);
       setEditingTest(null);
@@ -385,12 +428,13 @@ export default function SubjectTestsManager() {
   };
 
   // ── Mapping Handlers ────────────────────────────────────────────────────────
-  const fetchAvailableBankQuestions = useCallback(async (subjectId, topicName, search) => {
+  const fetchAvailableBankQuestions = useCallback(async (subjectId, topicName, subTopicName, search) => {
     setLoadingBankQs(true);
     try {
       const params = {};
       if (subjectId) params.subjectId = subjectId;
       if (topicName) params.topic = topicName;
+      if (subTopicName) params.subTopic = subTopicName;
       if (search) params.search = search;
       const res = await api.get('/subject-tests/questions', { params });
       if (res.data.success) {
@@ -411,10 +455,12 @@ export default function SubjectTestsManager() {
         setSelectedTestDetails(test);
         const subjId = test.subjectId?._id || test.subjectId || '';
         const topName = test.topicName || test.topicId?.name || '';
+        const subTop = test.subTopic || '';
         setMapSubjectFilter(subjId);
         setMapTopicFilter(topName);
+        setMapSubTopicFilter(subTop);
         setMapSearchQuery('');
-        fetchAvailableBankQuestions(subjId, topName, '');
+        fetchAvailableBankQuestions(subjId, topName, subTop, '');
       }
     } catch { /* silent */ }
   };
@@ -480,7 +526,11 @@ export default function SubjectTestsManager() {
   });
 
   const selectedMapSubjObj = allAvailableSubjects.find(s => String(s._id) === String(mapSubjectFilter) || s.name === mapSubjectFilter);
-  const mapAvailableTopics = selectedMapSubjObj?.topics || [];
+  const mapAvailableTopics = Array.isArray(selectedMapSubjObj?.topicList) && selectedMapSubjObj.topicList.length > 0
+    ? selectedMapSubjObj.topicList.map(t => t.name)
+    : (selectedMapSubjObj?.topics || []).map(t => typeof t === 'string' ? t : t.name || t);
+  const selectedMapTopicObj = selectedMapSubjObj?.topicList?.find(t => t.name === mapTopicFilter);
+  const mapAvailableSubTopics = selectedMapTopicObj?.subTopics || [];
 
   // Filtered Tests List
   const filteredTests = tests.filter(t => {
@@ -490,8 +540,13 @@ export default function SubjectTestsManager() {
     return true;
   });
 
-  const selectedSubjObj = globalSubjects.find(s => s._id === testForm.subjectId || s.name === testForm.subjectId);
-  const availableTopicNames = (selectedSubjObj?.topics || []).map(t => typeof t === 'string' ? t : t.name || t);
+  const selectedSubjObj = globalSubjects.find(s => String(s._id) === String(testForm.subjectId) || s.name === testForm.subjectId);
+  const availableTopicNames = Array.isArray(selectedSubjObj?.topicList) && selectedSubjObj.topicList.length > 0
+    ? selectedSubjObj.topicList.map(t => t.name)
+    : (selectedSubjObj?.topics || []).map(t => typeof t === 'string' ? t : t.name || t);
+
+  const currentSelectedTopicObj = selectedSubjObj?.topicList?.find(t => t.name === (testForm.topicName || testForm.topicId));
+  const availableSubTopicNames = currentSelectedTopicObj?.subTopics || [];
 
   return (
     <div style={{ padding: '24px 28px', minHeight: '85vh', background: 'var(--bg)' }}>
@@ -626,7 +681,10 @@ export default function SubjectTestsManager() {
                 ) : (
                   filteredTests.map(t => (
                     <tr key={t._id} style={{ borderBottom: '1px solid var(--line,#e2e8f0)' }}>
-                      <td style={{ padding: '14px 18px', fontWeight: 800, color: 'var(--ink)' }}>{t.title}</td>
+                      <td style={{ padding: '14px 18px', fontWeight: 800, color: 'var(--ink)' }}>
+                        <div>{t.title}</div>
+                        {t.subTopic && <span style={{ fontSize: 10, fontWeight: 700, color: '#4f46e5', background: '#eef2ff', padding: '2px 6px', borderRadius: 4, display: 'inline-block', marginTop: 3 }}>Sub-Topic: {t.subTopic}</span>}
+                      </td>
                       <td style={{ padding: '14px 18px' }}>
                         <div style={{ fontWeight: 700, fontSize: 12, color: '#1957D6' }}>{t.subjectId?.name || 'Subject'}</div>
                         <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.topicId?.name || t.topicName || 'Topic'}</div>
@@ -1150,7 +1208,11 @@ export default function SubjectTestsManager() {
                       });
                       if (matchCat) matchedCatId = matchCat._id;
                     }
-                    setTestForm(f => ({ ...f, subjectId: sId, categoryId: matchedCatId, topicId: '', topicName: '' }));
+                    const firstTopic = (Array.isArray(selectedSubj?.topicList) && selectedSubj.topicList.length > 0)
+                      ? selectedSubj.topicList[0].name
+                      : (selectedSubj?.topics?.[0] || '');
+                    const firstSubTopic = selectedSubj?.topicList?.find(t => t.name === firstTopic)?.subTopics?.[0] || '';
+                    setTestForm(f => ({ ...f, subjectId: sId, categoryId: matchedCatId, topicId: firstTopic, topicName: firstTopic, subTopic: firstSubTopic }));
                   }}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
                 >
@@ -1160,10 +1222,15 @@ export default function SubjectTestsManager() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Topic *</label>
-                <select value={testForm.topicId || testForm.topicName || ''} onChange={e => {
-                  const val = e.target.value;
-                  setTestForm(f => ({ ...f, topicId: val, topicName: val }));
-                }} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <select
+                  value={testForm.topicId || testForm.topicName || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const subTopicOpt = selectedSubjObj?.topicList?.find(t => t.name === val)?.subTopics?.[0] || '';
+                    setTestForm(f => ({ ...f, topicId: val, topicName: val, subTopic: subTopicOpt }));
+                  }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                >
                   <option value="">-- Choose Topic --</option>
                   {availableTopicNames.map((topName, idx) => (
                     <option key={idx} value={topName}>{topName}</option>
@@ -1172,12 +1239,34 @@ export default function SubjectTestsManager() {
               </div>
             </div>
 
+            {/* Sub Topic Dropdown */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Test Title *</label>
-              <input value={testForm.title} onChange={e => setTestForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Percentage Practice Set 01" style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }} />
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Sub Topic</label>
+              <select
+                value={testForm.subTopic || ''}
+                onChange={e => setTestForm(f => ({ ...f, subTopic: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+              >
+                <option value="">{testForm.topicName ? '-- Choose Sub Topic --' : '-- Choose Topic First --'}</option>
+                {availableSubTopicNames.map((st, idx) => (
+                  <option key={idx} value={st}>{st}</option>
+                ))}
+              </select>
             </div>
 
-
+            {/* Duration (Mins) */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>
+                Duration (Mins)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={testForm.duration}
+                onChange={e => setTestForm(f => ({ ...f, duration: Number(e.target.value) || 25 }))}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+              />
+            </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setTestModal(false)} style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancel</button>
@@ -1216,8 +1305,11 @@ export default function SubjectTestsManager() {
                     selectedTestDetails.mappedQuestions?.map((mq, idx) => (
                       <div key={mq.mapId || mq._id || idx} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: '#2563eb' }}>#{idx + 1} Question</div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#2563eb' }}>#{idx + 1} Question</span>
+                            {mq.subTopic && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1' }}>{mq.subTopic}</span>}
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', wordBreak: 'break-word', marginTop: 2 }}>
                             <MathRenderer text={mq.questionText} />
                           </div>
                         </div>
@@ -1241,8 +1333,8 @@ export default function SubjectTestsManager() {
                   <button onClick={addSelectedQuestionsToTest} className="btn btn-primary" style={{ padding: '5px 12px', fontSize: 11, fontWeight: 800 }}>Add Selected ({selectedQIds.length})</button>
                 </div>
 
-                {/* Subject & Topic Selectors */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                {/* Subject, Topic & Sub-Topic Selectors */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
                   <div>
                     <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 2 }}>Subject</label>
                     <select
@@ -1251,7 +1343,8 @@ export default function SubjectTestsManager() {
                         const sId = e.target.value;
                         setMapSubjectFilter(sId);
                         setMapTopicFilter('');
-                        fetchAvailableBankQuestions(sId, '', mapSearchQuery);
+                        setMapSubTopicFilter('');
+                        fetchAvailableBankQuestions(sId, '', '', mapSearchQuery);
                       }}
                       style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', fontWeight: 600 }}
                     >
@@ -1269,13 +1362,32 @@ export default function SubjectTestsManager() {
                       onChange={e => {
                         const top = e.target.value;
                         setMapTopicFilter(top);
-                        fetchAvailableBankQuestions(mapSubjectFilter, top, mapSearchQuery);
+                        setMapSubTopicFilter('');
+                        fetchAvailableBankQuestions(mapSubjectFilter, top, '', mapSearchQuery);
                       }}
                       style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', fontWeight: 600 }}
                     >
                       <option value="">All Topics</option>
                       {mapAvailableTopics.map((t, idx) => (
                         <option key={idx} value={typeof t === 'string' ? t : t.name}>{typeof t === 'string' ? t : t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', display: 'block', marginBottom: 2 }}>Sub Topic</label>
+                    <select
+                      value={mapSubTopicFilter}
+                      onChange={e => {
+                        const sub = e.target.value;
+                        setMapSubTopicFilter(sub);
+                        fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, sub, mapSearchQuery);
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff', fontWeight: 600 }}
+                    >
+                      <option value="">All Sub Topics</option>
+                      {mapAvailableSubTopics.map((st, idx) => (
+                        <option key={idx} value={st}>{st}</option>
                       ))}
                     </select>
                   </div>
@@ -1289,7 +1401,7 @@ export default function SubjectTestsManager() {
                     onChange={e => {
                       const q = e.target.value;
                       setMapSearchQuery(q);
-                      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, q);
+                      fetchAvailableBankQuestions(mapSubjectFilter, mapTopicFilter, mapSubTopicFilter, q);
                     }}
                     placeholder="Search available questions..."
                     style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, background: '#fff' }}
@@ -1327,6 +1439,7 @@ export default function SubjectTestsManager() {
                             <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                               {q.subjectName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#eff6ff', color: '#2563eb' }}>{q.subjectName}</span>}
                               {q.topicName && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#f3ecfe', color: '#7c3aed' }}>{q.topicName}</span>}
+                              {q.subTopic && <span style={{ fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1' }}>{q.subTopic}</span>}
                               {isMapped && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#059669' }}>✓ Already Mapped</span>}
                             </div>
                           </div>

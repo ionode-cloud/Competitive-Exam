@@ -4,8 +4,11 @@ const subjectTestSchema = new mongoose.Schema({
   categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubjectTestSubject' },
   subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
   topicName: { type: String, trim: true },
+  subTopic: { type: String, trim: true },
   topicId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubjectTestTopic' },
-  title: { type: String, required: [true, 'Test title is required'], trim: true },
+  title: { type: String, trim: true, default: '' },
+  startTime: { type: Date },
+  startExamTime: { type: Date },
   code: { type: String, trim: true },
   description: { type: String, default: '' },
   testType: { type: String, enum: ['practice', 'topic', 'subject'], default: 'practice' },
@@ -36,5 +39,11 @@ const subjectTestSchema = new mongoose.Schema({
   randomizeOptions: { type: Boolean, default: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
+
+subjectTestSchema.pre('validate', function() {
+  if (!this.title || !this.title.trim()) {
+    this.title = this.subTopic || this.topicName || 'Subject Practice Test';
+  }
+});
 
 module.exports = mongoose.model('SubjectTest', subjectTestSchema);

@@ -5,13 +5,14 @@ import Swal from 'sweetalert2';
 import api from '../api/axios';
 import DataTable from '../components/DataTable';
 import MathInput, { MathRenderer } from '../components/MathInput';
+import { getSocket } from '../../utils/socket';
 
 const diffBadge = (d) => {
   const map = { easy: 'admin-badge-green', moderate: 'admin-badge-yellow', difficult: 'admin-badge-red' };
   return <span className={map[d] || 'admin-badge-gray'}>{d}</span>;
 };
 
-const createEmptyQuestionBlock = () => ({
+const createEmptyQuestionBlock = (defaultMarks = 1, defaultNegMarks = 0.25) => ({
   questionText: '',
   questionImage: '',
   options: [
@@ -21,6 +22,8 @@ const createEmptyQuestionBlock = () => ({
     { label: 'D', text: '' },
   ],
   correctAnswer: 'A',
+  marks: defaultMarks,
+  negativeMarks: defaultNegMarks,
   explanation: '',
   explanationImage: '',
 });
@@ -48,20 +51,30 @@ export default function QuestionBank() {
   const [topMeta, setTopMeta] = useState({
     subject: '',
     topic: '',
+    subTopic: '',
     section: 'General',
+    totalMarks: 50,
     marks: 1,
     negativeMarks: 0.25,
     difficulty: 'moderate',
     status: 'published',
   });
 
+  const [selectedSubTopic, setSelectedSubTopic] = useState('');
+
   // Dynamic Array of Question Blocks
-  const [questionBlocks, setQuestionBlocks] = useState([createEmptyQuestionBlock()]);
+  const [questionBlocks, setQuestionBlocks] = useState([createEmptyQuestionBlock(1, 0.25)]);
 
   // Store all subjects for dropdowns vs cards grid
   const [allSubjects, setAllSubjects] = useState([]);
 
-  // Fetch subjects list for Cards Grid (Only show subjects that have questions added)
+  // Calculate total marks across all question blocks
+  const totalAllocatedMarks = questionBlocks.reduce(
+    (sum, q) => sum + (Number(q.marks !== undefined && q.marks !== '' ? q.marks : topMeta.marks) || 0),
+    0
+  );
+
+  // Fetch subjects list for Cards Grid
   const fetchSubjects = useCallback(async () => {
     try {
       const res = await api.get('/subjects', { params: { limit: 100 } });
@@ -75,10 +88,6 @@ export default function QuestionBank() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchSubjects();
-  }, [fetchSubjects]);
-
   // Fetch questions for selected subject
   const fetchQuestions = useCallback(async () => {
     if (!selectedSubject) return;
@@ -91,6 +100,7 @@ export default function QuestionBank() {
           search,
           subject: selectedSubject._id,
           topic: selectedTopic || undefined,
+          subTopic: selectedSubTopic || undefined,
           ...filters
         }
       });
@@ -101,48 +111,74 @@ export default function QuestionBank() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSubject, selectedTopic, page, search, filters]);
+  }, [selectedSubject, selectedTopic, selectedSubTopic, page, search, filters]);
+
+  useEffect(() => {
+    fetchSubjects();
+    const socket = getSocket();
+    const handleSubjUpdate = () => fetchSubjects();
+    const handleQUpdate = () => {
+      fetchQuestions();
+      fetchSubjects();
+    };
+    socket.on('subjects_updated', handleSubjUpdate);
+    socket.on('questions_updated', handleQUpdate);
+    return () => {
+      socket.off('subjects_updated', handleSubjUpdate);
+      socket.off('questions_updated', handleQUpdate);
+    };
+  }, [fetchSubjects, fetchQuestions]);
 
   useEffect(() => {
     if (viewMode === 'list' && selectedSubject) {
       fetchQuestions();
     }
-  }, [viewMode, selectedSubject, selectedTopic, fetchQuestions]);
+  }, [viewMode, selectedSubject, selectedTopic, selectedSubTopic, fetchQuestions]);
 
   // Open card detailed view
   const handleSelectSubjectCard = (subj) => {
     setSelectedSubject(subj);
     setSelectedTopic('');
+    setSelectedSubTopic('');
     setPage(1);
     setSearch('');
     setViewMode('list');
   };
 
-  // Create Question (Pre-selects current subject if opened from subject view)
+  // Create Question (Pre-selects current subject, topic, and subtopic if available)
   const openCreate = (preSubject = null) => {
-    const activeSubj = preSubject || selectedSubject || subjects[0];
+    const activeSubj = preSubject || selectedSubject || allSubjects[0] || subjects[0];
+    const initialTopic = selectedTopic || (activeSubj?.topicList?.[0]?.name || (typeof activeSubj?.topics?.[0] === 'string' ? activeSubj?.topics?.[0] : activeSubj?.topics?.[0]?.name) || '');
+    const activeTopicObj = activeSubj?.topicList?.find(t => t.name === initialTopic);
+    const initialSubTopic = selectedSubTopic || (activeTopicObj?.subTopics?.[0] || '');
+
     setEditing(null);
     setTopMeta({
       subject: activeSubj?._id || '',
-      topic: selectedTopic || (activeSubj?.topics?.[0] || ''),
+      topic: initialTopic,
+      subTopic: initialSubTopic,
       section: 'General',
+      totalMarks: 50,
       marks: 1,
       negativeMarks: 0.25,
       difficulty: 'moderate',
       status: 'published',
     });
-    setQuestionBlocks([createEmptyQuestionBlock()]);
+    setQuestionBlocks([createEmptyQuestionBlock(1, 0.25)]);
     setViewMode('form');
   };
 
   // Edit Question
   const openEdit = (q) => {
     setEditing(q);
+    const qMark = q.marks !== undefined ? q.marks : 1;
     setTopMeta({
       subject: q.subject?._id || q.subject || '',
       topic: q.topic || '',
+      subTopic: q.subTopic || '',
       section: q.section || 'General',
-      marks: q.marks || 1,
+      totalMarks: 50,
+      marks: qMark,
       negativeMarks: q.negativeMarks || 0.25,
       difficulty: q.difficulty || 'moderate',
       status: q.status || 'published',
@@ -152,15 +188,51 @@ export default function QuestionBank() {
       questionImage: q.questionImage || '',
       options: q.options && q.options.length === 4 ? q.options : createEmptyQuestionBlock().options,
       correctAnswer: q.correctAnswer || 'A',
+      marks: qMark,
+      negativeMarks: q.negativeMarks || 0.25,
       explanation: q.explanation || '',
       explanationImage: q.explanationImage || '',
     }]);
     setViewMode('form');
   };
 
+  // When global Each Question Mark changes
+  const handleGlobalMarksChange = (val) => {
+    const newMark = Number(val) || 0;
+    const newTotal = questionBlocks.length * newMark;
+    if (Number(topMeta.totalMarks) > 0 && newTotal > Number(topMeta.totalMarks)) {
+      toast.error(`You have reached the maximum marks (${topMeta.totalMarks}). No more question marks can be added.`);
+      return;
+    }
+    setTopMeta(m => ({ ...m, marks: newMark }));
+    setQuestionBlocks(prev => prev.map(q => ({ ...q, marks: newMark })));
+  };
+
+  // When an individual question's mark is managed/changed
+  const handleQuestionMarkChange = (blockIdx, val) => {
+    const num = Number(val) || 0;
+    const otherMarks = questionBlocks.reduce(
+      (sum, q, i) => i === blockIdx ? sum : sum + (Number(q.marks !== undefined && q.marks !== '' ? q.marks : topMeta.marks) || 0),
+      0
+    );
+
+    if (Number(topMeta.totalMarks) > 0 && (otherMarks + num) > Number(topMeta.totalMarks)) {
+      const maxPossible = Math.max(0, Number(topMeta.totalMarks) - otherMarks);
+      toast.error(`You have reached the maximum marks (${topMeta.totalMarks}). No more question marks can be added. (Max for this question: ${maxPossible})`);
+      handleBlockChange(blockIdx, 'marks', maxPossible);
+      return;
+    }
+    handleBlockChange(blockIdx, 'marks', num);
+  };
+
   // Block Handlers
   const handleAddQuestionBlock = () => {
-    setQuestionBlocks(prev => [...prev, createEmptyQuestionBlock()]);
+    const nextMark = Number(topMeta.marks) || 1;
+    if (Number(topMeta.totalMarks) > 0 && (totalAllocatedMarks + nextMark) > Number(topMeta.totalMarks)) {
+      toast.error(`You have reached max mark (${topMeta.totalMarks}), no more questions can be added.`);
+      return;
+    }
+    setQuestionBlocks(prev => [...prev, createEmptyQuestionBlock(topMeta.marks, topMeta.negativeMarks)]);
   };
 
   const handleRemoveQuestionBlock = (index) => {
@@ -217,6 +289,10 @@ export default function QuestionBank() {
     if (e) e.preventDefault();
     if (!topMeta.subject) return toast.error('Please select a Subject');
 
+    if (Number(topMeta.totalMarks) > 0 && totalAllocatedMarks > Number(topMeta.totalMarks)) {
+      return toast.error(`Total question marks (${totalAllocatedMarks}) cannot exceed Total Marks limit (${topMeta.totalMarks})!`);
+    }
+
     for (let i = 0; i < questionBlocks.length; i++) {
       const b = questionBlocks[i];
       if (!b.questionText.trim()) return toast.error(`Question #${i + 1} statement is required`);
@@ -231,12 +307,16 @@ export default function QuestionBank() {
         const payload = {
           ...topMeta,
           ...questionBlocks[0],
+          marks: questionBlocks[0].marks !== undefined ? Number(questionBlocks[0].marks) : Number(topMeta.marks),
+          negativeMarks: questionBlocks[0].negativeMarks !== undefined ? Number(questionBlocks[0].negativeMarks) : Number(topMeta.negativeMarks),
         };
         await api.put(`/questions/${editing._id}`, payload);
         toast.success('Question updated successfully!');
       } else {
         const payload = questionBlocks.map(q => ({
           ...topMeta,
+          marks: q.marks !== undefined ? Number(q.marks) : Number(topMeta.marks),
+          negativeMarks: q.negativeMarks !== undefined ? Number(q.negativeMarks) : Number(topMeta.negativeMarks),
           questionText: q.questionText,
           questionImage: q.questionImage || '',
           options: q.options,
@@ -336,6 +416,7 @@ export default function QuestionBank() {
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {r.topic && <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 font-semibold">Topic: {r.topic}</span>}
+            {r.subTopic && <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 font-semibold">Sub-Topic: {r.subTopic}</span>}
             {r.section && <span className="text-xs text-slate-400 font-medium">• Section: {r.section}</span>}
           </div>
         </div>
@@ -379,91 +460,97 @@ export default function QuestionBank() {
 
         {/* SUBJECT CARDS GRID */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subjects.map(s => (
-            <div
-              key={s._id}
-              onClick={() => handleSelectSubjectCard(s)}
-              className="group bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-2xl p-6 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-black shadow-sm"
-                      style={{ background: s.color || '#6366f1' }}
-                    >
-                      {s.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                        {s.name}
-                      </h3>
-                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                        {s.questionCount || 0} Questions
-                      </span>
-                    </div>
-                  </div>
+          {subjects.map(s => {
+            const rawTopics = (Array.isArray(s.topicList) && s.topicList.length > 0)
+              ? s.topicList.map(t => t.name)
+              : (s.topics || []).map(t => typeof t === 'string' ? t : t.name);
 
-                  {/* Top-Right Delete Button Icon */}
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteSubjectCard(s, e)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                    title="Delete Subject"
-                  >
-                    <RiDeleteBin2Line className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">
-                  {s.description || 'Subject practice questions bank.'}
-                </p>
-
-                {/* Topics Preview Badges */}
-                <div className="space-y-1.5 mb-6">
-                  <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">Topics Covered:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {s.topics && s.topics.length > 0 ? (
-                      s.topics.map((top, idx) => (
-                        <span key={idx} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {top}
+            return (
+              <div
+                key={s._id}
+                onClick={() => handleSelectSubjectCard(s)}
+                className="group bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-2xl p-6 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-black shadow-sm"
+                        style={{ background: s.color || '#6366f1' }}
+                      >
+                        {s.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                          {s.name}
+                        </h3>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                          {s.questionCount || 0} Questions
                         </span>
-                      ))
-                    ) : (
-                      <span className="text-xs italic text-slate-400">General practice questions</span>
-                    )}
+                      </div>
+                    </div>
+
+                    {/* Top-Right Delete Button Icon */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSubjectCard(s, e)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      title="Delete Subject"
+                    >
+                      <RiDeleteBin2Line className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">
+                    {s.description || 'Subject practice questions bank.'}
+                  </p>
+
+                  {/* Topics Preview Badges */}
+                  <div className="space-y-1.5 mb-6">
+                    <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">Topics Covered:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {rawTopics && rawTopics.length > 0 ? (
+                        rawTopics.map((top, idx) => (
+                          <span key={idx} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {top}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs italic text-slate-400">General practice questions</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Card Actions */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    Manage Questions <RiArrowRightSLine className="w-4 h-4" />
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openCreate(s);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1"
+                    >
+                      <RiAddLine className="w-3.5 h-3.5" /> + Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSubjectCard(s, e)}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-50 hover:bg-red-600 hover:text-white text-red-600 dark:bg-red-900/30 dark:hover:bg-red-600 dark:text-red-300 transition-colors flex items-center gap-1"
+                      title="Delete Subject"
+                    >
+                      <RiDeleteBin2Line className="w-3.5 h-3.5" /> Delete
+                    </button>
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Card Actions */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                  Manage Questions <RiArrowRightSLine className="w-4 h-4" />
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openCreate(s);
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1"
-                  >
-                    <RiAddLine className="w-3.5 h-3.5" /> + Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteSubjectCard(s, e)}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-50 hover:bg-red-600 hover:text-white text-red-600 dark:bg-red-900/30 dark:hover:bg-red-600 dark:text-red-300 transition-colors flex items-center gap-1"
-                    title="Delete Subject"
-                  >
-                    <RiDeleteBin2Line className="w-3.5 h-3.5" /> Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -473,7 +560,13 @@ export default function QuestionBank() {
      VIEW MODE 2: QUESTIONS LIST FOR SELECTED SUBJECT
   ══════════════════════════════════════════════════════════════════════════ */
   if (viewMode === 'list' && selectedSubject) {
-    const selectedSubjTopics = selectedSubject.topics || [];
+    const selectedSubjTopics = (Array.isArray(selectedSubject.topicList) && selectedSubject.topicList.length > 0)
+      ? selectedSubject.topicList.map(t => t.name)
+      : (selectedSubject.topics || []).map(t => typeof t === 'string' ? t : t.name);
+
+    const activeSelectedTopicObj = selectedSubject.topicList?.find(t => t.name === selectedTopic);
+    const availableSubTopicsInList = activeSelectedTopicObj?.subTopics || [];
+
     return (
       <div className="space-y-5">
         {/* Navigation Bar */}
@@ -509,16 +602,27 @@ export default function QuestionBank() {
           </div>
         </div>
 
-        {/* Topic & Search Filter Bar */}
+        {/* Topic, Sub-Topic & Search Filter Bar */}
         <div className="admin-card p-4 flex flex-wrap items-center gap-3">
           <select
             value={selectedTopic}
-            onChange={e => { setSelectedTopic(e.target.value); setPage(1); }}
+            onChange={e => { setSelectedTopic(e.target.value); setSelectedSubTopic(''); setPage(1); }}
             className="admin-input w-48 font-semibold"
           >
             <option value="">All Topics</option>
             {selectedSubjTopics.map((t, idx) => <option key={idx} value={t}>{t}</option>)}
           </select>
+
+          {availableSubTopicsInList.length > 0 && (
+            <select
+              value={selectedSubTopic}
+              onChange={e => { setSelectedSubTopic(e.target.value); setPage(1); }}
+              className="admin-input w-48 font-semibold"
+            >
+              <option value="">All Sub-Topics</option>
+              {availableSubTopicsInList.map((st, idx) => <option key={idx} value={st}>{st}</option>)}
+            </select>
+          )}
 
           <select
             value={filters.difficulty}
@@ -531,9 +635,9 @@ export default function QuestionBank() {
             <option value="difficult">Difficult</option>
           </select>
 
-          {(selectedTopic || filters.difficulty) && (
+          {(selectedTopic || selectedSubTopic || filters.difficulty) && (
             <button
-              onClick={() => { setSelectedTopic(''); setFilters({ difficulty: '' }); setPage(1); }}
+              onClick={() => { setSelectedTopic(''); setSelectedSubTopic(''); setFilters({ difficulty: '' }); setPage(1); }}
               className="admin-btn-secondary text-xs"
             >
               Clear Filters
@@ -566,7 +670,15 @@ export default function QuestionBank() {
   ══════════════════════════════════════════════════════════════════════════ */
   const allSubjList = allSubjects.length > 0 ? allSubjects : subjects;
   const selectedSubjectObjInForm = allSubjList.find(s => String(s._id) === String(topMeta.subject));
-  const availableTopicsInForm = selectedSubjectObjInForm?.topics || [];
+  
+  // Extract topics (from topicList or topics array)
+  const availableTopicsInForm = Array.isArray(selectedSubjectObjInForm?.topicList) && selectedSubjectObjInForm.topicList.length > 0
+    ? selectedSubjectObjInForm.topicList.map(t => t.name)
+    : (selectedSubjectObjInForm?.topics || []).map(t => typeof t === 'string' ? t : t.name);
+
+  // Extract sub-topics for the currently selected topic
+  const selectedTopicObjInForm = selectedSubjectObjInForm?.topicList?.find(t => t.name === topMeta.topic);
+  const availableSubTopicsInForm = selectedTopicObjInForm?.subTopics || [];
 
   return (
     <div className="space-y-6 pb-12">
@@ -612,13 +724,32 @@ export default function QuestionBank() {
 
         {/* TOP GLOBAL CONFIGURATION BAR */}
         <div className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div>
-              <span className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                Global Question Settings
-              </span>
-              <p className="text-xs text-slate-500 mt-0.5">Applied to all question blocks below</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div>
+                <span className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Global Question Settings
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">Applied to all question blocks below</p>
+              </div>
+
+              {/* Live Marks Counter Badge */}
+              <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${
+                  Number(topMeta.totalMarks) > 0 && totalAllocatedMarks >= Number(topMeta.totalMarks)
+                    ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700'
+                    : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                }`}>
+                  Allocated: {totalAllocatedMarks} / {topMeta.totalMarks || 0} Marks
+                </span>
+                {Number(topMeta.totalMarks) > 0 && (
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    ({Math.max(0, Number(topMeta.totalMarks) - totalAllocatedMarks)} remaining)
+                  </span>
+                )}
+              </div>
             </div>
+
             {!editing && (
               <button
                 type="button"
@@ -630,50 +761,92 @@ export default function QuestionBank() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3.5">
             <div>
               <label className="admin-label text-xs font-bold">Subject *</label>
               <select
                 value={topMeta.subject}
-                onChange={e => setTopMeta(m => ({ ...m, subject: e.target.value }))}
+                onChange={e => {
+                  const newSubjId = e.target.value;
+                  const newSubj = allSubjList.find(s => String(s._id) === String(newSubjId));
+                  const firstTopic = newSubj?.topicList?.[0]?.name || (typeof newSubj?.topics?.[0] === 'string' ? newSubj?.topics?.[0] : newSubj?.topics?.[0]?.name) || '';
+                  const firstTopicObj = newSubj?.topicList?.find(t => t.name === firstTopic);
+                  const firstSubTopic = firstTopicObj?.subTopics?.[0] || '';
+                  setTopMeta(m => ({
+                    ...m,
+                    subject: newSubjId,
+                    topic: firstTopic,
+                    subTopic: firstSubTopic,
+                  }));
+                }}
                 className="admin-input"
                 required
               >
                 <option value="">Select Subject</option>
-                {(allSubjects.length > 0 ? allSubjects : subjects).map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                {allSubjList.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
             </div>
 
             <div>
               <label className="admin-label text-xs font-bold">Topic Name</label>
-              {availableTopicsInForm.length > 0 ? (
-                <select
-                  value={topMeta.topic}
-                  onChange={e => setTopMeta(m => ({ ...m, topic: e.target.value }))}
-                  className="admin-input"
-                >
-                  <option value="">Select Topic</option>
-                  {availableTopicsInForm.map((t, i) => <option key={i} value={t}>{t}</option>)}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={topMeta.topic}
-                  onChange={e => setTopMeta(m => ({ ...m, topic: e.target.value }))}
-                  className="admin-input"
-                  placeholder="e.g. Percentage"
-                />
-              )}
+              <select
+                value={topMeta.topic || ''}
+                onChange={e => {
+                  const newTopic = e.target.value;
+                  const topicObj = selectedSubjectObjInForm?.topicList?.find(t => t.name === newTopic);
+                  const firstSubTopic = topicObj?.subTopics?.[0] || '';
+                  setTopMeta(m => ({
+                    ...m,
+                    topic: newTopic,
+                    subTopic: firstSubTopic,
+                  }));
+                }}
+                className="admin-input"
+              >
+                <option value="">{topMeta.subject ? 'Select Topic' : 'Select Subject First'}</option>
+                {availableTopicsInForm.map((t, i) => <option key={i} value={t}>{t}</option>)}
+              </select>
             </div>
 
             <div>
-              <label className="admin-label text-xs font-bold">Marks (+)</label>
+              <label className="admin-label text-xs font-bold">Sub Topic Name</label>
+              <select
+                value={topMeta.subTopic || ''}
+                onChange={e => setTopMeta(m => ({ ...m, subTopic: e.target.value }))}
+                className="admin-input"
+              >
+                <option value="">{topMeta.topic ? 'Select Sub-Topic' : 'Select Topic First'}</option>
+                {availableSubTopicsInForm.map((st, i) => <option key={i} value={st}>{st}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="admin-label text-xs font-bold text-blue-700 dark:text-blue-400">Total Marks</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={topMeta.totalMarks !== undefined ? topMeta.totalMarks : 50}
+                onChange={e => {
+                  const val = Number(e.target.value) || 0;
+                  setTopMeta(m => ({ ...m, totalMarks: val }));
+                }}
+                className="admin-input font-bold text-blue-700 dark:text-blue-400"
+                placeholder="e.g. 50"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label text-xs font-bold">Each Question Mark</label>
               <input
                 type="number"
                 step="0.5"
+                min="0.5"
                 value={topMeta.marks}
-                onChange={e => setTopMeta(m => ({ ...m, marks: Number(e.target.value) }))}
+                onChange={e => handleGlobalMarksChange(e.target.value)}
                 className="admin-input font-bold"
+                placeholder="e.g. 1"
                 required
               />
             </div>
@@ -683,6 +856,7 @@ export default function QuestionBank() {
               <input
                 type="number"
                 step="0.25"
+                min="0"
                 value={topMeta.negativeMarks}
                 onChange={e => setTopMeta(m => ({ ...m, negativeMarks: Number(e.target.value) }))}
                 className="admin-input font-bold text-red-600 dark:text-red-400"
@@ -720,15 +894,30 @@ export default function QuestionBank() {
                   </h3>
                 </div>
 
-                {questionBlocks.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveQuestionBlock(blockIdx)}
-                    className="text-xs text-red-500 hover:text-red-700 font-extrabold flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                  >
-                    <RiCloseLine className="w-4 h-4" /> Remove Question #{blockIdx + 1}
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Mark:</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={qBlock.marks !== undefined ? qBlock.marks : topMeta.marks}
+                      onChange={e => handleQuestionMarkChange(blockIdx, e.target.value)}
+                      className="w-16 px-1.5 py-0.5 text-xs font-bold text-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-slate-800 dark:text-slate-200"
+                      title="Manage mark for this question"
+                    />
+                  </div>
+
+                  {questionBlocks.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveQuestionBlock(blockIdx)}
+                      className="text-xs text-red-500 hover:text-red-700 font-extrabold flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    >
+                      <RiCloseLine className="w-4 h-4" /> Remove Question #{blockIdx + 1}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Question Text Field */}

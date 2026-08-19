@@ -22,6 +22,7 @@ const questionSchema = new mongoose.Schema({
   // Hierarchy
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
   topic: { type: String },
+  subTopic: { type: String },
   chapter: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter' },
   subChapter: { type: mongoose.Schema.Types.ObjectId, ref: 'SubChapter' },
   // Meta

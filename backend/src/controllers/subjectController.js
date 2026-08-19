@@ -2,6 +2,7 @@ const Subject = require('../models/Subject');
 const Chapter = require('../models/Chapter');
 const SubChapter = require('../models/SubChapter');
 const { paginate, paginateResponse } = require('../utils/pagination');
+const { emitEvent } = require('../utils/socket');
 
 // ===== SUBJECTS =====
 
@@ -30,15 +31,25 @@ exports.getSubject = async (req, res, next) => {
 
 exports.createSubject = async (req, res, next) => {
   try {
-    const subject = await Subject.create({ ...req.body, createdBy: req.user._id });
+    const payload = { ...req.body, createdBy: req.user._id };
+    if (Array.isArray(payload.topicList)) {
+      payload.topics = payload.topicList.map(t => typeof t === 'string' ? t.trim() : t.name?.trim()).filter(Boolean);
+    }
+    const subject = await Subject.create(payload);
+    emitEvent('subjects_updated', { action: 'create', data: subject });
     res.status(201).json({ success: true, data: subject });
   } catch (err) { next(err); }
 };
 
 exports.updateSubject = async (req, res, next) => {
   try {
-    const subject = await Subject.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const payload = { ...req.body };
+    if (Array.isArray(payload.topicList)) {
+      payload.topics = payload.topicList.map(t => typeof t === 'string' ? t.trim() : t.name?.trim()).filter(Boolean);
+    }
+    const subject = await Subject.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
     if (!subject) return res.status(404).json({ success: false, message: 'Subject not found' });
+    emitEvent('subjects_updated', { action: 'update', data: subject });
     res.json({ success: true, data: subject });
   } catch (err) { next(err); }
 };
@@ -54,6 +65,7 @@ exports.reorderSubjects = async (req, res, next) => {
         },
       }));
       await Subject.bulkWrite(ops);
+      emitEvent('subjects_updated', { action: 'reorder', orderedIds });
     }
     res.json({ success: true, message: 'Subject order updated successfully' });
   } catch (err) { next(err); }
@@ -87,6 +99,8 @@ exports.deleteSubject = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
+    emitEvent('subjects_updated', { action: 'delete', id: targetId });
+
     res.json({ success: true, message: 'Subject deleted successfully from all modules' });
   } catch (err) { next(err); }
 };
@@ -94,7 +108,7 @@ exports.deleteSubject = async (req, res, next) => {
 exports.getSubjectsDropdown = async (req, res, next) => {
   try {
     const subjects = await Subject.find({ status: 'active' })
-      .select('name description icon color order showInPyqEbook status topics _id')
+      .select('name description icon color order showInPyqEbook status topics topicList _id')
       .sort('order createdAt name');
     res.json({ success: true, data: subjects });
   } catch (err) { next(err); }

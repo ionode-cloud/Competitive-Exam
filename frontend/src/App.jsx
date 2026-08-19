@@ -37,6 +37,7 @@ import Notifications    from './admin/pages/Notifications';
 import Subscription     from './admin/pages/Subscription';
 import SubscriptionsManager from './admin/pages/SubscriptionsManager';
 import SubjectTestsManager  from './admin/pages/SubjectTestsManager';
+import ManageInstructions   from './admin/pages/ManageInstructions';
 import ContactMessages     from './admin/pages/ContactMessages';
 import StudentRankings     from './admin/pages/StudentRankings';
 
@@ -95,6 +96,7 @@ export default function App() {
               <Route path="subscription"   element={<Subscription />} />
               <Route path="subscriptions"  element={<SubscriptionsManager />} />
               <Route path="subject-tests"  element={<SubjectTestsManager />} />
+              <Route path="instructions"   element={<ManageInstructions />} />
               <Route path="contacts"       element={<ContactMessages />} />
             </Route>
 

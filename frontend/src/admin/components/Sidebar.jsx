@@ -4,7 +4,7 @@ import {
   RiBookLine, RiUserLine, RiShieldUserLine, RiShoppingCartLine, RiMoneyDollarCircleLine,
   RiBarChartLine, RiBellLine, RiLogoutBoxLine,
   RiMenuLine, RiShieldLine, RiGraduationCapLine,
-  RiArrowRightSLine, RiFolderSettingsLine, RiFileList2Line, RiVipCrownLine, RiBookmarkLine,
+  RiArrowRightSLine, RiFolderSettingsLine, RiFileList2Line, RiFileList3Line, RiVipCrownLine, RiBookmarkLine,
   RiMailLine, RiTrophyLine
 } from 'react-icons/ri';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ export const navItems = [
   { id: 'exams', to: '/admin/exams', label: 'Odisha Exams', icon: RiShieldLine },
   { id: 'manage-mock-tests', to: '/admin/manage-mock-tests', label: 'Manage MockTest', icon: RiFolderSettingsLine },
   { id: 'subject-tests', to: '/admin/subject-tests', label: 'Subject Test', icon: RiBookmarkLine },
+  { id: 'instructions', to: '/admin/instructions', label: 'Instructions', icon: RiFileList3Line },
   { id: 'question-bank', to: '/admin/question-bank', label: 'Question Bank', icon: RiQuestionLine },
   { id: 'subjects', to: '/admin/subjects', label: 'Subjects', icon: RiBookOpenLine },
   { id: 'ebooks', to: '/admin/ebooks', label: 'PYQ E-Books', icon: RiBookLine },

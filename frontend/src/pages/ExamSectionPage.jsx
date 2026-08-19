@@ -141,6 +141,9 @@ export default function ExamSectionPage() {
 
     socket.on('exams_updated', handleUpdate);
     socket.on('mocktests_updated', handleUpdate);
+    socket.on('subject_tests_updated', handleUpdate);
+    socket.on('subjects_updated', handleUpdate);
+    socket.on('subject_categories_updated', handleUpdate);
 
     const timer = setInterval(handleUpdate, 5000);
 
@@ -152,6 +155,9 @@ export default function ExamSectionPage() {
       clearInterval(timer);
       socket.off('exams_updated', handleUpdate);
       socket.off('mocktests_updated', handleUpdate);
+      socket.off('subject_tests_updated', handleUpdate);
+      socket.off('subjects_updated', handleUpdate);
+      socket.off('subject_categories_updated', handleUpdate);
       window.removeEventListener('examsection-updated', handleUpdate);
       window.removeEventListener('mocktests-updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);

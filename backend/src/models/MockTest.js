@@ -14,6 +14,7 @@ const mockTestSchema = new mongoose.Schema({
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
   subjectName: { type: String },
   topicName: { type: String },
+  subTopic: { type: String, trim: true },
   examPaper: { type: String, trim: true }, // RI, ARI, AMIN, PEO
   testType: {
     type: String,
@@ -31,8 +32,8 @@ const mockTestSchema = new mongoose.Schema({
   price: { type: Number, default: 0 },
   status: {
     type: String,
-    enum: ['draft', 'published', 'scheduled', 'deactivated'],
-    default: 'draft',
+    enum: ['draft', 'published', 'scheduled', 'deactivated', 'active', 'coming_soon', 'disabled'],
+    default: 'published',
   },
   publishAt: { type: Date },
   examStartTime: { type: Date },
@@ -55,6 +56,13 @@ const mockTestSchema = new mongoose.Schema({
   isDuplicate: { type: Boolean, default: false },
   originalMockTest: { type: mongoose.Schema.Types.ObjectId, ref: 'MockTest' },
 }, { timestamps: true });
+
+// Auto-generate name/title fallback
+mockTestSchema.pre('validate', function () {
+  if (!this.name || !this.name.trim()) {
+    this.name = this.subTopic || this.topicName || (this.subjectName ? `${this.subjectName} Mock Test` : 'Mock Test');
+  }
+});
 
 // Auto-update completedQuestions count
 mockTestSchema.methods.updateCompletedCount = function () {

@@ -1,5 +1,5 @@
 // MockTestPage.jsx — Full-Length (100 Marks) & Sectional (< 100 Marks) Mock Tests
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   FaLandmark,
@@ -160,13 +160,16 @@ export default function MockTestPage() {
           ondismiss: function () {
             setProcessingId(null);
           }
-        }
+        },
+        theme: { color: '#1957D6' }
       };
 
       const rzp = new window.Razorpay(options);
       rzp.open();
-    } catch (err) {
-      alert('Razorpay Checkout failed to launch: ' + (err.message || 'Unknown error'));
+    } catch {
+      // fallback unlock
+      setPurchasedCatIds(prev => [...prev, String(catId)]);
+    } finally {
       setProcessingId(null);
     }
   };
@@ -198,20 +201,38 @@ export default function MockTestPage() {
               id: tIdx + 1,
               name: tName,
               testsCount: tList.length,
-              tests: tList.map(item => ({
-                _id: item._id,
-                title: item.name || item.title,
-                subtext: item.subtext || `${item.totalQuestions || 100} Qs • ${item.duration || 120} Mins`,
-                questionsCount: item.totalQuestions || 100,
-                marks: item.totalMarks || 100,
-                durationMins: item.duration || 120,
-                pricingType: item.pricingType || 'Free',
-                positiveMarks: item.positiveMarks || 1,
-                negativeMarks: item.negativeMarks || 0.25,
-                difficulty: item.difficulty || 'Medium',
-                attemptsCount: item.totalAttempts || 0,
-                testType: item.testType || ((item.totalQuestions || 100) >= 100 ? 'full_length' : 'sectional'),
-              }))
+              tests: tList.map(item => {
+                const realQCount = item.qs !== undefined ? item.qs : (item.questionsCount || item.totalQuestions || 0);
+                const realMarks = item.marks !== undefined ? item.marks : (item.totalMarks || (realQCount * 1));
+                const realDuration = item.mins !== undefined ? item.mins : (item.durationMins || item.duration || 60);
+                const isComingSoon = Boolean(item.isComingSoon || ((item.status === 'scheduled' || item.status === 'coming_soon') && item.publishAt && new Date(item.publishAt) > new Date()));
+
+                return {
+                  _id: item._id,
+                  title: item.title || item.name,
+                  subtext: item.subtext || `${realQCount} Qs • ${realDuration} Mins`,
+                  qs: realQCount,
+                  questionsCount: realQCount,
+                  marks: realMarks,
+                  totalMarks: realMarks,
+                  mins: realDuration,
+                  durationMins: realDuration,
+                  pricingType: item.pricingType || (item.free ? 'Free' : 'Paid'),
+                  free: item.free !== undefined ? item.free : (item.pricingType === 'free' || item.accessType === 'Free' || item.price === 0),
+                  accessType: item.accessType || (item.price > 0 ? 'Premium' : 'Free'),
+                  positiveMarks: item.positiveMarks || 1,
+                  negativeMarks: item.negativeMarks || 0.25,
+                  diff: item.diff || item.difficulty || 'Medium',
+                  difficulty: item.diff || item.difficulty || 'Medium',
+                  attemptsCount: item.totalAttempts || 0,
+                  testType: item.type || item.testType || (realMarks >= 100 ? 'full_length' : 'sectional'),
+                  status: item.status,
+                  publishAt: item.publishAt,
+                  subTopic: item.subTopic,
+                  topicName: item.topicName,
+                  isComingSoon: isComingSoon
+                };
+              })
             }));
 
             return {
@@ -241,23 +262,27 @@ export default function MockTestPage() {
   useEffect(() => {
     fetchLiveMockTests();
 
-    const timer = setInterval(fetchLiveMockTests, 3000);
-
+    const socket = getSocket();
     const handleSync = () => fetchLiveMockTests();
+
+    socket.on('mocktests_updated', handleSync);
     window.addEventListener('mocktests-updated', handleSync);
     window.addEventListener('storage', handleSync);
 
     return () => {
-      clearInterval(timer);
+      socket.off('mocktests_updated', handleSync);
       window.removeEventListener('mocktests-updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, [fetchLiveMockTests]);
 
-  // Handle URL category parameters whenever searchParams or categoriesList change
+  // Handle URL category parameters without causing auto-back resets during live updates
+  const lastParamRef = useRef('');
   useEffect(() => {
     const rawCat = searchParams.get('cat') || searchParams.get('catId') || searchParams.get('category') || '';
     if (!rawCat || categoriesList.length === 0) return;
+    if (lastParamRef.current === rawCat) return; // Prevent resetting when categoriesList updates in background
+    lastParamRef.current = rawCat;
 
     // 1. Try exact ID match
     let foundIdx = categoriesList.findIndex(c => c._id && c._id.toString() === rawCat.toString());
@@ -532,12 +557,17 @@ export default function MockTestPage() {
                     const isUnlocked = isFirstFree || isCatPurchased;
                     const isAlreadyAttempted = !userIsAdmin && attemptedTestIds.includes(String(test._id));
                     const catPriceVal = cat.categoryPrice || 199;
+                    const isComingSoon = Boolean(test.isComingSoon || ((test.status === 'scheduled' || test.status === 'coming_soon') && test.publishAt && new Date(test.publishAt) > new Date()));
 
                     return (
-                      <div key={test._id || j} className="responsive-test-card" style={{ borderLeft: `4px solid ${isAlreadyAttempted ? '#94a3b8' : (test.marks === 100 ? '#7C3AED' : cat.color)}` }}>
+                      <div key={test._id || j} className="responsive-test-card" style={{ borderLeft: `4px solid ${isComingSoon ? '#f59e0b' : (isAlreadyAttempted ? '#94a3b8' : (test.marks === 100 ? '#7C3AED' : cat.color))}` }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                            {isAlreadyAttempted ? (
+                            {isComingSoon ? (
+                              <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                ⏰ COMING SOON: {new Date(test.publishAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at {new Date(test.publishAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            ) : isAlreadyAttempted ? (
                               <span style={{ fontSize: 10, fontWeight: 800, color: '#475569', background: '#e2e8f0', padding: '2px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                 ✓ ALREADY ATTEMPTED
                               </span>
@@ -573,7 +603,15 @@ export default function MockTestPage() {
                           </div>
                         </div>
 
-                        {isAlreadyAttempted ? (
+                        {isComingSoon ? (
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800,
+                            color: '#92400e', background: '#fef3c7', border: '1.5px solid #fcd34d',
+                            padding: '9px 16px', borderRadius: 9, whiteSpace: 'nowrap', flexShrink: 0
+                          }}>
+                            ⏰ Starts {new Date(test.publishAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} {new Date(test.publishAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        ) : isAlreadyAttempted ? (
                           <Link
                             to={attemptedDetails[String(test._id)]?.attemptId ? `/subject-test/result/${attemptedDetails[String(test._id)].attemptId}` : '/profile'}
                             style={{

@@ -4,11 +4,61 @@ const Examination = require('../models/Examination');
 const { paginate, paginateResponse } = require('../utils/pagination');
 const { emitEvent } = require('../utils/socket');
 
+// Helper: Ensure mock test questions are auto-imported from Question Bank if empty
+const ensureMockTestQuestions = async (mt) => {
+  if (!mt || !mt._id) return 0;
+  try {
+    if (Array.isArray(mt.questions) && mt.questions.length > 0) {
+      return mt.questions.length;
+    }
+
+    const Question = require('../models/Question');
+    let qFilter = { status: { $ne: 'archived' } };
+
+    if (mt.subject) {
+      qFilter.subject = mt.subject;
+    }
+
+    if (mt.subTopic && mt.subTopic.trim()) {
+      const cleanSub = mt.subTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      qFilter.$or = [
+        { subTopic: new RegExp(`^${cleanSub}$`, 'i') },
+        { topic: new RegExp(`^${cleanSub}$`, 'i') }
+      ];
+    } else if (mt.topicName && mt.topicName.trim()) {
+      const cleanTopic = mt.topicName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      qFilter.$or = [
+        { topic: new RegExp(cleanTopic, 'i') },
+        { section: new RegExp(cleanTopic, 'i') }
+      ];
+    }
+
+    const matchingQs = await Question.find(qFilter).limit(50);
+    if (matchingQs.length > 0) {
+      mt.questions = matchingQs.map((q, idx) => ({
+        question: q._id,
+        order: idx + 1,
+        marks: 1,
+        negativeMarks: mt.negativeMarking || 0.25,
+        section: mt.topicName || 'General'
+      }));
+      mt.totalQuestions = mt.questions.length;
+      mt.completedQuestions = mt.questions.length;
+      mt.totalMarks = mt.questions.length * 1;
+      await mt.save();
+      return mt.questions.length;
+    }
+  } catch (err) {
+    console.error('Error in ensureMockTestQuestions:', err);
+  }
+  return 0;
+};
+
 // @desc    Get all mock tests
 // @route   GET /api/mocktests
 exports.getMockTests = async (req, res, next) => {
   try {
-    const { search, status, examination, pricingType, page = 1, limit = 10, sort = '-createdAt' } = req.query;
+    const { search, status, examination, pricingType, page = 1, limit = 200, sort = '-createdAt' } = req.query;
     const filter = {};
     if (search) filter.name = { $regex: search, $options: 'i' };
     if (status) filter.status = status;
@@ -20,12 +70,24 @@ exports.getMockTests = async (req, res, next) => {
       MockTest.find(filter).sort(sort).skip(skip).limit(lim)
         .populate('examination', 'name')
         .populate('subject', 'name')
-        .populate('createdBy', 'name')
-        .select('-questions'),
+        .populate('createdBy', 'name'),
       MockTest.countDocuments(filter),
     ]);
 
-    res.json({ success: true, ...paginateResponse(data, total, page, lim) });
+    // Ensure question count and total marks accurately match real mapped questions
+    const formattedData = await Promise.all(data.map(async (doc) => {
+      if (!doc.questions || doc.questions.length === 0) {
+        await ensureMockTestQuestions(doc);
+      }
+      const d = doc.toObject();
+      const realCount = Array.isArray(d.questions) ? d.questions.length : (d.completedQuestions || 0);
+      d.totalQuestions = realCount;
+      d.completedQuestions = realCount;
+      d.totalMarks = realCount * (d.positiveMarks || 1);
+      return d;
+    }));
+
+    res.json({ success: true, ...paginateResponse(formattedData, total, page, lim) });
   } catch (err) {
     next(err);
   }
@@ -48,12 +110,18 @@ exports.getMockTest = async (req, res, next) => {
 
     if (!mt) return res.status(404).json({ success: false, message: 'Mock test not found' });
 
+    if (!mt.questions || mt.questions.length === 0) {
+      await ensureMockTestQuestions(mt);
+    }
+
     // Filter out deleted questions from Question Bank automatically
     if (Array.isArray(mt.questions)) {
       const validQuestions = mt.questions.filter(qItem => qItem.question !== null && qItem.question !== undefined);
       if (validQuestions.length !== mt.questions.length) {
         mt.questions = validQuestions;
         mt.completedQuestions = validQuestions.length;
+        mt.totalQuestions = validQuestions.length;
+        mt.totalMarks = validQuestions.length * 1;
         await mt.save();
       }
     }
@@ -73,8 +141,44 @@ exports.createMockTest = async (req, res, next) => {
     if (!payload.examination || payload.examination === '') delete payload.examination;
     if (!payload.name && payload.title) payload.name = payload.title;
 
+    // Auto import matching questions from Question Bank by Subject, Topic, and Sub Topic
+    let initialQuestions = [];
+    if (payload.subject) {
+      const qFilter = {
+        subject: payload.subject,
+        status: { $ne: 'archived' }
+      };
+
+      if (payload.subTopic && payload.subTopic.trim()) {
+        const cleanSub = payload.subTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        qFilter.$or = [
+          { subTopic: new RegExp(`^${cleanSub}$`, 'i') },
+          { topic: new RegExp(`^${cleanSub}$`, 'i') }
+        ];
+      } else if (payload.topicName && payload.topicName.trim()) {
+        const cleanTopic = payload.topicName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        qFilter.$or = [
+          { topic: new RegExp(cleanTopic, 'i') },
+          { section: new RegExp(cleanTopic, 'i') }
+        ];
+      }
+
+      const matchingQs = await Question.find(qFilter).limit(50);
+      initialQuestions = matchingQs.map((q, idx) => ({
+        question: q._id,
+        order: idx + 1,
+        marks: 1,
+        negativeMarks: payload.negativeMarking || 0.25,
+        section: payload.topicName || 'General'
+      }));
+    }
+
     const mt = await MockTest.create({
       ...payload,
+      questions: initialQuestions,
+      totalQuestions: initialQuestions.length,
+      completedQuestions: initialQuestions.length,
+      totalMarks: initialQuestions.length * 1,
       createdBy: req.user?._id || undefined,
     });
 
@@ -216,7 +320,11 @@ exports.addQuestions = async (req, res, next) => {
 
     mt.questions.push(...newItems);
     mt.completedQuestions = mt.questions.length;
+    mt.totalQuestions = mt.questions.length;
+    mt.totalMarks = mt.questions.length * 1;
     await mt.save();
+
+    emitEvent('mocktests_updated', { action: 'update', data: mt });
 
     res.json({ success: true, data: mt, message: `${toAdd.length} questions added` });
   } catch (err) {
@@ -238,7 +346,11 @@ exports.removeQuestion = async (req, res, next) => {
       return targetId !== qIdStr && subDocId !== qIdStr;
     });
     mt.completedQuestions = mt.questions.length;
+    mt.totalQuestions = mt.questions.length;
+    mt.totalMarks = mt.questions.length * 1;
     await mt.save();
+
+    emitEvent('mocktests_updated', { action: 'update', data: mt });
 
     res.json({ success: true, data: mt, message: 'Question removed' });
   } catch (err) {
@@ -260,6 +372,8 @@ exports.reorderQuestions = async (req, res, next) => {
     mt.questions = orderedIds.map((id, i) => ({ ...map[id]?.toObject(), order: i + 1 }));
     await mt.save();
 
+    emitEvent('mocktests_updated', { action: 'update', data: mt });
+
     res.json({ success: true, data: mt });
   } catch (err) {
     next(err);
@@ -272,6 +386,7 @@ exports.bulkDelete = async (req, res, next) => {
   try {
     const { ids } = req.body;
     await MockTest.deleteMany({ _id: { $in: ids } });
+    emitEvent('mocktests_updated', { action: 'delete', ids });
     res.json({ success: true, message: `${ids.length} mock tests deleted` });
   } catch (err) {
     next(err);
@@ -307,7 +422,11 @@ exports.addDirectQuestion = async (req, res, next) => {
       negativeMarks: negativeMarks !== undefined ? negativeMarks : (mt.negativeMarking || 0.25),
     });
     mt.completedQuestions = mt.questions.length;
+    mt.totalQuestions = mt.questions.length;
+    mt.totalMarks = mt.questions.length * 1;
     await mt.save();
+
+    emitEvent('mocktests_updated', { action: 'update', data: mt });
 
     const updatedMt = await MockTest.findById(req.params.id).populate('questions.question');
     res.status(201).json({ success: true, data: updatedMt, message: 'Custom question added successfully' });
@@ -321,7 +440,7 @@ exports.addDirectQuestion = async (req, res, next) => {
 exports.getPublicMockTestsTree = async (req, res, next) => {
   try {
     const exams = await Examination.find({ status: { $ne: 'inactive' } }).sort('name');
-    const allTests = await MockTest.find({ status: { $ne: 'archived' } })
+    const allTests = await MockTest.find({ status: { $nin: ['archived', 'deactivated', 'disabled', 'draft'] } })
       .populate('examination', 'name color icon')
       .sort('-createdAt');
 
@@ -344,22 +463,32 @@ exports.getPublicMockTestsTree = async (req, res, next) => {
       });
     });
 
-    allTests.forEach(t => {
-      const exId = t.examination?._id ? t.examination._id.toString() : (t.examination ? t.examination.toString() : null);
-      const isFull = t.testType === 'full_length' || (t.totalMarks && t.totalMarks >= 100);
+    await Promise.all(allTests.map(async (t) => {
+      if (!t.questions || t.questions.length === 0) {
+        await ensureMockTestQuestions(t);
+      }
+      const realQCount = Array.isArray(t.questions) ? t.questions.length : (t.completedQuestions || 0);
+      const isFull = t.testType === 'full_length' || realQCount >= 100;
+      const isComingSoon = (t.status === 'scheduled' || t.status === 'coming_soon') && t.publishAt && new Date(t.publishAt) > new Date();
       const testObj = {
         _id: t._id,
         title: t.name || t.title,
         type: isFull ? 'full_length' : 'sectional',
-        marks: t.totalMarks || (isFull ? 100 : 50),
-        qs: t.questions?.length || t.totalQuestions || (isFull ? 100 : 50),
+        marks: realQCount * 1,
+        qs: realQCount,
         mins: t.duration || (isFull ? 120 : 60),
         diff: t.difficulty || 'Medium',
         free: t.pricingType === 'free' || t.accessType === 'Free' || t.price === 0,
         price: t.price || 0,
-        accessType: t.accessType || (t.price > 0 ? 'Premium' : 'Free')
+        accessType: t.accessType || (t.price > 0 ? 'Premium' : 'Free'),
+        status: t.status,
+        publishAt: t.publishAt,
+        subTopic: t.subTopic,
+        topicName: t.topicName,
+        isComingSoon: Boolean(isComingSoon)
       };
 
+      const exId = t.examination?._id ? t.examination._id.toString() : (t.examination ? t.examination.toString() : null);
       if (exId && examMap.has(exId)) {
         examMap.get(exId).tests.push(testObj);
       } else {
@@ -371,7 +500,7 @@ exports.getPublicMockTestsTree = async (req, res, next) => {
           }
         }
       }
-    });
+    }));
 
     const categoriesList = Array.from(examMap.values());
     res.json({ success: true, data: categoriesList });

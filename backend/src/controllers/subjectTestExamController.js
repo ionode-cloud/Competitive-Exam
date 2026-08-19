@@ -265,13 +265,25 @@ exports.getTestInstructions = async (req, res, next) => {
       const MockTest = require('../models/MockTest');
       const mockTest = await MockTest.findById(testId).populate('examination', 'name').populate('subject', 'name');
       if (mockTest) {
+        if (['deactivated', 'disabled', 'draft'].includes(mockTest.status) && !req.user?.role?.includes('admin')) {
+          return res.status(400).json({ success: false, message: 'This mock test is currently disabled' });
+        }
+        if ((mockTest.status === 'scheduled' || mockTest.status === 'coming_soon') && mockTest.publishAt && new Date(mockTest.publishAt) > new Date() && !req.user?.role?.includes('admin')) {
+          return res.status(400).json({
+            success: false,
+            isComingSoon: true,
+            publishAt: mockTest.publishAt,
+            message: `This test is Coming Soon and will be available on ${new Date(mockTest.publishAt).toLocaleString()}`
+          });
+        }
+
         const isFull = mockTest.testType === 'full_length' || (mockTest.totalMarks && mockTest.totalMarks >= 100);
         test = {
           _id: mockTest._id,
           title: mockTest.name || mockTest.title,
           description: mockTest.description,
           subjectId: { name: mockTest.subject?.name || mockTest.examination?.name || 'Mock Test' },
-          topicId: { name: mockTest.topicName || (isFull ? 'Full Length Test' : 'Sectional Test') },
+          topicId: { name: mockTest.subTopic || mockTest.topicName || (isFull ? 'Full Length Test' : 'Sectional Test') },
           totalQuestions: mockTest.questions?.length || mockTest.totalQuestions || (isFull ? 100 : 50),
           totalMarks: mockTest.totalMarks || (isFull ? 100 : 50),
           duration: mockTest.duration || (isFull ? 120 : 60),
@@ -291,11 +303,63 @@ exports.getTestInstructions = async (req, res, next) => {
       await ensureTestQuestions(test);
     }
 
-    let instruction = await SubjectTestInstruction.findOne({ testId: test._id });
+    // 1. Direct testId match
+    let instruction = await SubjectTestInstruction.findOne({ testId: test._id, status: 'active' });
+
+    // 2. Sub-Topic / Topic / Subject level match
+    if (!instruction && test.subjectId) {
+      const sId = test.subjectId._id || test.subjectId;
+      const sName = test.subjectId?.name || test.subjectName || '';
+      const tName = test.topicId?.name || test.topicName || '';
+      const subName = test.subTopic || '';
+
+      if (subName && tName) {
+        instruction = await SubjectTestInstruction.findOne({
+          status: 'active',
+          $or: [
+            { subjectId: sId, topicName: new RegExp(`^${tName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), subTopic: new RegExp(`^${subName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { subjectName: new RegExp(`^${sName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), topicName: new RegExp(`^${tName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), subTopic: new RegExp(`^${subName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ]
+        });
+      }
+
+      if (!instruction && tName) {
+        instruction = await SubjectTestInstruction.findOne({
+          status: 'active',
+          $or: [
+            { subjectId: sId, topicName: new RegExp(`^${tName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { subjectName: new RegExp(`^${sName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), topicName: new RegExp(`^${tName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ]
+        });
+      }
+
+      if (!instruction) {
+        instruction = await SubjectTestInstruction.findOne({
+          status: 'active',
+          $or: [
+            { subjectId: sId, topicName: { $in: ['', 'All Topics', 'all', null] } },
+            { subjectName: new RegExp(`^${sName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), topicName: { $in: ['', 'All Topics', 'all', null] } }
+          ]
+        });
+      }
+    }
+
+    // 3. Global All-Subjects Instruction match
+    if (!instruction) {
+      instruction = await SubjectTestInstruction.findOne({
+        status: 'active',
+        $or: [
+          { subjectName: { $in: ['All', 'All Subjects', 'all', 'General', ''] } },
+          { subjectId: null }
+        ]
+      });
+    }
+
+    // 4. Default Fallback
     if (!instruction) {
       instruction = {
-        title: test.title,
-        summary: test.description || 'Competitive Exam Mock Test',
+        title: test.title || 'General Examination Instructions',
+        summary: test.description || 'Competitive Exam Online Test',
         sections: [{ name: test.subjectId?.name || 'General Paper', questions: test.totalQuestions, marks: test.totalMarks, duration: test.duration, negativeMarking: test.negativeMarks }],
         instructions: [
           `You have ${test.duration} minutes to complete the test.`,
@@ -346,6 +410,16 @@ exports.startExamAttempt = async (req, res, next) => {
       const MockTest = require('../models/MockTest');
       const mockTest = await MockTest.findById(testId);
       if (mockTest) {
+        if (['deactivated', 'disabled', 'draft'].includes(mockTest.status) && !req.user?.role?.includes('admin')) {
+          return res.status(400).json({ success: false, message: 'This mock test is currently disabled' });
+        }
+        if ((mockTest.status === 'scheduled' || mockTest.status === 'coming_soon') && mockTest.publishAt && new Date(mockTest.publishAt) > new Date() && !req.user?.role?.includes('admin')) {
+          return res.status(400).json({
+            success: false,
+            message: `This test is Coming Soon and will be available on ${new Date(mockTest.publishAt).toLocaleString()}`
+          });
+        }
+
         const isFull = mockTest.testType === 'full_length' || (mockTest.totalMarks && mockTest.totalMarks >= 100);
         test = {
           _id: mockTest._id,

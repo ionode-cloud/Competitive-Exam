@@ -52,17 +52,22 @@ export default function ManageMockTest() {
   const [editingTest, setEditingTest] = useState(null);
   const [testForm, setTestForm] = useState({
     examination: '',
+    subjectId: '',
+    subjectName: '',
+    topicName: '',
+    subTopic: '',
     name: '',
     testType: 'full_length',
     pricingType: 'free',
     accessType: 'Free',
-    price: 49,
+    price: 0,
     duration: 120,
     totalQuestions: 100,
     totalMarks: 100,
     negativeMarking: 0.25,
     description: '',
-    status: 'published'
+    status: 'active',
+    publishAt: ''
   });
 
   // Exam / Category Modal State
@@ -84,10 +89,19 @@ export default function ManageMockTest() {
     }
   }, [exams]);
 
+  const notifyMockTestsUpdated = () => {
+    try {
+      const socket = getSocket();
+      socket.emit('mocktests_updated', { action: 'update' });
+      window.dispatchEvent(new Event('mocktests-updated'));
+    } catch { /* proceed */ }
+  };
+
   const handleSaveExamPrice = async (examId, newPrice) => {
     try {
       await api.put(`/exams/${examId}`, { price: Number(newPrice) });
       Swal.fire('Saved!', 'Mock Test Category price updated successfully', 'success');
+      notifyMockTestsUpdated();
       fetchExams();
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Failed to update category price', 'error');
@@ -312,15 +326,24 @@ export default function ManageMockTest() {
 
   const handleSubjectChangeInModal = (subjId) => {
     const selectedSubj = allSubjects.find(s => s._id === subjId);
+    const firstTopic = Array.isArray(selectedSubj?.topicList) && selectedSubj.topicList.length > 0
+      ? selectedSubj.topicList[0].name
+      : (selectedSubj?.topics?.[0] || '');
+    const firstTopicObj = selectedSubj?.topicList?.find(t => t.name === firstTopic);
+    const firstSubTopic = firstTopicObj?.subTopics?.[0] || '';
+
     setTestForm(f => ({
       ...f,
       subjectId: subjId,
       subjectName: selectedSubj?.name || '',
-      topicName: ''
+      topicName: firstTopic,
+      subTopic: firstSubTopic
     }));
     
-    if (selectedSubj && Array.isArray(selectedSubj.topics)) {
-      setAvailableTopics(selectedSubj.topics);
+    if (selectedSubj && Array.isArray(selectedSubj.topicList) && selectedSubj.topicList.length > 0) {
+      setAvailableTopics(selectedSubj.topicList.map(t => t.name));
+    } else if (selectedSubj && Array.isArray(selectedSubj.topics)) {
+      setAvailableTopics(selectedSubj.topics.map(t => typeof t === 'string' ? t : t.name));
     } else {
       setAvailableTopics([]);
     }
@@ -330,11 +353,18 @@ export default function ManageMockTest() {
   const openCreateTest = () => {
     setEditingTest(null);
     const defaultSubj = allSubjects[0];
+    const firstTopic = Array.isArray(defaultSubj?.topicList) && defaultSubj.topicList.length > 0
+      ? defaultSubj.topicList[0].name
+      : (defaultSubj?.topics?.[0] || '');
+    const firstTopicObj = defaultSubj?.topicList?.find(t => t.name === firstTopic);
+    const firstSubTopic = firstTopicObj?.subTopics?.[0] || '';
+
     setTestForm({
       examination: exams[0]?._id || '',
       subjectId: defaultSubj?._id || '',
       subjectName: defaultSubj?.name || '',
-      topicName: '',
+      topicName: firstTopic,
+      subTopic: firstSubTopic,
       name: '',
       testType: 'full_length',
       pricingType: 'free',
@@ -345,9 +375,14 @@ export default function ManageMockTest() {
       totalMarks: 100,
       negativeMarking: 0.25,
       description: '',
-      status: 'published'
+      status: 'active',
+      publishAt: ''
     });
-    setAvailableTopics(defaultSubj?.topics || []);
+    if (defaultSubj && Array.isArray(defaultSubj.topicList) && defaultSubj.topicList.length > 0) {
+      setAvailableTopics(defaultSubj.topicList.map(t => t.name));
+    } else {
+      setAvailableTopics(defaultSubj?.topics || []);
+    }
     setTestModal(true);
   };
 
@@ -355,11 +390,16 @@ export default function ManageMockTest() {
     setEditingTest(t);
     const subjIdVal = t.subject?._id || t.subject || t.subjectId || '';
     const subjObj = allSubjects.find(s => s._id === subjIdVal);
+    let mappedStatus = 'active';
+    if (t.status === 'scheduled' || t.status === 'coming_soon') mappedStatus = 'coming_soon';
+    else if (t.status === 'deactivated' || t.status === 'disabled' || t.status === 'draft') mappedStatus = 'disabled';
+
     setTestForm({
       examination: t.examination?._id || t.examination || '',
       subjectId: subjIdVal,
       subjectName: subjObj?.name || t.subjectName || t.subject?.name || '',
       topicName: t.topicName || '',
+      subTopic: t.subTopic || '',
       name: t.name || t.title || '',
       testType: t.testType || (t.totalMarks >= 100 ? 'full_length' : 'sectional'),
       pricingType: t.pricingType || (t.accessType === 'Free' || t.price === 0 ? 'free' : 'paid'),
@@ -370,35 +410,49 @@ export default function ManageMockTest() {
       totalMarks: t.totalMarks || 100,
       negativeMarking: t.negativeMarking || 0.25,
       description: t.description || '',
-      status: t.status || 'published'
+      status: mappedStatus,
+      publishAt: t.publishAt ? new Date(t.publishAt).toISOString().slice(0, 16) : ''
     });
-    setAvailableTopics(subjObj?.topics || []);
+    if (subjObj && Array.isArray(subjObj.topicList) && subjObj.topicList.length > 0) {
+      setAvailableTopics(subjObj.topicList.map(t => t.name));
+    } else {
+      setAvailableTopics(subjObj?.topics || []);
+    }
     setTestModal(true);
   };
 
   const saveTest = async () => {
-    if (!testForm.name || !testForm.name.trim()) {
-      return Swal.fire('Error', 'Test Title is required', 'error');
-    }
-
     // Ensure exam category exists or use fallback default
     const examId = testForm.examination || (exams.length > 0 ? exams[0]._id : undefined);
+    const computedName = (testForm.subTopic || testForm.topicName || testForm.name || (testForm.subjectName ? `${testForm.subjectName} Mock Test` : 'Mock Test')).trim();
+
+    if (testForm.status === 'coming_soon' && !testForm.publishAt) {
+      return Swal.fire('Error', 'Please select Date and Time for Coming Soon status', 'error');
+    }
 
     try {
       const isFull = testForm.testType === 'full_length';
+      let backendStatus = 'published';
+      if (testForm.status === 'coming_soon') backendStatus = 'scheduled';
+      else if (testForm.status === 'disabled') backendStatus = 'deactivated';
+
+      const currentQsCount = editingTest ? (editingTest.questions?.length ?? editingTest.completedQuestions ?? editingTest.totalQuestions ?? 0) : 0;
+
       const cleanPayload = {
-        name: testForm.name.trim(),
-        title: testForm.name.trim(),
+        name: computedName,
+        title: computedName,
         testType: testForm.testType || 'full_length',
-        duration: isFull ? 120 : 60,
-        totalQuestions: isFull ? 100 : 50,
-        totalMarks: isFull ? 100 : 50,
+        duration: Number(testForm.duration) || (isFull ? 120 : 60),
+        totalQuestions: currentQsCount,
+        completedQuestions: currentQsCount,
+        totalMarks: currentQsCount * 1,
         negativeMarking: Number(testForm.negativeMarking) || 0.25,
         description: testForm.description || '',
         accessType: 'Free',
         price: 0,
         pricingType: 'free',
-        status: testForm.status || 'published',
+        status: backendStatus,
+        publishAt: testForm.status === 'coming_soon' && testForm.publishAt ? new Date(testForm.publishAt).toISOString() : undefined,
       };
 
       if (examId) {
@@ -410,6 +464,9 @@ export default function ManageMockTest() {
       }
       if (testForm.topicName && testForm.topicName !== '') {
         cleanPayload.topicName = testForm.topicName;
+      }
+      if (testForm.subTopic && testForm.subTopic !== '') {
+        cleanPayload.subTopic = testForm.subTopic;
       }
 
       if (editingTest) {
@@ -650,9 +707,9 @@ export default function ManageMockTest() {
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
                   <th style={{ padding: '14px 18px' }}>Mock Test Title</th>
                   <th style={{ padding: '14px 18px' }}>Exam Category</th>
-                  <th style={{ padding: '14px 18px' }}>Subject</th>
-                  <th style={{ padding: '14px 18px' }}>Topic / Section</th>
-                  <th style={{ padding: '14px 18px' }}>Paper Type</th>
+                  <th style={{ padding: '14px 18px' }}>Subject &amp; Topic</th>
+                  <th style={{ padding: '14px 18px' }}>Paper Type &amp; Time</th>
+                  <th style={{ padding: '14px 18px' }}>Status</th>
                   <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -663,11 +720,16 @@ export default function ManageMockTest() {
                   <tr><td colSpan="6" style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No mock tests found. Click "+ Create Mock Test" to create your first test.</td></tr>
                 ) : (
                   filteredTests.map(t => {
-                    const isFullLength = t.testType === 'full_length' || (t.totalMarks && t.totalMarks >= 100);
+                    const qCount = Array.isArray(t.questions) ? t.questions.length : (t.completedQuestions ?? t.totalQuestions ?? 0);
+                    const totalMarks = t.totalMarks !== undefined && t.totalMarks !== null ? t.totalMarks : (qCount * 1);
+                    const isFullLength = t.testType === 'full_length' || totalMarks >= 100;
                     const examName = t.examination?.name || 'Odisha Exam';
                     const subjName = t.subjectName || t.subject?.name || 'General';
                     const topicName = t.topicName || 'General';
-                    const qCount = t.questions?.length || t.totalQuestions || 0;
+                    const subTopicName = t.subTopic || '';
+                    const durationMins = t.duration || (isFullLength ? 120 : 60);
+                    const isComingSoon = (t.status === 'scheduled' || t.status === 'coming_soon');
+                    const isDisabled = (t.status === 'deactivated' || t.status === 'disabled' || t.status === 'draft');
 
                     return (
                       <tr key={t._id} style={{ borderBottom: '1px solid var(--line,#e2e8f0)' }}>
@@ -677,16 +739,48 @@ export default function ManageMockTest() {
                         </td>
                         <td style={{ padding: '14px 18px' }}>
                           <div style={{ fontWeight: 700, fontSize: 12, color: '#0f172a' }}>{subjName}</div>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                            <span style={{ fontSize: 10.5, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 6 }}>
+                              {topicName}
+                            </span>
+                            {subTopicName && (
+                              <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f5f3ff', color: '#7c3aed', padding: '2px 7px', borderRadius: 6 }}>
+                                ↳ {subTopicName}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '14px 18px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '3px 9px', borderRadius: 10 }}>
-                            {topicName}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: isFullLength ? '#F3ECFE' : '#DCFCE7', color: isFullLength ? '#7C3AED' : '#16A34A' }}>
+                              {isFullLength ? `FULL LENGTH (${totalMarks} M)` : `SECTIONAL (${totalMarks} M)`}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>
+                              ⏱ {durationMins}m
+                            </span>
+                          </div>
                         </td>
                         <td style={{ padding: '14px 18px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: isFullLength ? '#F3ECFE' : '#DCFCE7', color: isFullLength ? '#7C3AED' : '#16A34A' }}>
-                            {isFullLength ? 'FULL LENGTH (100 M)' : 'SECTIONAL (<100 M)'}
-                          </span>
+                          {isComingSoon ? (
+                            <div>
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                                ⏰ COMING SOON
+                              </span>
+                              {t.publishAt && (
+                                <div style={{ fontSize: 10, color: '#92400e', marginTop: 2, fontWeight: 700 }}>
+                                  {new Date(t.publishAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} {new Date(t.publishAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              )}
+                            </div>
+                          ) : isDisabled ? (
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+                              🛑 DISABLED
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 12, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+                              ✓ ACTIVE
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -1006,7 +1100,17 @@ export default function ManageMockTest() {
                 {availableTopics.length > 0 ? (
                   <select
                     value={testForm.topicName}
-                    onChange={e => setTestForm(f => ({ ...f, topicName: e.target.value }))}
+                    onChange={e => {
+                      const selectedTopicName = e.target.value;
+                      const subjObj = allSubjects.find(s => s._id === testForm.subjectId);
+                      const topicObj = subjObj?.topicList?.find(t => (t.name || t) === selectedTopicName);
+                      const firstSub = topicObj?.subTopics?.[0] || '';
+                      setTestForm(f => ({
+                        ...f,
+                        topicName: selectedTopicName,
+                        subTopic: firstSub
+                      }));
+                    }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
                   >
                     <option value="">-- Select Topic --</option>
@@ -1027,29 +1131,103 @@ export default function ManageMockTest() {
               </div>
             </div>
 
-            {/* Paper Type */}
+            {/* Sub Topic Dropdown */}
+            {(() => {
+              const currentSubj = allSubjects.find(s => s._id === testForm.subjectId);
+              const currentTopicObj = currentSubj?.topicList?.find(t => (t.name || t) === testForm.topicName);
+              const currentSubTopics = Array.isArray(currentTopicObj?.subTopics) ? currentTopicObj.subTopics.filter(Boolean) : [];
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>
+                    Sub Topic {currentSubTopics.length > 0 ? '(Optional/Select)' : ''}
+                  </label>
+                  {currentSubTopics.length > 0 ? (
+                    <select
+                      value={testForm.subTopic || ''}
+                      onChange={e => setTestForm(f => ({ ...f, subTopic: e.target.value }))}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                    >
+                      <option value="">-- Select Sub Topic --</option>
+                      {currentSubTopics.map((sub, idx) => (
+                        <option key={idx} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={testForm.subTopic || ''}
+                      onChange={e => setTestForm(f => ({ ...f, subTopic: e.target.value }))}
+                      placeholder="e.g. Percentage, Profit & Loss, Articles"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                    />
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Paper Type & Exam Duration */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Paper Type *</label>
+                <select
+                  value={testForm.testType}
+                  onChange={e => {
+                    const newType = e.target.value;
+                    setTestForm(f => ({
+                      ...f,
+                      testType: newType,
+                      duration: newType === 'full_length' ? 120 : 60
+                    }));
+                  }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                >
+                  <option value="full_length">Full Length (100 Marks)</option>
+                  <option value="sectional">Sectional (&lt;100 Marks)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Exam Duration (Mins) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={testForm.duration || 60}
+                  onChange={e => setTestForm(f => ({ ...f, duration: Number(e.target.value) || 60 }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            {/* Status Dropdown (Active, Coming Soon, Disable) */}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Paper Type *</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Status *</label>
               <select
-                value={testForm.testType}
-                onChange={e => setTestForm(f => ({ ...f, testType: e.target.value }))}
+                value={testForm.status}
+                onChange={e => setTestForm(f => ({ ...f, status: e.target.value }))}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontWeight: 700 }}
               >
-                <option value="full_length">Full Length (100 Marks)</option>
-                <option value="sectional">Sectional (&lt;100 Marks)</option>
+                <option value="active">Active</option>
+                <option value="coming_soon">Coming Soon</option>
+                <option value="disabled">Disable</option>
               </select>
             </div>
 
-            {/* Test Title */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Test Title *</label>
-              <input
-                value={testForm.name}
-                onChange={e => setTestForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. OSSSC RI Mathematics Sectional Test 01"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-              />
-            </div>
+            {/* Coming Soon Date and Time */}
+            {testForm.status === 'coming_soon' && (
+              <div style={{ marginBottom: 16, background: '#fef3c7', padding: '12px', borderRadius: 8, border: '1px solid #fde68a' }}>
+                <label style={{ fontSize: 12, fontWeight: 800, color: '#92400e', display: 'block', marginBottom: 6 }}>
+                  ⏰ Coming Soon Available Date &amp; Time *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={testForm.publishAt || ''}
+                  onChange={e => setTestForm(f => ({ ...f, publishAt: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #f59e0b', fontWeight: 700, background: '#fff' }}
+                />
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#b45309', fontWeight: 600 }}>
+                  Test will display as &quot;Coming Soon&quot; to users until this scheduled date and time, after which attempts will automatically unlock.
+                </p>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
               <button onClick={() => setTestModal(false)} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}>

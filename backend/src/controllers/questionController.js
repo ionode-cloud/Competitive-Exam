@@ -8,6 +8,7 @@ const { paginate, paginateResponse } = require('../utils/pagination');
 const SubjectTestQuestionMap = require('../models/SubjectTestQuestionMap');
 const SubjectTest = require('../models/SubjectTest');
 const MockTest = require('../models/MockTest');
+const { emitEvent } = require('../utils/socket');
 
 const syncQuestionDeletionWithTests = async (questionIds) => {
   if (!Array.isArray(questionIds) || questionIds.length === 0) return;
@@ -67,10 +68,12 @@ const syncQuestionDeletionWithTests = async (questionIds) => {
 // @route   GET /api/questions
 exports.getQuestions = async (req, res, next) => {
   try {
-    const { search, subject, chapter, subChapter, difficulty, status, source, page = 1, limit = 20, sort = '-createdAt' } = req.query;
+    const { search, subject, topic, subTopic, chapter, subChapter, difficulty, status, source, page = 1, limit = 20, sort = '-createdAt' } = req.query;
     const filter = {};
     if (search) filter.questionText = { $regex: search, $options: 'i' };
     if (subject) filter.subject = subject;
+    if (topic) filter.topic = topic;
+    if (subTopic) filter.subTopic = subTopic;
     if (chapter) filter.chapter = chapter;
     if (subChapter) filter.subChapter = subChapter;
     if (difficulty) filter.difficulty = difficulty;
@@ -113,6 +116,7 @@ exports.createQuestion = async (req, res, next) => {
     if (Array.isArray(req.body)) {
       const docs = req.body.map(item => ({ ...item, createdBy: req.user._id }));
       const questions = await Question.insertMany(docs);
+      emitEvent('questions_updated', { action: 'bulk_create', count: questions.length });
       res.status(201).json({ success: true, count: questions.length, data: questions });
       return;
     }
@@ -122,6 +126,8 @@ exports.createQuestion = async (req, res, next) => {
     if (question.subject) await Subject.findByIdAndUpdate(question.subject, { $inc: { questionCount: 1 } });
     if (question.chapter) await Chapter.findByIdAndUpdate(question.chapter, { $inc: { questionCount: 1 } });
     if (question.subChapter) await SubChapter.findByIdAndUpdate(question.subChapter, { $inc: { questionCount: 1 } });
+
+    emitEvent('questions_updated', { action: 'create', data: question });
 
     res.status(201).json({ success: true, data: question });
   } catch (err) {
@@ -137,6 +143,9 @@ exports.updateQuestion = async (req, res, next) => {
       new: true, runValidators: true,
     });
     if (!q) return res.status(404).json({ success: false, message: 'Question not found' });
+    
+    emitEvent('questions_updated', { action: 'update', data: q });
+
     res.json({ success: true, data: q });
   } catch (err) {
     next(err);
@@ -156,6 +165,9 @@ exports.deleteQuestion = async (req, res, next) => {
 
     await syncQuestionDeletionWithTests([q._id]);
     await q.deleteOne();
+
+    emitEvent('questions_updated', { action: 'delete', id: req.params.id });
+
     res.json({ success: true, message: 'Question deleted' });
   } catch (err) {
     next(err);
@@ -179,6 +191,9 @@ exports.duplicateQuestion = async (req, res, next) => {
     copy.correctCount = 0;
 
     const newQ = await Question.create(copy);
+
+    emitEvent('questions_updated', { action: 'create', data: newQ });
+
     res.status(201).json({ success: true, data: newQ });
   } catch (err) {
     next(err);
@@ -194,6 +209,9 @@ exports.bulkDelete = async (req, res, next) => {
       await syncQuestionDeletionWithTests(ids);
       await Question.deleteMany({ _id: { $in: ids } });
     }
+
+    emitEvent('questions_updated', { action: 'bulk_delete', ids });
+
     res.json({ success: true, message: `${ids?.length || 0} questions deleted` });
   } catch (err) {
     next(err);

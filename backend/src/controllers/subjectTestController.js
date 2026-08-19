@@ -8,6 +8,7 @@ const SubjectTestConfig      = require('../models/SubjectTestConfig');
 const SubjectTestCategoryPurchase = require('../models/SubjectTestCategoryPurchase');
 const Question = require('../models/Question');
 const MockTest = require('../models/MockTest');
+const { emitEvent } = require('../utils/socket');
 
 const syncQuestionDeletionWithTests = async (questionIds) => {
   if (!Array.isArray(questionIds) || questionIds.length === 0) return;
@@ -238,37 +239,27 @@ const ensureTestQuestions = async (test) => {
     let mappedCount = await SubjectTestQuestionMap.countDocuments({ testId: test._id });
 
     if (mappedCount === 0) {
-      const orConditions = [];
-      if (test.topicId && mongoose.Types.ObjectId.isValid(test.topicId)) {
-        orConditions.push({ topicId: test.topicId });
-      }
-      if (test.subjectId) {
-        const sId = test.subjectId._id || test.subjectId;
-        if (mongoose.Types.ObjectId.isValid(sId)) {
-          orConditions.push({ subjectId: sId });
-        }
-      }
-      if (test.categoryId) {
-        const cId = test.categoryId._id || test.categoryId;
-        if (mongoose.Types.ObjectId.isValid(cId)) {
-          orConditions.push({ subjectId: cId });
-        }
-      }
+      const Question = require('../models/Question');
+      const sId = test.subjectId?._id || test.subjectId;
+      const topic = test.topicName || test.topicId?.name;
+      const subTopic = test.subTopic;
 
-      let bankQs = [];
-      if (orConditions.length > 0) {
-        bankQs = await SubjectTestQuestion.find({ status: { $ne: 'archived' }, $or: orConditions }).limit(50);
-      }
+      if (sId && mongoose.Types.ObjectId.isValid(sId)) {
+        const qFilter = { subject: sId, status: { $ne: 'archived' } };
+        if (topic) qFilter.topic = new RegExp(`^${topic.trim().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i');
+        if (subTopic && subTopic.trim()) qFilter.subTopic = new RegExp(`^${subTopic.trim().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i');
 
-      if (bankQs.length > 0) {
-        for (let i = 0; i < bankQs.length; i++) {
-          await SubjectTestQuestionMap.create({
-            testId: test._id,
-            questionId: bankQs[i]._id,
-            order: i + 1
-          });
+        const bankQs = await Question.find(qFilter).limit(50);
+        if (bankQs.length > 0) {
+          for (let i = 0; i < bankQs.length; i++) {
+            await SubjectTestQuestionMap.create({
+              testId: test._id,
+              questionId: bankQs[i]._id,
+              order: i + 1
+            });
+          }
+          mappedCount = bankQs.length;
         }
-        mappedCount = bankQs.length;
       }
     }
 
@@ -423,32 +414,36 @@ exports.createTest = async (req, res, next) => {
 
     const doc = await SubjectTest.create(data);
 
-    // Auto-import matching questions from Question Bank by Subject and Topic
+    // Auto-import matching questions from Question Bank by Subject, Topic AND Sub-Topic
     try {
       const Question = require('../models/Question');
       let matchingQs = [];
 
-      // 1. Try finding questions by subject AND topic name
-      if (subjectDoc._id && selectedTopic) {
+      const queryFilter = {
+        status: { $ne: 'archived' }
+      };
+      if (subjectDoc && subjectDoc._id) {
+        queryFilter.subject = subjectDoc._id;
+      }
+      if (selectedTopic) {
+        queryFilter.topic = new RegExp(`^${selectedTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+      }
+      if (data.subTopic && data.subTopic.trim()) {
+        queryFilter.subTopic = new RegExp(`^${data.subTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+      }
+
+      // Find questions strictly matching this Subject, Topic, and Sub-Topic
+      matchingQs = await Question.find(queryFilter).limit(50);
+
+      // Only if no subtopic was specified and exact topic didn't match, try section/topic regex
+      if (matchingQs.length === 0 && !data.subTopic && subjectDoc?._id && selectedTopic) {
         matchingQs = await Question.find({
           subject: subjectDoc._id,
+          status: { $ne: 'archived' },
           $or: [
-            { topic: new RegExp(selectedTopic.trim(), 'i') },
-            { section: new RegExp(selectedTopic.trim(), 'i') }
+            { topic: new RegExp(selectedTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
+            { section: new RegExp(selectedTopic.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
           ]
-        }).limit(50);
-      }
-
-      // 2. Fallback to all questions for this subject if no topic-specific questions found
-      if (matchingQs.length === 0 && subjectDoc._id) {
-        matchingQs = await Question.find({ subject: subjectDoc._id }).limit(50);
-      }
-
-      // 3. Fallback to SubjectTestQuestion model
-      if (matchingQs.length === 0 && subjectDoc._id) {
-        matchingQs = await SubjectTestQuestion.find({
-          subjectId: subjectDoc._id,
-          status: { $ne: 'archived' }
         }).limit(50);
       }
 
@@ -463,6 +458,10 @@ exports.createTest = async (req, res, next) => {
 
         doc.totalQuestions = matchingQs.length;
         doc.totalMarks = matchingQs.length * (doc.positiveMarks || 1);
+        await doc.save();
+      } else {
+        doc.totalQuestions = 0;
+        doc.totalMarks = 0;
         await doc.save();
       }
     } catch (importErr) {
@@ -484,6 +483,8 @@ exports.createTest = async (req, res, next) => {
         'When the timer reaches 00:00, the test will automatically submit.'
       ]
     });
+
+    emitEvent('subject_tests_updated', { action: 'create', data: doc });
 
     res.status(201).json({ success: true, data: doc });
   } catch (err) { next(err); }
@@ -543,6 +544,9 @@ exports.updateTest = async (req, res, next) => {
 
     const doc = await SubjectTest.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!doc) return res.status(404).json({ success: false, message: 'Test not found' });
+    
+    emitEvent('subject_tests_updated', { action: 'update', data: doc });
+
     res.json({ success: true, data: doc });
   } catch (err) { next(err); }
 };
@@ -563,6 +567,8 @@ exports.publishTest = async (req, res, next) => {
     test.totalMarks = mapCount * (test.positiveMarks || 1);
     await test.save();
 
+    emitEvent('subject_tests_updated', { action: 'publish', data: test });
+
     res.json({ success: true, message: `Test ${test.status} successfully`, data: test });
   } catch (err) { next(err); }
 };
@@ -570,6 +576,9 @@ exports.publishTest = async (req, res, next) => {
 exports.deleteTest = async (req, res, next) => {
   try {
     const doc = await SubjectTest.findByIdAndUpdate(req.params.id, { status: 'archived' }, { new: true });
+    
+    emitEvent('subject_tests_updated', { action: 'delete', id: req.params.id });
+
     res.json({ success: true, message: 'Test archived successfully', data: doc });
   } catch (err) { next(err); }
 };
@@ -592,7 +601,7 @@ exports.updateInstruction = async (req, res, next) => {
 /* ── Question Bank CRUD ─────────────────────────────────────────────────────── */
 exports.getQuestions = async (req, res, next) => {
   try {
-    const { subjectId, topicId, topic, difficulty, search, status } = req.query;
+    const { subjectId, topicId, topic, subTopic, difficulty, search, status } = req.query;
     
     // Filter for SubjectTestQuestion model
     const filterSTQ = { status: status || { $ne: 'archived' } };
@@ -605,6 +614,7 @@ exports.getQuestions = async (req, res, next) => {
     const filterQ = { status: status || { $ne: 'archived' } };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) filterQ.subject = subjectId;
     if (topic) filterQ.topic = new RegExp(`^${topic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    if (subTopic) filterQ.subTopic = new RegExp(`^${subTopic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
     if (difficulty) filterQ.difficulty = difficulty.toLowerCase();
     if (search) filterQ.questionText = { $regex: search, $options: 'i' };
 
@@ -623,6 +633,7 @@ exports.getQuestions = async (req, res, next) => {
       subjectId: q.subjectId?._id || q.subjectId,
       subjectName: q.subjectId?.name || '',
       topicName: q.topicId?.name || q.topicName || '',
+      subTopic: '',
       sourceModel: 'SubjectTestQuestion'
     }));
 
@@ -636,6 +647,7 @@ exports.getQuestions = async (req, res, next) => {
       subjectId: q.subject?._id || q.subject,
       subjectName: q.subject?.name || '',
       topicName: q.topic || '',
+      subTopic: q.subTopic || '',
       sourceModel: 'Question'
     }));
 
@@ -773,6 +785,8 @@ exports.autoSelectQuestions = async (req, res, next) => {
     test.totalMarks = totalCount * (test.positiveMarks || 1);
     await test.save();
 
+    emitEvent('subject_tests_updated', { action: 'questions_mapped', testId });
+
     res.json({ success: true, message: `Auto-selected ${added} questions`, totalQuestions: totalCount });
   } catch (err) { next(err); }
 };
@@ -792,6 +806,8 @@ exports.removeQuestionFromTest = async (req, res, next) => {
       test.totalMarks = totalCount * (test.positiveMarks || 1);
       await test.save();
     }
+
+    emitEvent('subject_tests_updated', { action: 'questions_mapped', testId });
 
     res.json({ success: true, message: 'Question removed from test', totalQuestions: totalCount });
   } catch (err) { next(err); }

@@ -226,7 +226,14 @@ export default function ExamInstructionPage() {
 
           {/* Instructions List */}
           <div style={{ marginBottom: 24 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 900, color: '#0f172a' }}>General Instructions:</h4>
+            <h4 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+              {instruction.title || 'General Examination Instructions:'}
+            </h4>
+            {instruction.summary && (
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#64748b', fontWeight: 500 }}>
+                {instruction.summary}
+              </p>
+            )}
             <ul style={{ margin: 0, paddingLeft: 20, color: '#334155', fontSize: 13.5, lineHeight: 1.7 }}>
               {instruction.instructions?.map((rule, idx) => (
                 <li key={idx} style={{ marginBottom: 6 }}>{rule}</li>
@@ -257,7 +264,9 @@ export default function ExamInstructionPage() {
                   onChange={e => setAgree(e.target.checked)}
                   style={{ width: 18, height: 18, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer' }}
                 />
-                <span>I have read all the instructions carefully.</span>
+                <span>
+                  {instruction.agreementText || 'I have read and understood all the instructions carefully. All computer hardware allotted to me are in proper working condition. I agree to follow all examination instructions and rules.'}
+                </span>
               </label>
             </div>
           )}

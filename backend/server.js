@@ -125,9 +125,11 @@ app.use('/api/notifications',        notificationRoutes);
 app.use('/api/reports',              reportRoutes);
 app.use('/api/settings',             settingRoutes);
 const subjectTestRoutes = require('./src/routes/subjectTests');
+const instructionRoutes = require('./src/routes/instructions');
 const seedSubjectTests  = require('./src/utils/subjectTestSeed');
 
 app.use('/api/subject-tests', subjectTestRoutes);
+app.use('/api/instructions', instructionRoutes);
 
 // Trigger initial seed check
 seedSubjectTests();
