@@ -458,6 +458,9 @@ exports.createTest = async (req, res, next) => {
 
         doc.totalQuestions = matchingQs.length;
         doc.totalMarks = matchingQs.length * (doc.positiveMarks || 1);
+        if (!doc.safeScore && matchingQs[0]?.safeScore) {
+          doc.safeScore = matchingQs[0].safeScore;
+        }
         await doc.save();
       } else {
         doc.totalQuestions = 0;

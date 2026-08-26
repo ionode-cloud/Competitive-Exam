@@ -27,6 +27,7 @@ const mockTestSchema = new mongoose.Schema({
   completedQuestions: { type: Number, default: 0 },
   duration: { type: Number, required: true, default: 60 }, // minutes
   totalMarks: { type: Number, default: 100 },
+  safeScore: { type: Number, default: 0 },
   negativeMarking: { type: Number, default: 0.25 },
   pricingType: { type: String, enum: ['free', 'paid'], default: 'free' },
   price: { type: Number, default: 0 },

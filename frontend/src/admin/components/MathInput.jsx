@@ -1,85 +1,86 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 /**
- * Parses text containing <b>, <u>, <i>, <strong>, <em>, <br>, \n, **bold**, and __underline__
- * into safe React elements with native bold & underline styling.
+ * Parses rich text / HTML / math into safe React elements.
+ * Handles <b>, <u>, <i>, <strong>, <em>, <s>, <sub>, <sup>, <br>, inline styles,
+ * while safely preserving underscores (_ , _), blanks (_____), math inequalities, and unicode symbols.
  */
 export function parseFormattedText(text) {
   if (!text || typeof text !== 'string') return text;
 
-  // Normalize HTML entities and markdown syntax
-  const processed = text
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
-    .replace(/__([^_]+)__/g, '<u>$1</u>');
+  // Pre-process markdown **bold** if present (without touching underscores)
+  let processed = text.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 
-  // Tokenize by any HTML tag <...> or newline
-  const tagRegex = /(<[^>]+>|\n)/gi;
-  const parts = processed.split(tagRegex);
+  if (typeof window !== 'undefined' && typeof window.DOMParser !== 'undefined') {
+    try {
+      // Replace raw newlines with <br>
+      processed = processed.replace(/\r\n|\r|\n/g, '<br>');
 
-  let isBold = false;
-  let isUnderline = false;
-  let isItalic = false;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(processed, 'text/html');
 
-  const elements = [];
+      const renderNode = (node, key) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return node.textContent;
+        }
 
-  parts.forEach((part, idx) => {
-    if (!part) return;
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return null;
+        }
 
-    if (part.startsWith('<') && part.endsWith('>')) {
-      const lower = part.toLowerCase().trim();
-      if (lower.startsWith('<b') || lower.startsWith('<strong')) {
-        isBold = true;
-      } else if (lower.startsWith('</b') || lower.startsWith('</strong')) {
-        isBold = false;
-      } else if (lower.startsWith('<u')) {
-        isUnderline = true;
-      } else if (lower.startsWith('</u')) {
-        isUnderline = false;
-      } else if (lower.startsWith('<i') || lower.startsWith('<em')) {
-        isItalic = true;
-      } else if (lower.startsWith('</i') || lower.startsWith('</em')) {
-        isItalic = false;
-      } else if (lower.startsWith('<br')) {
-        elements.push(<br key={`br-${idx}`} />);
-      } else if (lower.includes('bold') || lower.includes('700') || lower.includes('800')) {
-        isBold = true;
-      } else if (lower.includes('underline')) {
-        isUnderline = true;
-      } else if (lower.includes('italic')) {
-        isItalic = true;
-      }
-      // Any other tag is consumed without printing raw code
-      return;
-    }
+        const tagName = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map((child, idx) =>
+          renderNode(child, `${key}-${idx}`)
+        );
 
-    if (part === '\n') {
-      elements.push(<br key={`br-${idx}`} />);
-      return;
-    }
+        if (tagName === 'br') {
+          return <br key={key} />;
+        }
 
-    const style = {};
-    if (isBold) style.fontWeight = 'bold';
-    if (isUnderline) style.textDecoration = 'underline';
-    if (isItalic) style.fontStyle = 'italic';
+        const style = {};
+        if (node.style) {
+          if (node.style.fontWeight) style.fontWeight = node.style.fontWeight;
+          if (node.style.textDecoration) style.textDecoration = node.style.textDecoration;
+          if (node.style.fontStyle) style.fontStyle = node.style.fontStyle;
+          if (node.style.color) style.color = node.style.color;
+        }
 
-    if (isBold || isUnderline || isItalic) {
-      elements.push(
-        <span key={`f-${idx}`} style={style}>
-          {part}
-        </span>
+        if (tagName === 'b' || tagName === 'strong') {
+          style.fontWeight = 'bold';
+        } else if (tagName === 'u') {
+          style.textDecoration = 'underline';
+        } else if (tagName === 'i' || tagName === 'em') {
+          style.fontStyle = 'italic';
+        } else if (tagName === 's' || tagName === 'strike' || tagName === 'del') {
+          style.textDecoration = 'line-through';
+        } else if (tagName === 'sup') {
+          return <sup key={key} style={style}>{children}</sup>;
+        } else if (tagName === 'sub') {
+          return <sub key={key} style={style}>{children}</sub>;
+        }
+
+        if (Object.keys(style).length > 0) {
+          return (
+            <span key={key} style={style}>
+              {children}
+            </span>
+          );
+        }
+
+        return <span key={key}>{children}</span>;
+      };
+
+      const result = Array.from(doc.body.childNodes).map((node, idx) =>
+        renderNode(node, `root-${idx}`)
       );
-    } else {
-      elements.push(part);
-    }
-  });
 
-  return elements;
+      return result.length > 0 ? result : text;
+    } catch {
+      return text;
+    }
+  }
+
+  return text;
 }
 
 /**

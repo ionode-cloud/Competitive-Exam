@@ -137,7 +137,9 @@ export default function SubjectTestResultPage() {
   const displayScore = Math.max(0, trueScore);
   const attemptedCount = trueCorrectCount + trueIncorrectCount;
   const unseenCount = Math.max(0, totalQs - (attemptedCount + trueSkippedCount));
-  const safeScore = Math.max(1, Math.round((result.totalMarks || totalQs || 1) * 0.5));
+  const safeScore = (result.safeScore !== undefined && result.safeScore !== null && Number(result.safeScore) > 0)
+    ? Number(result.safeScore)
+    : Math.max(1, Math.round((result.totalMarks || totalQs || 1) * 0.5));
   const isSafe = displayScore >= safeScore;
 
   // Retrieve logged-in student name

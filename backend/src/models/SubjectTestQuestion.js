@@ -16,6 +16,7 @@ const subjectTestQuestionSchema = new mongoose.Schema({
   correctAnswer: { type: String, required: [true, 'Correct answer option ID is required'] },
   defaultMarks: { type: Number, default: 1 },
   defaultNegativeMarks: { type: Number, default: 0.25 },
+  safeScore: { type: Number, default: 0 },
   explanation: { type: String, default: '' },
   explanationImage: { type: String, default: '' },
   difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Medium' },

@@ -54,6 +54,7 @@ export default function QuestionBank() {
     subTopic: '',
     section: 'General',
     totalMarks: 50,
+    safeScore: 25,
     marks: 1,
     negativeMarks: 0.25,
     difficulty: 'moderate',
@@ -159,6 +160,7 @@ export default function QuestionBank() {
       subTopic: initialSubTopic,
       section: 'General',
       totalMarks: 50,
+      safeScore: 25,
       marks: 1,
       negativeMarks: 0.25,
       difficulty: 'moderate',
@@ -178,6 +180,7 @@ export default function QuestionBank() {
       subTopic: q.subTopic || '',
       section: q.section || 'General',
       totalMarks: 50,
+      safeScore: q.safeScore !== undefined && q.safeScore !== null ? q.safeScore : 25,
       marks: qMark,
       negativeMarks: q.negativeMarks || 0.25,
       difficulty: q.difficulty || 'moderate',
@@ -430,7 +433,20 @@ export default function QuestionBank() {
         </span>
       )
     },
-    { key: 'marks', label: 'Marks', render: r => <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">+{r.marks} / -{r.negativeMarks}</span> },
+    {
+      key: 'marks',
+      label: 'Marks',
+      render: r => (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">+{r.marks} / -{r.negativeMarks}</span>
+          {r.safeScore > 0 && (
+            <span className="text-[10.5px] font-semibold text-amber-600 dark:text-amber-400">
+              Safe: {r.safeScore}
+            </span>
+          )}
+        </div>
+      )
+    },
     {
       key: 'actions', label: 'Actions', render: r => (
         <div className="flex items-center gap-1.5">
@@ -761,7 +777,7 @@ export default function QuestionBank() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3.5">
             <div>
               <label className="admin-label text-xs font-bold">Subject *</label>
               <select
@@ -834,6 +850,22 @@ export default function QuestionBank() {
                 className="admin-input font-bold text-blue-700 dark:text-blue-400"
                 placeholder="e.g. 50"
                 required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label text-xs font-bold text-amber-600 dark:text-amber-400">Safe Score Range</label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                value={topMeta.safeScore !== undefined ? topMeta.safeScore : 25}
+                onChange={e => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  setTopMeta(m => ({ ...m, safeScore: val }));
+                }}
+                className="admin-input font-bold text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700/60"
+                placeholder="e.g. 25"
               />
             </div>
 

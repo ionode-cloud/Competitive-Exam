@@ -1000,7 +1000,7 @@ exports.getExamAttemptResult = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized access to result' });
     }
 
-    let test = await SubjectTest.findById(attempt.testId).select('title positiveMarks negativeMarks');
+    let test = await SubjectTest.findById(attempt.testId).select('title positiveMarks negativeMarks safeScore totalMarks');
     if (!test) {
       const MockTest = require('../models/MockTest');
       const mockTest = await MockTest.findById(attempt.testId);
@@ -1008,7 +1008,9 @@ exports.getExamAttemptResult = async (req, res, next) => {
         test = {
           title: mockTest.name || mockTest.title,
           positiveMarks: mockTest.positiveMarks || 1,
-          negativeMarks: mockTest.negativeMarks || 0.25
+          negativeMarks: mockTest.negativeMarks || 0.25,
+          safeScore: mockTest.safeScore || 0,
+          totalMarks: mockTest.totalMarks || 0,
         };
       }
     }
@@ -1123,6 +1125,22 @@ exports.getExamAttemptResult = async (req, res, next) => {
       ? parseFloat(((betterThanCount / (totalTakers - 1)) * 100).toFixed(1)) 
       : 100;
 
+    // Determine configured Safe Score:
+    // 1. From test.safeScore if defined and > 0
+    // 2. From questions safeScore if set
+    // 3. Fallback to 50% of total marks
+    let resolvedSafeScore = 0;
+    if (test && typeof test.safeScore === 'number' && test.safeScore > 0) {
+      resolvedSafeScore = test.safeScore;
+    } else {
+      const qWithSafeScore = questionsList.find(q => q && typeof q.safeScore === 'number' && q.safeScore > 0);
+      if (qWithSafeScore) {
+        resolvedSafeScore = qWithSafeScore.safeScore;
+      } else {
+        resolvedSafeScore = Math.max(1, Math.round((totalMaxMarks || totalQs || 1) * 0.5));
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -1132,6 +1150,7 @@ exports.getExamAttemptResult = async (req, res, next) => {
         status: attempt.status,
         score: attempt.score,
         totalMarks: totalMaxMarks,
+        safeScore: resolvedSafeScore,
         percentage: attempt.percentage,
         accuracy: attempt.accuracy,
         rank,

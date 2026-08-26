@@ -29,6 +29,7 @@ const questionSchema = new mongoose.Schema({
   difficulty: { type: String, enum: ['easy', 'moderate', 'difficult'], default: 'moderate' },
   marks: { type: Number, default: 1 },
   negativeMarks: { type: Number, default: 0.25 },
+  safeScore: { type: Number, default: 0 },
   section: { type: String, default: 'General' },
   tags: [{ type: String }],
   // Status

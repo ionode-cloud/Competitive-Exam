@@ -17,6 +17,7 @@ const subjectTestSchema = new mongoose.Schema({
   price: { type: Number, default: 49 },
   totalQuestions: { type: Number, default: 0 },
   totalMarks: { type: Number, default: 0 },
+  safeScore: { type: Number, default: 0 },
   duration: { type: Number, default: 25 }, // in minutes
   positiveMarks: { type: Number, default: 1 },
   negativeMarks: { type: Number, default: 0.25 },
