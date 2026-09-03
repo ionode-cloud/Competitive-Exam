@@ -83,35 +83,71 @@ export default function SubjectTestResultPage() {
     );
   }
 
-  // Helper to match option against user choice or correct answer
-  const checkOptMatch = (opt, val, oIdx) => {
-    if (!val) return false;
+  const getOptLetter = (oIdx) => String.fromCharCode(65 + oIdx);
+
+  // Helper to reliably find the EXACT single option index matching a value (letter, ID, index, or text)
+  const getOptionIndex = (options, val) => {
+    if (val === undefined || val === null || val === '') return -1;
+    if (!Array.isArray(options) || options.length === 0) return -1;
+
     const vStr = String(val).trim().toLowerCase();
-    const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
-    const valIdx = letterMap[vStr];
+    const letterMap = {
+      'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5,
+      'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3, 'option_e': 4, 'option_f': 5
+    };
 
-    const optId = String(opt.id || '').trim().toLowerCase();
-    const optLabel = String(opt.label || String.fromCharCode(65 + oIdx)).trim().toLowerCase();
-    const optText = String(opt.text || '').trim().toLowerCase();
+    // 1. If val is an option letter / key ('A', 'B', 'C', 'D', 'option_a', etc.) -> highest priority
+    if (letterMap[vStr] !== undefined) {
+      const lIdx = letterMap[vStr];
+      if (lIdx >= 0 && lIdx < options.length) {
+        return lIdx;
+      }
+    }
 
-    return (
-      optId === vStr ||
-      optLabel === vStr ||
-      String.fromCharCode(65 + oIdx).toLowerCase() === vStr ||
-      (valIdx !== undefined && oIdx === valIdx) ||
-      (optText !== '' && optText === vStr)
-    );
+    // 2. Direct ID or _id match
+    const idIdx = options.findIndex(opt => {
+      const optId = String(opt?.id || opt?._id || '').trim().toLowerCase();
+      return optId !== '' && optId === vStr;
+    });
+    if (idIdx !== -1) return idIdx;
+
+    // 3. Option label match (opt.label e.g. 'A', 'B', 'C', 'D')
+    const labelIdx = options.findIndex((opt, idx) => {
+      const optLabel = String(opt?.label || getOptLetter(idx)).trim().toLowerCase();
+      return optLabel !== '' && optLabel === vStr;
+    });
+    if (labelIdx !== -1) return labelIdx;
+
+    // 4. Numeric index match (e.g. '0', '1', '2', '3')
+    if (/^\d+$/.test(vStr)) {
+      const num = parseInt(vStr, 10);
+      if (num >= 0 && num < options.length) return num;
+      if (num >= 1 && num <= options.length) return num - 1;
+    }
+
+    // 5. Option text match (fallback only if val did NOT match any letter/key/id)
+    const textIdx = options.findIndex(opt => {
+      const optText = String(opt?.text || '').trim().toLowerCase();
+      return optText !== '' && optText === vStr;
+    });
+    if (textIdx !== -1) return textIdx;
+
+    return -1;
   };
 
   const isQuestionCorrect = (q) => {
     if (!q) return false;
-    if (q.isCorrect === true) return true;
+    if (typeof q.isCorrect === 'boolean') return q.isCorrect;
     if (!q.userAnswer || !q.correctAnswer || !Array.isArray(q.options)) return false;
-    return q.options.some((opt, oIdx) => checkOptMatch(opt, q.userAnswer, oIdx) && checkOptMatch(opt, q.correctAnswer, oIdx));
+    const uIdx = getOptionIndex(q.options, q.userAnswer);
+    const cIdx = getOptionIndex(q.options, q.correctAnswer);
+    return uIdx !== -1 && cIdx !== -1 && uIdx === cIdx;
   };
 
   const isQuestionSkipped = (q) => {
-    return !q || !q.userAnswer;
+    if (!q) return true;
+    if (typeof q.isSkipped === 'boolean') return q.isSkipped;
+    return !q.userAnswer;
   };
 
   // Derive 100% accurate metrics from solution records
@@ -335,28 +371,9 @@ export default function SubjectTestResultPage() {
 
             <div style={{ display: 'grid', gap: 20 }}>
               {result.solutions.map((q, idx) => {
-                const getOptLetter = (oIdx) => String.fromCharCode(65 + oIdx);
-
-                const checkOptMatch = (opt, val, oIdx) => {
-                  if (!val) return false;
-                  const vStr = String(val).trim().toLowerCase();
-                  const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
-                  const valIdx = letterMap[vStr];
-
-                  const optId = String(opt.id || '').trim().toLowerCase();
-                  const optLabel = String(opt.label || getOptLetter(oIdx)).trim().toLowerCase();
-                  const optText = String(opt.text || '').trim().toLowerCase();
-
-                  return (
-                    optId === vStr ||
-                    optLabel === vStr ||
-                    getOptLetter(oIdx).toLowerCase() === vStr ||
-                    (valIdx !== undefined && oIdx === valIdx) ||
-                    (optText !== '' && optText === vStr)
-                  );
-                };
-
-                const correctOpt = q.options?.find((o, oIdx) => checkOptMatch(o, q.correctAnswer, oIdx));
+                const correctOptIndex = getOptionIndex(q.options, q.correctAnswer);
+                const userOptIndex = getOptionIndex(q.options, q.userAnswer);
+                const correctOpt = (correctOptIndex !== -1 && Array.isArray(q.options)) ? q.options[correctOptIndex] : null;
 
                 const qCorrect = isQuestionCorrect(q);
                 const qSkipped = isQuestionSkipped(q);
@@ -390,8 +407,8 @@ export default function SubjectTestResultPage() {
                     {/* Options List with Color Highlights */}
                     <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
                       {q.options?.map((opt, oIdx) => {
-                        const isUserChoice = checkOptMatch(opt, q.userAnswer, oIdx);
-                        const isCorrectChoice = checkOptMatch(opt, q.correctAnswer, oIdx);
+                        const isUserChoice = (userOptIndex !== -1 && oIdx === userOptIndex);
+                        const isCorrectChoice = (correctOptIndex !== -1 && oIdx === correctOptIndex);
 
                         let border = '#e2e8f0';
                         let bg = '#fff';
@@ -436,7 +453,7 @@ export default function SubjectTestResultPage() {
                     {/* Correct Answer & Explanation Footer */}
                     <div style={{ background: '#fff', borderRadius: 10, border: '1.5px solid #e2e8f0', padding: 16, fontSize: 13, color: '#334155', lineHeight: 1.6, boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
                       <div style={{ marginBottom: 10, fontWeight: 800, color: '#16a34a', fontSize: 13.5 }}>
-                        Correct Answer: <span style={{ color: '#15803d' }}><MathRenderer text={correctOpt ? correctOpt.text : q.correctAnswer} /></span>
+                        Correct Answer: <span style={{ color: '#15803d' }}><MathRenderer text={correctOpt ? (correctOpt.text || correctOpt.label || getOptLetter(correctOptIndex)) : q.correctAnswer} /></span>
                       </div>
                       
                       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
