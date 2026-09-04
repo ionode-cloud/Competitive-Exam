@@ -85,7 +85,9 @@ export default function SubjectTestResultPage() {
 
   const getOptLetter = (oIdx) => String.fromCharCode(65 + oIdx);
 
-  // Helper to reliably find the EXACT single option index matching a value (letter, ID, index, or text)
+  const stripHtml = (s) => String(s || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim().toLowerCase();
+
+  // Helper to reliably find the EXACT single option index matching a value (letter, ID, _id, index, or text)
   const getOptionIndex = (options, val) => {
     if (val === undefined || val === null || val === '') return -1;
     if (!Array.isArray(options) || options.length === 0) return -1;
@@ -93,7 +95,10 @@ export default function SubjectTestResultPage() {
     const vStr = String(val).trim().toLowerCase();
     const letterMap = {
       'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5,
-      'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3, 'option_e': 4, 'option_f': 5
+      'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3, 'option_e': 4, 'option_f': 5,
+      'option a': 0, 'option b': 1, 'option c': 2, 'option d': 3, 'option e': 4, 'option f': 5,
+      'ans: a': 0, 'ans: b': 1, 'ans: c': 2, 'ans: d': 3,
+      'ans: option a': 0, 'ans: option b': 1, 'ans: option c': 2, 'ans: option d': 3,
     };
 
     // 1. If val is an option letter / key ('A', 'B', 'C', 'D', 'option_a', etc.) -> highest priority
@@ -106,8 +111,9 @@ export default function SubjectTestResultPage() {
 
     // 2. Direct ID or _id match
     const idIdx = options.findIndex(opt => {
-      const optId = String(opt?.id || opt?._id || '').trim().toLowerCase();
-      return optId !== '' && optId === vStr;
+      const optId = String(opt?.id || '').trim().toLowerCase();
+      const optUnderId = String(opt?._id || '').trim().toLowerCase();
+      return (optId !== '' && optId === vStr) || (optUnderId !== '' && optUnderId === vStr);
     });
     if (idIdx !== -1) return idIdx;
 
@@ -118,17 +124,19 @@ export default function SubjectTestResultPage() {
     });
     if (labelIdx !== -1) return labelIdx;
 
-    // 4. Numeric index match (e.g. '0', '1', '2', '3')
+    // 4. Strict numeric index match (e.g. '0', '1', '2', '3' - purely digits)
     if (/^\d+$/.test(vStr)) {
       const num = parseInt(vStr, 10);
       if (num >= 0 && num < options.length) return num;
       if (num >= 1 && num <= options.length) return num - 1;
     }
 
-    // 5. Option text match (fallback only if val did NOT match any letter/key/id)
+    // 5. Option text match (both raw and HTML-stripped)
+    const vClean = stripHtml(vStr);
     const textIdx = options.findIndex(opt => {
-      const optText = String(opt?.text || '').trim().toLowerCase();
-      return optText !== '' && optText === vStr;
+      const rawText = String(opt?.text || '').trim().toLowerCase();
+      const cleanText = stripHtml(opt?.text);
+      return (rawText !== '' && rawText === vStr) || (cleanText !== '' && cleanText === vClean);
     });
     if (textIdx !== -1) return textIdx;
 
@@ -137,11 +145,16 @@ export default function SubjectTestResultPage() {
 
   const isQuestionCorrect = (q) => {
     if (!q) return false;
+    if (!q.userAnswer || isQuestionSkipped(q)) return false;
+    if (Array.isArray(q.options) && q.options.length > 0) {
+      const uIdx = getOptionIndex(q.options, q.userAnswer);
+      const cIdx = getOptionIndex(q.options, q.correctAnswer);
+      if (uIdx !== -1 && cIdx !== -1) {
+        return uIdx === cIdx;
+      }
+    }
     if (typeof q.isCorrect === 'boolean') return q.isCorrect;
-    if (!q.userAnswer || !q.correctAnswer || !Array.isArray(q.options)) return false;
-    const uIdx = getOptionIndex(q.options, q.userAnswer);
-    const cIdx = getOptionIndex(q.options, q.correctAnswer);
-    return uIdx !== -1 && cIdx !== -1 && uIdx === cIdx;
+    return false;
   };
 
   const isQuestionSkipped = (q) => {

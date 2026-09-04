@@ -300,7 +300,14 @@ export default function SubjectTestExamPage() {
                 const optionLetter = opt.label || String.fromCharCode(65 + oIdx);
                 const optValue = opt.id || opt.label || optionLetter;
                 const userSelected = answers[currentQ._id];
-                const isSelected = userSelected === optValue || userSelected === optionLetter || (opt.id && userSelected === opt.id);
+                const isSelected = Boolean(
+                  userSelected && (
+                    userSelected === optValue ||
+                    userSelected === optionLetter ||
+                    (opt.id && userSelected === opt.id) ||
+                    (opt._id && userSelected === opt._id)
+                  )
+                );
                 return (
                   <div
                     key={optValue || oIdx}

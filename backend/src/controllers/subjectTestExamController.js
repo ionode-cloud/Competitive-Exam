@@ -609,12 +609,20 @@ exports.startExamAttempt = async (req, res, next) => {
     });
 
     // 4. Normalize and prepare Exam-Safe Questions List (NO correctAnswer, NO explanation)
+    // 4. Normalize and prepare Exam-Safe Questions List (NO correctAnswer, NO explanation)
     // Options may come from either SubjectTestQuestion (uses o.id) or Question (uses o.label)
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
-      return rawOpts.map(o => {
-        const optId = o.id || o.label || '';   // SubjectTestQuestion: o.id  |  Question: o.label
-        return { id: optId, text: o.text || '', image: o.image || '' };
+      return rawOpts.map((o, idx) => {
+        const optLabel = o.label || (typeof o.id === 'string' && /^[A-Fa-f]$/.test(o.id) ? o.id.toUpperCase() : String.fromCharCode(65 + idx));
+        const optId = o.id || (o._id ? o._id.toString() : optLabel);
+        return {
+          id: optId,
+          _id: o._id ? o._id.toString() : optId,
+          label: optLabel,
+          text: o.text || '',
+          image: o.image || ''
+        };
       });
     };
 
@@ -702,9 +710,15 @@ exports.getExamAttempt = async (req, res, next) => {
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
       return rawOpts.map((o, idx) => {
-        const optLabel = o.label || String.fromCharCode(65 + idx);
-        const optId = o.id || o._id || optLabel;
-        return { id: optId, label: optLabel, text: o.text || '', image: o.image || '' };
+        const optLabel = o.label || (typeof o.id === 'string' && /^[A-Fa-f]$/.test(o.id) ? o.id.toUpperCase() : String.fromCharCode(65 + idx));
+        const optId = o.id || (o._id ? o._id.toString() : optLabel);
+        return {
+          id: optId,
+          _id: o._id ? o._id.toString() : optId,
+          label: optLabel,
+          text: o.text || '',
+          image: o.image || ''
+        };
       });
     };
 
@@ -774,6 +788,8 @@ exports.saveAnswer = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const stripHtmlText = (s) => String(s || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim().toLowerCase();
+
 const checkAnswerMatch = (userAns, q) => {
   if (userAns === undefined || userAns === null || userAns === '' || !q || !q.correctAnswer) return false;
 
@@ -783,30 +799,63 @@ const checkAnswerMatch = (userAns, q) => {
   // 1. Direct match
   if (uStr === cStr) return true;
 
-  const letterMap = { 'a': 0, 'b': 1, 'c': 2, 'd': 3, 'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3 };
+  const letterMap = {
+    'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5,
+    'option_a': 0, 'option_b': 1, 'option_c': 2, 'option_d': 3, 'option_e': 4, 'option_f': 5,
+    'option a': 0, 'option b': 1, 'option c': 2, 'option d': 3, 'option e': 4, 'option f': 5,
+    'ans: a': 0, 'ans: b': 1, 'ans: c': 2, 'ans: d': 3,
+    'ans: option a': 0, 'ans: option b': 1, 'ans: option c': 2, 'ans: option d': 3,
+  };
 
-  // Helper to find option index for any value (ID, label, index, text)
+  // Helper to reliably find option index (0..N-1) for any identifier (ID, _id, label, letter, strict index, text)
   const findOptionIndex = (valStr) => {
     if (!valStr) return -1;
-    let idxFromLetter = letterMap[valStr];
-    if (idxFromLetter !== undefined) return idxFromLetter;
+    const vStr = String(valStr).trim().toLowerCase();
 
-    if (!isNaN(parseInt(valStr, 10)) && parseInt(valStr, 10) >= 0 && parseInt(valStr, 10) < 10) {
-      return parseInt(valStr, 10);
+    // 1. Exact letter / key match (A, B, C, D, option_a, etc.)
+    if (letterMap[vStr] !== undefined) {
+      const idx = letterMap[vStr];
+      if (Array.isArray(q.options) && q.options.length > 0) {
+        if (idx < q.options.length) return idx;
+      } else {
+        return idx;
+      }
     }
 
+    // 2. Direct ID, _id, or option label match
     if (Array.isArray(q.options) && q.options.length > 0) {
       const foundIdx = q.options.findIndex((opt, idx) => {
-        const optId = String(opt.id || opt._id || '').trim().toLowerCase();
+        const optId = String(opt.id || '').trim().toLowerCase();
+        const optUnderId = String(opt._id || '').trim().toLowerCase();
         const optLabel = String(opt.label || String.fromCharCode(65 + idx)).trim().toLowerCase();
-        const optText = String(opt.text || '').trim().toLowerCase();
         return (
-          optId === valStr ||
-          optLabel === valStr ||
-          (optText !== '' && optText === valStr)
+          (optId !== '' && optId === vStr) ||
+          (optUnderId !== '' && optUnderId === vStr) ||
+          (optLabel !== '' && optLabel === vStr)
         );
       });
       if (foundIdx !== -1) return foundIdx;
+    }
+
+    // 3. Strict integer index match ONLY (must be purely numeric digits, not an ObjectId with leading numbers!)
+    if (/^\d+$/.test(vStr) && Array.isArray(q.options) && q.options.length > 0) {
+      const num = parseInt(vStr, 10);
+      if (num >= 0 && num < q.options.length) return num;
+      if (num >= 1 && num <= q.options.length) return num - 1;
+    }
+
+    // 4. Option text match (both raw and HTML-stripped)
+    if (Array.isArray(q.options) && q.options.length > 0) {
+      const vClean = stripHtmlText(vStr);
+      const foundTextIdx = q.options.findIndex((opt) => {
+        const rawText = String(opt.text || '').trim().toLowerCase();
+        const cleanText = stripHtmlText(opt.text);
+        return (
+          (rawText !== '' && rawText === vStr) ||
+          (cleanText !== '' && cleanText === vClean)
+        );
+      });
+      if (foundTextIdx !== -1) return foundTextIdx;
     }
 
     return -1;
@@ -1033,9 +1082,15 @@ exports.getExamAttemptResult = async (req, res, next) => {
     const normalizeOptions = (rawOpts) => {
       if (!Array.isArray(rawOpts)) return [];
       return rawOpts.map((o, idx) => {
-        const optLabel = o.label || String.fromCharCode(65 + idx);
-        const optId = o.id || o._id || optLabel;
-        return { id: optId, label: optLabel, text: o.text || '', image: o.image || '' };
+        const optLabel = o.label || (typeof o.id === 'string' && /^[A-Fa-f]$/.test(o.id) ? o.id.toUpperCase() : String.fromCharCode(65 + idx));
+        const optId = o.id || (o._id ? o._id.toString() : optLabel);
+        return {
+          id: optId,
+          _id: o._id ? o._id.toString() : optId,
+          label: optLabel,
+          text: o.text || '',
+          image: o.image || ''
+        };
       });
     };
 
